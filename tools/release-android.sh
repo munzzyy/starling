@@ -58,5 +58,9 @@ jarsigner -verify "$AAB_OUT" >/dev/null && echo "aab signature verifies"
 
 unset KSPW
 
+# Stable-name copy so the landing page and Obtainium can point at
+# releases/latest/download/starling.apk across versions.
+cp "$APK_OUT" dist/starling.apk
+
 echo "== artifacts =="
-sha256sum "$APK_OUT" "$AAB_OUT"
+sha256sum "$APK_OUT" "$AAB_OUT" dist/starling.apk

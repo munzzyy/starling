@@ -9,12 +9,38 @@
      intersection of both policies, so the site keeps its strict posture. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https:; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="theme-color" content="#0a0d14">
-<meta name="description" content="Private, end to end encrypted location sharing for your circle. No accounts, no tracking.">
+<meta name="description" content="Private, end to end encrypted location sharing for your circle. No accounts, no tracking. Free Android app and web app by Munzzyy.">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Starling">
-<title>Starling</title>
+<link rel="canonical" href="https://starlingmap.app/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Starling">
+<meta property="og:title" content="Starling: private location sharing">
+<meta property="og:description" content="End to end encrypted location sharing for your circle. No accounts, no tracking. Android app and web app.">
+<meta property="og:url" content="https://starlingmap.app/">
+<meta property="og:image" content="https://starlingmap.app/icons/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Starling: private location sharing">
+<meta name="twitter:description" content="End to end encrypted location sharing for your circle. No accounts, no tracking.">
+<meta name="twitter:image" content="https://starlingmap.app/icons/og.png">
+<title>Starling: private location sharing</title>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Starling",
+  "operatingSystem": "Android, Web",
+  "applicationCategory": "UtilitiesApplication",
+  "description": "Private, end to end encrypted location sharing for your circle. No accounts, no tracking.",
+  "url": "https://starlingmap.app/",
+  "downloadUrl": "https://github.com/munzzyy/starling/releases/latest/download/starling.apk",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "author": { "@type": "Person", "name": "Munzzyy", "url": "https://github.com/munzzyy" },
+  "license": "https://github.com/munzzyy/starling/blob/main/LICENSE"
+}
+</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
@@ -84,6 +110,48 @@
       <button type="button" class="btn btn-ghost" data-testid="onboarding-demo">Watch the demo</button>
     </div>
     <p class="ob-footer">End-to-end encrypted. No accounts. Open protocol.</p>
+
+    <div class="land-card" id="landing-app">
+      <h2 class="land-card-title">Get the Android app</h2>
+      <p class="land-card-sub">Sharing keeps running with the screen off, your fingerprint opens the
+        app lock, and a panic wipe clears everything in one tap. No Google services inside.</p>
+      <a class="btn btn-primary land-download" data-testid="landing-download"
+        href="https://github.com/munzzyy/starling/releases/latest/download/starling.apk">Download the APK</a>
+      <p class="land-card-note">Coming to Google Play and F-Droid. On GrapheneOS or any de-googled
+        phone, add the <a href="https://github.com/munzzyy/starling/releases">releases page</a> to
+        Obtainium and it updates itself.</p>
+    </div>
+
+    <div class="land-info">
+      <h2 class="land-title">Private by construction, not by promise</h2>
+      <ul class="land-features">
+        <li><strong>End-to-end encrypted.</strong> Positions are sealed with AES-256-GCM on your
+          device. The relay moves ciphertext it cannot read.</li>
+        <li><strong>No accounts.</strong> No phone number, no email, no sign-up. A circle is an
+          invite link, and whoever you trust with it.</li>
+        <li><strong>Everything expires.</strong> The relay deletes every row after 24 hours and
+          keeps no backups, so there is no history to leak.</li>
+        <li><strong>Lock it, or torch it.</strong> An optional passcode and biometric lock encrypts
+          your circle secret at rest. Panic wipe erases the lot instantly.</li>
+        <li><strong>Off-grid mode.</strong> Switch the basemap off and the app makes zero requests
+          beyond the relay. Works with Orbot for Tor routing.</li>
+        <li><strong>Yours to verify.</strong> MIT licensed, reproducible Android builds, an open
+          protocol, and a relay you can self-host.</li>
+      </ul>
+      <p class="land-how">Create a circle, send the invite link to your people over something you
+        already trust, and watch each other arrive on the map. That is the whole product. Read the
+        <a href="https://github.com/munzzyy/starling/blob/main/docs/THREAT-MODEL.md">threat model</a>
+        for exactly what the relay can and cannot see.</p>
+    </div>
+
+    <footer class="land-footer">
+      <p>Built by <a href="https://github.com/munzzyy">Munzzyy</a></p>
+      <nav class="land-links">
+        <a href="https://github.com/munzzyy/starling">Source</a>
+        <a href="/privacy.html">Privacy</a>
+        <a href="https://github.com/munzzyy/starling/blob/main/SECURITY.md">Security</a>
+      </nav>
+    </footer>
   </div>
 </section>
 

@@ -1184,6 +1184,12 @@ async function boot() {
   // persist() into a permission prompt the web app never used to show.
   if (isWrapped()) navigator.storage?.persist?.().catch(() => {});
 
+  // The landing's download card is for browser visitors; the Android app and
+  // installed PWAs do not advertise themselves to themselves.
+  if (isWrapped() || matchMedia("(display-mode: standalone)").matches) {
+    $("#landing-app").hidden = true;
+  }
+
   // Persistence is optional. If the store cannot be read, boot with defaults
   // to onboarding instead of a dead page.
   let secret = null;

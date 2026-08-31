@@ -113,6 +113,27 @@ client at it instead. This is the mechanism that keeps Starling out of
 F-Droid's "tethered to a specific server" anti-feature category: using our
 relay is a default, not a requirement.
 
+## GrapheneOS and de-googled Android
+
+The app is built to run without Google anything, which makes GrapheneOS a
+first-class target rather than an afterthought:
+
+- No Google Play Services, Firebase, or push dependency. Location comes from
+  the plain `LocationManager`, so it works with no sandboxed Play services
+  installed.
+- The WebView requirement is satisfied by GrapheneOS's own Vanadium, which
+  tracks current Chromium; there is nothing version-fragile in the app's use
+  of WebCrypto, IndexedDB, or ES modules.
+- Install paths that do not touch Google: F-Droid (submission in progress),
+  or point Obtainium at the GitHub releases page; every release carries a
+  stable `starling.apk` asset name for that.
+- GrapheneOS's per-app Network and Sensors toggles degrade the app the way
+  you would hope: no network means the poller backs off and the Off-grid
+  basemap still renders; denying location just means nothing to share.
+- Release verification happens on the no-GMS AOSP emulator image
+  (`system-images;android-36;default`), which is the closest stand-in for a
+  de-googled device that automated testing can get.
+
 ## Known WebView-specific limits
 
 - **No service worker.** `sw.js` is never registered inside the wrapper.

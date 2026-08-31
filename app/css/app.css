@@ -263,6 +263,131 @@ input {
   text-align: center;
 }
 
+/* ------------------------------------------------- landing (web onboarding)
+   The onboarding screen doubles as the public landing page: an app download
+   card, a crawlable feature rundown, and the footer. The wrapper and
+   installed PWAs hide the download card at boot; everything else is inert
+   static content. */
+
+#screen-onboarding {
+  overflow-y: auto;
+}
+
+.land-card {
+  width: 100%;
+  margin-top: 28px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--bg-2);
+}
+
+.land-card-title {
+  margin: 0 0 8px;
+  font-size: 17px;
+}
+
+a.land-download {
+  text-decoration: none;
+}
+
+.land-card-sub,
+.land-card-note {
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.land-card-note {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.land-info {
+  width: 100%;
+  padding: 30px 2px 6px;
+}
+
+.land-title {
+  margin: 0 0 14px;
+  font-size: 17px;
+  text-align: center;
+}
+
+.land-features {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.land-features li {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  padding-left: 18px;
+  position: relative;
+}
+
+.land-features li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.7;
+}
+
+.land-features strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.land-how {
+  margin: 18px 0 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.land-info a,
+.land-card-note a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.land-footer {
+  width: 100%;
+  margin-top: 26px;
+  padding: 16px 0 4px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.land-footer p {
+  margin: 0 0 8px;
+}
+
+.land-footer a {
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.land-links {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+}
+
 /* --------------------------------------------------------------- buttons */
 
 .btn {

@@ -144,6 +144,13 @@ Orbot support. See [docs/ANDROID.md](docs/ANDROID.md) for building it,
 [docs/play-listing.md](docs/play-listing.md) for the Play Store listing, and
 [docs/fdroid/](docs/fdroid) for the F-Droid submission draft.
 
+A signed APK ships with every [release](https://github.com/munzzyy/starling/releases),
+with a stable `starling.apk` name that Obtainium can track. The app has no
+Google services dependency at all (plain `LocationManager`, no Firebase, no
+push), so it runs as-is on GrapheneOS and other de-googled Android builds;
+release testing happens on the no-GMS AOSP emulator image for exactly that
+reason.
+
 ## Privacy policy
 
 [starlingmap.app/privacy](https://starlingmap.app/privacy)
