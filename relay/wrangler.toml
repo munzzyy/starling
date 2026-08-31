@@ -14,4 +14,4 @@ RATE_GET_MIN = "240"
 [[d1_databases]]
 binding = "DB"
 database_name = "starling"
-database_id = "REPLACE-ON-DEPLOY"
+database_id = "acca9e46-0fa4-400e-8e79-830c111ece87"
