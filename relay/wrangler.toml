@@ -2,6 +2,12 @@ name = "starling"
 main = "src/index.js"
 compatibility_date = "2026-08-01"
 
+# The canonical origin. Binding the apex to the Worker auto-creates the DNS
+# record and provisions the TLS cert. The workers.dev URL keeps working too.
+[[routes]]
+pattern = "starlingmap.app"
+custom_domain = true
+
 [assets]
 directory = "../app"
 not_found_handling = "single-page-application"

@@ -5,7 +5,7 @@ phone numbers, and a relay that stores nothing it could ever read.
 
 [![CI](https://github.com/munzzyy/starling/actions/workflows/ci.yml/badge.svg)](https://github.com/munzzyy/starling/actions/workflows/ci.yml)
 
-**Live:** [starling.munzzyy.workers.dev](https://starling.munzzyy.workers.dev) ·
+**Live:** [starlingmap.app](https://starlingmap.app) ·
 open it on your phone and add it to your home screen.
 
 Life360 works by shipping everyone's location to a company. Starling keeps the

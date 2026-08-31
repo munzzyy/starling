@@ -23,9 +23,8 @@ const HEADERS = {
   "x-content-type-options": "nosniff",
   "cache-control": "no-store",
   "referrer-policy": "no-referrer",
-  // Force HTTPS for a year. No includeSubDomains/preload here on purpose:
-  // *.workers.dev is a shared parent, so those belong on a custom apex domain.
-  "strict-transport-security": "max-age=31536000",
+  // Force HTTPS on the apex domain and all subdomains, preload-eligible.
+  "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
 };
 
 function json(status, obj) {
