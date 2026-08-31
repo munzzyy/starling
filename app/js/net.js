@@ -105,6 +105,21 @@ export function createPoller({ channelId, roster, onChange, onStatus }) {
   let inFlight = false;
   let failures = 0;
   let running = false;
+  // Points already handed to the roster, keyed member|ts|nonce. The cursor is
+  // clamped to the server clock below, so already-delivered points can come
+  // back; this keeps them from being decrypted and ingested twice.
+  const seen = new Set();
+  const SEEN_CAP = 4096;
+
+  function remember(key) {
+    seen.add(key);
+    if (seen.size > SEEN_CAP) {
+      for (const k of seen) {
+        seen.delete(k);
+        if (seen.size <= SEEN_CAP / 2) break;
+      }
+    }
+  }
 
   function schedule(delay) {
     clearTimeout(timer);
@@ -120,12 +135,30 @@ export function createPoller({ channelId, roster, onChange, onStatus }) {
       const res = await fetch(`/api/v1/f/${channelId}?since=${since}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`poll ${res.status}`);
       const data = await res.json();
+      const fresh = (data.members || []).map((entry) => ({
+        ...entry,
+        points: (entry.points || []).filter((p) => !seen.has(`${entry.m}|${p.ts}|${p.n}`)),
+      }));
+      await roster.ingest(fresh);
+      // Page on the relay's own receive time (srv), so a member's skewed clock
+      // can never push the cursor past another member's honest points. Older
+      // relays that do not report srv fall back to a server-now clamp on the
+      // client-claimed ts, which still stops a fast clock from starving others.
+      let maxCursor = since;
+      let sawSrv = false;
       for (const entry of data.members || []) {
         for (const p of entry.points || []) {
-          if (Number.isFinite(p.ts) && p.ts > since) since = p.ts;
+          remember(`${entry.m}|${p.ts}|${p.n}`);
+          if (Number.isFinite(p.srv)) {
+            sawSrv = true;
+            if (p.srv > maxCursor) maxCursor = p.srv;
+          } else if (Number.isFinite(p.ts) && p.ts > maxCursor) {
+            maxCursor = p.ts;
+          }
         }
       }
-      await roster.ingest(data.members);
+      const serverNow = Number.isFinite(data.now) ? data.now : maxCursor;
+      since = sawSrv ? Math.max(since, maxCursor) : Math.max(since, Math.min(maxCursor, serverNow));
       failures = 0;
       onStatus?.("ok");
       onChange?.();
@@ -170,9 +203,12 @@ export function createPoller({ channelId, roster, onChange, onStatus }) {
 // clock steps backwards; the last sent ts is persisted by the caller.
 export function createSender({ identity, channelId, encKey, getLastTs, setLastTs }) {
   let chain = Promise.resolve();
+  let cancelled = false;
+  const ctl = new AbortController();
 
   function send(fields) {
     const job = chain.then(async () => {
+      if (cancelled) throw new Error("sender cancelled");
       const last = (await getLastTs()) || 0;
       const ts = Math.max(Date.now(), last + 1);
       await setLastTs(ts);
@@ -183,6 +219,7 @@ export function createSender({ identity, channelId, encKey, getLastTs, setLastTs
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(post),
+        signal: ctl.signal,
       });
       if (!res.ok) throw new Error(`post ${res.status}`);
       return ts;
@@ -191,5 +228,12 @@ export function createSender({ identity, channelId, encKey, getLastTs, setLastTs
     return job;
   }
 
-  return { send };
+  // Cancel stops queued sends and aborts any POST already in flight, so a
+  // rotation can guarantee nothing else lands on the old channel.
+  function cancel() {
+    cancelled = true;
+    ctl.abort();
+  }
+
+  return { send, cancel };
 }

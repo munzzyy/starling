@@ -24,7 +24,7 @@ test("manifest has the required fields", () => {
   assert.equal(manifest.short_name, "Starling");
   assert.equal(
     manifest.description,
-    "Private location sharing for your circle. End to end encrypted, no accounts."
+    "Private location sharing for your circle. End-to-end encrypted, no accounts."
   );
   assert.equal(manifest.start_url, "/");
   assert.equal(manifest.scope, "/");

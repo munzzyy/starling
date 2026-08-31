@@ -95,6 +95,8 @@ async function handlePost(request, env, channel, url) {
     if (pinned.alg !== body.alg || pinned.pk !== body.pk) return err(403, "forbidden");
     if (body.ts <= pinned.last_ts) return err(409, "conflict");
   } else {
+    // Early reject for the sequential case; the batch below enforces the cap
+    // atomically, so this read is a fast path, not the guard.
     const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM members WHERE channel = ?").bind(channel).first();
     if (row.n >= MEMBER_CAP) return err(403, "forbidden");
   }
@@ -116,17 +118,32 @@ async function handlePost(request, env, channel, url) {
     return err(429, "rate limited");
   }
 
+  // The member cap is enforced inside this batch, not by the COUNT read
+  // above: a new member row lands only while the channel holds fewer than
+  // MEMBER_CAP members, and the point insert requires the member row, so a
+  // request rejected by the cap writes nothing. D1 runs a batch as one
+  // transaction against a single-writer SQLite database, so concurrent
+  // admissions serialize here. Already-pinned members pass via the EXISTS
+  // arm regardless of the count.
+  let results;
   try {
-    await env.DB.batch([
+    results = await env.DB.batch([
       env.DB
         .prepare(
-          "INSERT INTO members (channel, member, alg, pk, last_ts, srv) VALUES (?, ?, ?, ?, ?, ?) " +
+          "INSERT INTO members (channel, member, alg, pk, last_ts, srv) " +
+            "SELECT ?, ?, ?, ?, ?, ? " +
+            "WHERE EXISTS (SELECT 1 FROM members WHERE channel = ? AND member = ?) " +
+            "OR (SELECT COUNT(*) FROM members WHERE channel = ?) < ? " +
             "ON CONFLICT (channel, member) DO UPDATE SET last_ts = excluded.last_ts, srv = excluded.srv",
         )
-        .bind(channel, body.m, body.alg, body.pk, body.ts, now),
+        .bind(channel, body.m, body.alg, body.pk, body.ts, now, channel, body.m, channel, MEMBER_CAP),
       env.DB
-        .prepare("INSERT INTO points (channel, member, ts, srv, n, c) VALUES (?, ?, ?, ?, ?, ?)")
-        .bind(channel, body.m, body.ts, now, body.n, body.c),
+        .prepare(
+          "INSERT INTO points (channel, member, ts, srv, n, c) " +
+            "SELECT ?, ?, ?, ?, ?, ? " +
+            "WHERE EXISTS (SELECT 1 FROM members WHERE channel = ? AND member = ?)",
+        )
+        .bind(channel, body.m, body.ts, now, body.n, body.c, channel, body.m),
       env.DB
         .prepare(
           "DELETE FROM points WHERE channel = ? AND member = ? AND ts NOT IN " +
@@ -139,6 +156,7 @@ async function handlePost(request, env, channel, url) {
     // The points primary key backstops the replay rule under concurrency.
     return err(409, "conflict");
   }
+  if (!results[0]?.meta?.changes) return err(403, "forbidden");
   return json(200, { ok: true, now });
 }
 
@@ -146,6 +164,11 @@ async function handleGet(request, env, channel, url) {
   const ip = request.headers.get("cf-connecting-ip") || "";
   if (rateLimited("i:" + ip, envInt(env.RATE_GET_MIN, 240), Date.now())) return err(429, "rate limited");
 
+  // The feed cursor is the relay's own receive time (srv), never the
+  // client-claimed ts, so one member's skewed clock can never filter another
+  // member's honest points out of the feed. srv is not unique per insert, so
+  // the filter is inclusive (srv >= since) and the client dedups by
+  // member+ts+nonce; that refetches only the boundary millisecond, never loses.
   const sinceRaw = url.searchParams.get("since");
   let since = 0;
   if (sinceRaw !== null) {
@@ -161,14 +184,14 @@ async function handleGet(request, env, channel, url) {
   ).results;
   const points = (
     await env.DB
-      .prepare("SELECT member, ts, n, c FROM points WHERE channel = ? AND ts > ? ORDER BY ts")
+      .prepare("SELECT member, ts, srv, n, c FROM points WHERE channel = ? AND srv >= ? ORDER BY srv, ts")
       .bind(channel, since)
       .all()
   ).results;
 
   const out = new Map();
   for (const r of members) out.set(r.member, { m: r.member, alg: r.alg, pk: r.pk, points: [] });
-  for (const r of points) out.get(r.member)?.points.push({ ts: r.ts, n: r.n, c: r.c });
+  for (const r of points) out.get(r.member)?.points.push({ ts: r.ts, srv: r.srv, n: r.n, c: r.c });
   return json(200, { now, members: [...out.values()] });
 }
 

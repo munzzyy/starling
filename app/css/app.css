@@ -228,6 +228,12 @@ input {
   color: var(--accent-ink);
 }
 
+.btn-mini.disabled,
+.btn-mini[aria-disabled="true"] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 .icon-btn {
   display: grid;
   place-items: center;
@@ -577,6 +583,13 @@ input {
   color: var(--accent);
 }
 
+/* While SOS is armed the check button is the cancel; make it read as one. */
+.qbtn-check.check-attn {
+  color: var(--live);
+  border-color: rgba(52, 211, 153, 0.6);
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.25);
+}
+
 .qbtn-sos {
   color: var(--sos);
   border-color: rgba(244, 63, 94, 0.45);
@@ -887,6 +900,14 @@ input {
 
 .notice-warn {
   border-color: rgba(251, 191, 36, 0.4);
+}
+
+.notice-sos {
+  border-color: rgba(244, 63, 94, 0.4);
+}
+
+.notice-sos .notice-title {
+  color: var(--sos);
 }
 
 .notice-title {
@@ -1258,12 +1279,14 @@ input {
   gap: 8px;
 }
 
+/* Sentence case at 13px so field labels read apart from the uppercase
+   group titles above them. */
 .field-label {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-2);
 }
 
 .field-note {

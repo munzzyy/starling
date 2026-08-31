@@ -10,7 +10,7 @@ import {
   inviteFragment,
 } from "./crypto.js";
 import { qrSvg } from "./qr.js";
-import { dbGet, dbSet, wipeAll } from "./store.js";
+import { dbGet, dbSet, wipeAll, persistenceBroken } from "./store.js";
 import * as ui from "./ui.js";
 import { createMapView } from "./map.js";
 import { createPoller, createRoster, createSender, statusOf, sortMembers, STALE_MS } from "./net.js";
@@ -44,6 +44,7 @@ const state = {
   circleName: "My circle",
   me: null,
   geoDenied: false,
+  geoFailed: false,
   netStatus: "idle",
   offline: !navigator.onLine,
 };
@@ -155,7 +156,11 @@ function ensureMapUI() {
 
   byTestid("share-toggle").addEventListener("click", () => setSharing(!state.sharing));
   byTestid("checkin-button").addEventListener("click", doCheckin);
-  ui.holdToFire(byTestid("sos-button"), { ms: 1200, onFire: fireSos });
+  ui.holdToFire(byTestid("sos-button"), {
+    ms: 1200,
+    onFire: fireSos,
+    onShortTap: () => ui.toast("Press and hold to send SOS"),
+  });
   byTestid("settings-open").addEventListener("click", openSettings);
   $("#fab-locate").addEventListener("click", locateMe);
   $("#banner-demo-exit").addEventListener("click", exitDemo);
@@ -198,19 +203,29 @@ function renderYou() {
   $("#you-emoji").textContent = p.emoji || "\u{1F9ED}";
   $("#you-name").textContent = p.name || "You";
   $("#you-ava").style.setProperty("--m-hue", String(myHue()));
-  const sub = state.sharing
-    ? state.sosActive
-      ? "SOS armed · sharing live"
-      : state.settings.precision === "coarse"
-        ? "Live · Neighborhood accuracy"
-        : "Live · Precise"
-    : "Not sharing";
+  const hasFix = !!(state.me && Number.isFinite(state.me.lat));
+  let sub;
+  if (!state.sharing) sub = "Not sharing";
+  else if (state.sosActive) sub = hasFix ? "SOS armed · Sharing live" : "SOS armed · Locating...";
+  else if (!hasFix) sub = state.geoFailed ? "No location fix yet. Still trying..." : "Locating...";
+  else sub = state.settings.precision === "coarse" ? "Live · Neighborhood" : "Live · Precise";
   $("#you-sub").textContent = sub;
   const toggle = byTestid("share-toggle");
   toggle.classList.toggle("on", state.sharing);
   toggle.setAttribute("aria-pressed", String(state.sharing));
-  $("#share-label").textContent = state.sharing ? "Sharing live" : "Start sharing";
+  $("#share-label").textContent = state.sharing
+    ? hasFix
+      ? "Sharing live"
+      : "Locating..."
+    : "Start sharing";
   $("#geo-warn").hidden = !state.geoDenied;
+  $("#sos-notice").hidden = !state.sosActive;
+  const checkBtn = byTestid("checkin-button");
+  checkBtn.setAttribute(
+    "aria-label",
+    state.sosActive ? "Cancel SOS and check in with your circle" : "Check in with your circle",
+  );
+  checkBtn.classList.toggle("check-attn", state.sosActive);
   byTestid("sos-button").classList.toggle("sos-active", state.sosActive);
 }
 
@@ -295,6 +310,9 @@ function focusMember(id) {
   }
   const rec = members().find((r) => r.id === id);
   if (!rec) return;
+  // Switching focus directly between members must not leave the previous
+  // member's trail painted on the map.
+  if (focusedId && focusedId !== id) mapView.clearTrail(focusedId);
   focusedId = id;
   focusTrailOn = state.settings.trail;
   if (Number.isFinite(rec.lat)) mapView.focusOn(rec.lat, rec.lon);
@@ -380,9 +398,19 @@ function promptCreate() {
     profile: state.profile,
     onSave: async (p) => {
       await saveProfile(p);
+      const prevSecret = state.secret;
+      const prevIdentity = state.identity;
       state.secret = newCircleSecret();
       state.identity = await generateIdentity();
-      await persistCircle();
+      try {
+        await persistCircle();
+      } catch (e) {
+        // Undo the in-memory swap so a failed create does not leave the app
+        // claiming this device is already in a circle.
+        state.secret = prevSecret;
+        state.identity = prevIdentity;
+        throw e;
+      }
       await enterCircle();
       openInvite();
     },
@@ -394,11 +422,22 @@ function promptJoin(secret) {
     profile: state.profile,
     hasCircle: !!state.secret,
     onJoin: async (p) => {
+      // Joining from inside the demo ends the demo first, so the real circle
+      // and its poller take over instead of the demo walkers.
+      if (state.demo) exitDemo();
       await saveProfile(p);
-      if (state.sharing && !state.demo) await setSharing(false);
+      if (state.sharing) await setSharing(false);
+      const prevSecret = state.secret;
+      const prevIdentity = state.identity;
       state.secret = secret;
       state.identity = await generateIdentity();
-      await persistCircle();
+      try {
+        await persistCircle();
+      } catch (e) {
+        state.secret = prevSecret;
+        state.identity = prevIdentity;
+        throw e;
+      }
       state.me = null;
       focusedId = null;
       prevStatus.clear();
@@ -413,11 +452,17 @@ function promptPasteInvite() {
   ov.body.append(
     ui.el("p", "ov-note", "Paste the invite link someone sent you. The circle secret stays in the link fragment and never touches a server."),
   );
+  const field = ui.el("label", "field");
+  field.append(ui.el("span", "field-label", "Invite link"));
   const input = ui.el("input", "text-input");
   input.type = "text";
   input.placeholder = "https://.../#j=...";
   input.autocomplete = "off";
+  input.setAttribute("aria-describedby", "paste-invite-error");
+  field.append(input);
   const err = ui.el("p", "ov-warn-note", "That does not look like a Starling invite link.");
+  err.id = "paste-invite-error";
+  err.setAttribute("role", "alert");
   err.hidden = true;
   const go = ui.el("button", "btn btn-primary", "Continue");
   go.type = "button";
@@ -433,16 +478,48 @@ function promptPasteInvite() {
     ov.close();
     promptJoin(secret);
   });
-  ov.body.append(input, err, go);
+  ov.body.append(field, err, go);
   input.focus();
 }
 
 async function rotateCircle() {
-  state.secret = newCircleSecret();
-  state.identity = await generateIdentity();
-  await persistCircle();
-  state.channelId = await deriveChannelId(state.secret);
-  state.encKey = await deriveEncKey(state.secret);
+  const prev = {
+    secret: state.secret,
+    identity: state.identity,
+    channelId: state.channelId,
+    encKey: state.encKey,
+  };
+  // Build the new circle completely before touching anything live.
+  const secret = newCircleSecret();
+  const identity = await generateIdentity();
+  const channelId = await deriveChannelId(secret);
+  const encKey = await deriveEncKey(secret);
+  // Nothing may land on the old channel from here on: stop the poller and
+  // cancel the old sender, including any POST already in flight.
+  poller?.stop();
+  sender?.cancel();
+  sender = null;
+  state.secret = secret;
+  state.identity = identity;
+  state.channelId = channelId;
+  state.encKey = encKey;
+  try {
+    await persistCircle();
+  } catch (e) {
+    // Roll back so the invite link and the live channel never diverge.
+    state.secret = prev.secret;
+    state.identity = prev.identity;
+    state.channelId = prev.channelId;
+    state.encKey = prev.encKey;
+    try {
+      await persistCircle();
+    } catch {
+      // storage is failing; in-memory state stays consistent either way
+    }
+    setupNet();
+    render();
+    throw e;
+  }
   lastSentPos = null;
   focusedId = null;
   prevStatus.clear();
@@ -460,6 +537,10 @@ function qrColors() {
 }
 
 function openInvite() {
+  if (state.demo) {
+    ui.toast("Exit the demo to invite your people.");
+    return;
+  }
   if (!state.secret) return;
   ui.openInviteSheet({
     getLink: inviteLink,
@@ -477,6 +558,7 @@ function openSettings() {
       profile: state.profile || { name: "", emoji: "\u{1F9ED}" },
       settings: state.settings,
     },
+    demo: state.demo,
     onChange: onSettingChange,
     onInvite: openInvite,
     onPanic: panic,
@@ -495,7 +577,12 @@ async function onSettingChange(key, value) {
     state.settings = { ...state.settings, [key]: value };
     await dbSet("settings", state.settings);
     if (key === "theme") applyTheme();
-    if (key === "basemap" && mapView) mapView.setBasemap(value);
+    if (key === "basemap" && mapView) {
+      // The demo promises zero network traffic; the choice is saved and
+      // applied when the demo exits.
+      if (state.demo) ui.toast("The demo stays off-grid. Your choice applies when you exit.");
+      else mapView.setBasemap(value);
+    }
     if (key === "wakeLock") ensureWakeLock();
     if (key === "precision" && state.sharing && !state.demo) sendLoc(true);
     if (key === "trail" && !value && mapView && focusedId) mapView.clearTrail(focusedId);
@@ -521,11 +608,14 @@ async function setSharing(on) {
   if (on) {
     state.sharing = true;
     state.geoDenied = false;
+    state.geoFailed = false;
     stopGeo = startWatch(onFix, onGeoError);
-    shareTimer = setInterval(() => sendLoc(true), 15000);
+    // startWatch can report an error synchronously and turn sharing back off.
+    if (state.sharing) shareTimer = setInterval(() => sendLoc(true), 15000);
   } else {
     state.sharing = false;
     state.sosActive = false;
+    state.geoFailed = false;
     clearInterval(shareTimer);
     stopGeo?.();
     stopGeo = null;
@@ -539,6 +629,7 @@ function onFix(fix) {
   const first = !state.me;
   state.me = fix;
   state.geoDenied = false;
+  state.geoFailed = false;
   if (first && mapView) mapView.focusOn(fix.lat, fix.lon, 16, 0);
   if (
     state.sharing &&
@@ -549,16 +640,26 @@ function onFix(fix) {
   render();
 }
 
+function stopSharingInternals() {
+  state.sharing = false;
+  state.sosActive = false;
+  clearInterval(shareTimer);
+  stopGeo?.();
+  stopGeo = null;
+}
+
 function onGeoError(err) {
   if (err && err.code === 1) {
     state.geoDenied = true;
-    if (state.sharing) {
-      state.sharing = false;
-      state.sosActive = false;
-      clearInterval(shareTimer);
-      stopGeo?.();
-      stopGeo = null;
-    }
+    if (state.sharing) stopSharingInternals();
+  } else if (err && err.code === 2 && !navigator.geolocation) {
+    // No geolocation API at all: sharing can never work here.
+    if (state.sharing) stopSharingInternals();
+    ui.toast("Location is not available in this browser.", "warn");
+  } else if (state.sharing && !state.me) {
+    // Timeout or no fix yet: say so instead of claiming the user is visible.
+    if (!state.geoFailed) ui.toast("No location fix yet. Still trying...", "warn");
+    state.geoFailed = true;
   }
   render();
 }
@@ -599,16 +700,22 @@ async function sendMsg(type) {
 }
 
 async function doCheckin() {
+  const wasSos = state.sosActive;
   state.sosActive = false;
+  const okMsg = wasSos
+    ? "SOS cleared. Your circle sees you checked in."
+    : "Checked in with your circle";
   if (state.demo) {
-    ui.toast("Checked in with your circle");
+    ui.toast(okMsg);
     render();
     return;
   }
   try {
     await sendMsg("checkin");
-    ui.toast("Checked in with your circle");
+    ui.toast(okMsg);
   } catch {
+    // The circle still sees the SOS, so keep showing it here too.
+    state.sosActive = wasSos;
     ui.toast("Check-in failed. Reconnecting...", "warn");
   }
   render();
@@ -618,7 +725,7 @@ async function fireSos() {
   navigator.vibrate?.([120, 60, 120]);
   state.sosActive = true;
   if (state.demo) {
-    ui.toast("SOS sent to your circle", "sos");
+    ui.toast("SOS sent to your circle. Tap the check mark to cancel.", "sos");
     render();
     return;
   }
@@ -626,7 +733,7 @@ async function fireSos() {
   if (!state.sharing) setSharing(true);
   try {
     await sendMsg("sos");
-    ui.toast("SOS sent to your circle", "sos");
+    ui.toast("SOS sent to your circle. Tap the check mark to cancel.", "sos");
   } catch {
     ui.toast("SOS failed to send. Reconnecting...", "warn");
   }
@@ -757,28 +864,47 @@ async function boot() {
   const invite = parseInviteFragment(location.hash);
   if (invite) history.replaceState(null, "", location.pathname + location.search);
 
-  const [secret, identity, profile, settings, circleName] = await Promise.all([
-    dbGet("secret"),
-    dbGet("identity"),
-    dbGet("profile"),
-    dbGet("settings"),
-    dbGet("circleName"),
-  ]);
-  if (profile) state.profile = profile;
-  if (settings) state.settings = { ...state.settings, ...settings };
-  if (circleName) state.circleName = circleName;
-  applyTheme();
-
   byTestid("onboarding-create").addEventListener("click", promptCreate);
   byTestid("onboarding-join").addEventListener("click", promptPasteInvite);
   byTestid("onboarding-demo").addEventListener("click", startDemo);
 
-  if (secret && identity) {
-    state.secret = secret;
-    state.identity = identity;
-    await enterCircle();
-  } else {
+  // Persistence is optional. If the store cannot be read, boot with defaults
+  // to onboarding instead of a dead page.
+  let secret = null;
+  let identity = null;
+  try {
+    const [sec, id, profile, settings, circleName] = await Promise.all([
+      dbGet("secret"),
+      dbGet("identity"),
+      dbGet("profile"),
+      dbGet("settings"),
+      dbGet("circleName"),
+    ]);
+    secret = sec;
+    identity = id;
+    if (profile) state.profile = profile;
+    if (settings) state.settings = { ...state.settings, ...settings };
+    if (circleName) state.circleName = circleName;
+  } catch (e) {
+    window.__starlingErrors.push(`store: ${String(e)}`);
+  }
+  applyTheme();
+
+  try {
+    if (secret && identity) {
+      state.secret = secret;
+      state.identity = identity;
+      await enterCircle();
+    } else {
+      showScreen("onboarding");
+    }
+  } catch (e) {
+    window.__starlingErrors.push(`enter: ${String(e)}`);
     showScreen("onboarding");
+  }
+
+  if (persistenceBroken()) {
+    ui.toast("This browser is blocking storage. Starling runs, but nothing is saved after you close it.", "warn");
   }
 
   if (params.get("demo") === "1") startDemo();
@@ -799,4 +925,13 @@ async function boot() {
 
 boot().catch((e) => {
   window.__starlingErrors.push(`boot: ${String(e)}`);
+  // Last resort: never leave a blank page.
+  try {
+    state.screen = "onboarding";
+    $("#screen-onboarding").hidden = false;
+    $("#screen-map").hidden = true;
+    ui.toast("Starling hit a problem while starting. You can still create or join a circle.", "warn");
+  } catch {
+    // the error above is already recorded
+  }
 });

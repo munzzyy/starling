@@ -1,7 +1,7 @@
 {
   "name": "Starling",
   "short_name": "Starling",
-  "description": "Private location sharing for your circle. End to end encrypted, no accounts.",
+  "description": "Private location sharing for your circle. End-to-end encrypted, no accounts.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

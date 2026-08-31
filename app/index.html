@@ -31,7 +31,7 @@
       <button type="button" class="btn btn-secondary" data-testid="onboarding-join">I have an invite</button>
       <button type="button" class="btn btn-ghost" data-testid="onboarding-demo">Watch the demo</button>
     </div>
-    <p class="ob-footer">End to end encrypted. No accounts. Open protocol.</p>
+    <p class="ob-footer">End-to-end encrypted. No accounts. Open protocol.</p>
   </div>
 </section>
 
@@ -93,13 +93,17 @@
         <p class="notice-title">Location is blocked</p>
         <p class="notice-text">Your browser is blocking location for this site. Allow location in your browser's site settings, then tap Start sharing again.</p>
       </div>
+      <div class="notice notice-sos" id="sos-notice" hidden>
+        <p class="notice-title">SOS is armed</p>
+        <p class="notice-text">Your circle sees an alert at your live position. Tap the check mark above to cancel it and let everyone know you are okay.</p>
+      </div>
       <div class="nudge" id="nudge" hidden>
         <p class="nudge-title">Just you here so far</p>
         <p class="nudge-text">Starling only gets good when your people are on the map. Send them your invite link.</p>
         <button type="button" class="btn btn-primary btn-small" id="nudge-invite">Invite your people</button>
       </div>
       <div id="member-list"></div>
-      <p class="sheet-foot">End to end encrypted. The relay sees ciphertext only.</p>
+      <p class="sheet-foot">End-to-end encrypted. The relay sees ciphertext only.</p>
     </div>
   </div>
 </section>

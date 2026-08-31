@@ -44,7 +44,8 @@
   --glass-border: rgba(148, 163, 184, 0.14);
   --ink: #e6ebf5;
   --ink-2: #9aa7bd;
-  --ink-3: #5c6a82;
+  /* 4.5:1 or better on bg-1 and bg-2 (WCAG AA for small text) */
+  --ink-3: #8290a8;
   --line: rgba(148, 163, 184, 0.12);
   --map-filter: none;
 }
@@ -59,7 +60,8 @@
   --glass-border: rgba(15, 23, 42, 0.08);
   --ink: #101522;
   --ink-2: #4a5568;
-  --ink-3: #8a94a6;
+  /* 4.5:1 or better on bg-1 and bg-2 (WCAG AA for small text) */
+  --ink-3: #5c6779;
   --line: rgba(15, 23, 42, 0.08);
   --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.08), 0 4px 16px rgba(15, 23, 42, 0.08);
   --shadow-2: 0 4px 12px rgba(15, 23, 42, 0.12), 0 12px 40px rgba(15, 23, 42, 0.12);

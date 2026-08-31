@@ -127,15 +127,17 @@ export const overlaysOpen = () => overlayStack.length > 0;
 // A synthetic click (isTrusted false) with no prior pointerdown fires
 // immediately so automated tests can drive it.
 
-export function holdToFire(button, { ms = 1200, onFire }) {
+export function holdToFire(button, { ms = 1200, onFire, onShortTap }) {
   let raf = 0;
   let armed = false;
+  let progress = 0;
 
   const setP = (p) => button.style.setProperty("--p", String(p));
 
   function cancel() {
     if (!armed) return;
     armed = false;
+    progress = 0;
     button.classList.remove("arming");
     cancelAnimationFrame(raf);
     setP(0);
@@ -144,13 +146,14 @@ export function holdToFire(button, { ms = 1200, onFire }) {
   function start(e) {
     if (e.button > 0 || armed) return;
     armed = true;
+    progress = 0;
     button.classList.add("arming");
     const t0 = performance.now();
     const step = (now) => {
       if (!armed) return;
-      const p = Math.min(1, (now - t0) / ms);
-      setP(p);
-      if (p >= 1) {
+      progress = Math.min(1, (now - t0) / ms);
+      setP(progress);
+      if (progress >= 1) {
         cancel();
         onFire();
       } else {
@@ -161,7 +164,12 @@ export function holdToFire(button, { ms = 1200, onFire }) {
   }
 
   button.addEventListener("pointerdown", start);
-  button.addEventListener("pointerup", cancel);
+  button.addEventListener("pointerup", () => {
+    // A released short press is a plain tap; tell the user this button
+    // needs a hold instead of doing nothing.
+    if (armed && progress < 1) onShortTap?.();
+    cancel();
+  });
   button.addEventListener("pointerleave", cancel);
   button.addEventListener("pointercancel", cancel);
   button.addEventListener("click", (e) => {
@@ -237,11 +245,20 @@ export function openIdentitySheet({ title, intro, cta, profile, onSave }) {
   const sync = () => (save.disabled = input.value.trim().length === 0);
   input.addEventListener("input", sync);
   sync();
-  save.addEventListener("click", () => {
+  let busy = false;
+  save.addEventListener("click", async () => {
     const name = input.value.trim().slice(0, 24);
-    if (!name) return;
-    onSave({ name, emoji: grid.value() });
-    ov.close();
+    if (!name || busy) return;
+    busy = true;
+    save.disabled = true;
+    try {
+      await onSave({ name, emoji: grid.value() });
+      ov.close();
+    } catch {
+      busy = false;
+      save.disabled = false;
+      toast("Could not save. Try again.", "warn");
+    }
   });
   ov.body.append(save);
   input.focus();
@@ -356,6 +373,7 @@ export function openInviteSheet({ getLink, qrSvgFor, onRotate }) {
       refresh();
       toast("Circle rotated. Share the new link.");
     } catch {
+      confirmBtn.disabled = confirmInput.value.trim().toLowerCase() !== "rotate";
       toast("Rotation failed. Try again.", "warn");
     }
   });
@@ -418,7 +436,7 @@ function switchRow({ label, note, value, onChange }) {
   return row;
 }
 
-export function openSettingsSheet({ values, onChange, onInvite, onPanic }) {
+export function openSettingsSheet({ values, demo, onChange, onInvite, onPanic }) {
   const ov = openOverlay({ title: "Settings", testid: "settings-sheet", className: "ov-settings" });
   const b = ov.body;
 
@@ -443,6 +461,10 @@ export function openSettingsSheet({ values, onChange, onInvite, onPanic }) {
   inviteBtn.dataset.testid = "invite-open";
   inviteBtn.addEventListener("click", onInvite);
   gCircle.append(cnField, inviteBtn);
+  if (demo) {
+    inviteBtn.disabled = true;
+    gCircle.append(el("p", "field-note", "Exit the demo to invite your people."));
+  }
 
   // You
   const gYou = group("You");
@@ -522,7 +544,7 @@ export function openSettingsSheet({ values, onChange, onInvite, onPanic }) {
   const panicBox = el("div", "rotate-confirm");
   panicBox.hidden = true;
   panicBox.append(
-    el("p", "ov-note", "Erases the circle secret, your identity, and all local data from this device, then reloads. There is no undo. Hold the button to confirm."),
+    el("p", "ov-note", "Erases the circle secret, your identity, and all Starling data from this device, then reloads. One residual: street-map tiles your browser cached may remain in its own cache. The Off-grid basemap never loads any. There is no undo. Hold the button to confirm."),
   );
   const holdBtn = btn("btn btn-danger btn-hold", "Hold to erase everything");
   holdToFire(holdBtn, { ms: 1500, onFire: onPanic });
@@ -538,7 +560,7 @@ export function openSettingsSheet({ values, onChange, onInvite, onPanic }) {
   gAbout.append(
     el("p", "about-version", "Starling v1"),
     el("p", "ov-note", "Your positions are encrypted on this device with a key only your circle holds. There are no accounts, no phone numbers, and no server that can read where you are. Sharing is off until you turn it on, and stopping is one tap."),
-    el("p", "ov-note", "Relay sees ciphertext only. Read docs/PROTOCOL.md and docs/THREAT-MODEL.md in the repo."),
+    el("p", "ov-note", "The relay that passes your updates along stores only encrypted data it cannot read, and deletes it after 24 hours. The protocol is open, so anyone can check these claims against the code."),
   );
 
   return ov;
@@ -575,6 +597,15 @@ export function createSheet(sheetEl, dragEl, bodyEl, { onSnap } = {}) {
     bodyEl.style.height =
       snap === "peek" ? "0px" : `${Math.max(0, visible - dragEl.offsetHeight - 8)}px`;
     bodyEl.style.overflowY = snap === "peek" ? "hidden" : "auto";
+    // At peek the body is clipped to zero height; keep its member cards and
+    // nudges out of the tab order and the accessibility tree until expanded.
+    if (snap === "peek") {
+      bodyEl.inert = true;
+      bodyEl.setAttribute("aria-hidden", "true");
+    } else {
+      bodyEl.inert = false;
+      bodyEl.removeAttribute("aria-hidden");
+    }
     // Overflow clips at the padding box, so bottom padding would leak a
     // sliver of the first card at peek.
     bodyEl.style.paddingBottom = snap === "peek" ? "0px" : "";
@@ -657,7 +688,7 @@ export function createSheet(sheetEl, dragEl, bodyEl, { onSnap } = {}) {
 
 // ------------------------------------------------------------ member cards
 
-const CHIP_TEXT = { live: "Live", sos: "SOS", checkin: "Checked in", stopped: "Stopped", stale: "Stale" };
+const CHIP_TEXT = { live: "Live", sos: "SOS", checkin: "Checked in", stopped: "Stopped", stale: "Last seen" };
 
 function buildAva(cls) {
   const ava = el("div", cls);
@@ -698,7 +729,7 @@ export function memberSubLine(rec, now, mePos) {
   if (mePos && Number.isFinite(rec.lat) && Number.isFinite(rec.lon)) {
     bits.push(fmtDistance(haversineMeters(mePos.lat, mePos.lon, rec.lat, rec.lon)));
   }
-  if (rec.mode === "coarse") bits.push("approx");
+  if (rec.mode === "coarse") bits.push("Neighborhood");
   return bits.join(" · ");
 }
 
@@ -773,6 +804,8 @@ export function renderFocusCard(root, rec, ctx) {
     const actions = el("div", "fc-actions");
     const trailBtn = btn("btn-mini fc-trail", "Trail");
     const dir = el("a", "btn-mini fc-directions", "Directions");
+    dir.target = "_blank";
+    dir.rel = "noopener noreferrer";
     actions.append(trailBtn, dir);
     root.append(head, coords, actions);
   }
@@ -798,6 +831,20 @@ export function renderFocusCard(root, rec, ctx) {
   trailBtn.classList.toggle("on", trailOn);
   trailBtn.onclick = onTrailToggle;
   const dir = $(".fc-directions", root);
-  if (hasPos) dir.href = `geo:${rec.lat},${rec.lon}`;
+  if (hasPos) {
+    // An https maps URL works everywhere; geo: has no handler on iOS Safari
+    // or desktop browsers.
+    const lat = rec.lat.toFixed(5);
+    const lon = rec.lon.toFixed(5);
+    dir.href = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`;
+    dir.classList.remove("disabled");
+    dir.removeAttribute("aria-disabled");
+    dir.removeAttribute("tabindex");
+  } else {
+    dir.removeAttribute("href");
+    dir.classList.add("disabled");
+    dir.setAttribute("aria-disabled", "true");
+    dir.setAttribute("tabindex", "-1");
+  }
   root.hidden = false;
 }

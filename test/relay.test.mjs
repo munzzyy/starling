@@ -119,7 +119,11 @@ test("post then get round trip keeps fields intact and decryptable", async () =>
   assert.equal(mem.m, id.memberId);
   assert.equal(mem.alg, id.alg);
   assert.equal(mem.pk, b64uEncode(id.pk));
-  assert.deepEqual(mem.points, [{ ts, n: body.n, c: body.c }]);
+  assert.equal(mem.points.length, 1);
+  assert.equal(mem.points[0].ts, ts);
+  assert.equal(mem.points[0].n, body.n);
+  assert.equal(mem.points[0].c, body.c);
+  assert.equal(typeof mem.points[0].srv, "number");
 
   const opened = await openMessage(circle.encKey, circle.channel, mem.m, b64uDecode(mem.points[0].n), b64uDecode(mem.points[0].c));
   assert.deepEqual(opened, msg);
@@ -139,18 +143,30 @@ test("multiple points come back ascending by ts", async () => {
   assert.deepEqual(tss, [base, base + 1, base + 2, base + 3]);
 });
 
-test("since filters strictly older points", async () => {
+test("since pages on server receive time, not client ts", async () => {
   const env = freshEnv();
   const circle = await makeCircle();
   const id = await generateIdentity();
   const base = Date.now();
   for (const dt of [0, 1, 2]) await postLoc(env, circle.channel, await validPost(circle, id, base + dt));
 
-  const feed = await (await getFeed(env, circle.channel, `?since=${base + 1}`)).json();
-  assert.deepEqual(feed.members[0].points.map((p) => p.ts), [base + 2]);
-
+  // Full feed first: cursor values are the relay's srv, never the client ts.
   const all = await (await getFeed(env, circle.channel, "?since=0")).json();
-  assert.equal(all.members[0].points.length, 3);
+  const pts = all.members[0].points;
+  assert.equal(pts.length, 3);
+  for (const p of pts) assert.equal(typeof p.srv, "number");
+  // srv is ascending (order guaranteed by the query).
+  assert.ok(pts[0].srv <= pts[1].srv && pts[1].srv <= pts[2].srv);
+
+  // Paging from the newest srv returns only boundary-ms points (inclusive
+  // filter), and never anything with an earlier srv.
+  const maxSrv = pts[2].srv;
+  const tail = await (await getFeed(env, circle.channel, `?since=${maxSrv}`)).json();
+  for (const p of tail.members[0].points) assert.ok(p.srv >= maxSrv);
+
+  // A cursor past the newest srv returns nothing.
+  const empty = await (await getFeed(env, circle.channel, `?since=${maxSrv + 1}`)).json();
+  assert.equal((empty.members[0]?.points || []).length, 0);
 });
 
 test("bad since values get 400", async () => {
@@ -344,6 +360,34 @@ test("member cap: the 17th member is 403 and writes nothing", async () => {
   assert.equal(before.members, MEMBER_CAP);
   const extra = await generateIdentity();
   await assertRejected(env, postLoc(env, circle.channel, await validPost(circle, extra, base + 999)), 403, before);
+});
+
+test("member cap holds under concurrent new-member posts", async () => {
+  const env = freshEnv();
+  const circle = await makeCircle();
+  const base = Date.now();
+  const total = MEMBER_CAP + 8;
+  const bodies = [];
+  for (let i = 0; i < total; i++) {
+    bodies.push(await validPost(circle, await generateIdentity(), base + i));
+  }
+
+  // Fire every request at once so the handlers interleave at their awaits:
+  // all of them read the same under-cap COUNT before any batch commits, so
+  // only an in-batch guard can hold the cap here.
+  const results = await Promise.all(bodies.map((b) => postLoc(env, circle.channel, b)));
+  const statuses = results.map((r) => r.status);
+  assert.equal(statuses.filter((s) => s === 200).length, MEMBER_CAP);
+  assert.equal(statuses.filter((s) => s === 403).length, total - MEMBER_CAP);
+
+  const after = snap(env);
+  assert.equal(after.members, MEMBER_CAP);
+  assert.equal(after.points, MEMBER_CAP);
+
+  // Admitted members are still fully usable: a pinned member posts again
+  // even though the channel sits at the cap.
+  const feed = await (await getFeed(env, circle.channel)).json();
+  assert.equal(feed.members.length, MEMBER_CAP);
 });
 
 test("bad signature is 403 and writes nothing", async () => {
