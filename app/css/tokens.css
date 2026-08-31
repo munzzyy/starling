@@ -1,0 +1,74 @@
+/* Starling design tokens. Every color, radius, and duration in the app comes
+   from here. Dark is the primary theme; light is fully supported. */
+
+:root {
+  /* Brand: starling feather iridescence, teal into violet on night ink. */
+  --accent: #2dd4bf;
+  --accent-2: #8b5cf6;
+  --accent-grad: linear-gradient(135deg, #2dd4bf 0%, #60a5fa 55%, #8b5cf6 100%);
+  --accent-ink: #06211e;
+
+  --live: #34d399;
+  --warn: #fbbf24;
+  --sos: #f43f5e;
+  --stale: #94a3b8;
+
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter,
+    "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  --r-sm: 10px;
+  --r-md: 16px;
+  --r-lg: 22px;
+  --r-full: 999px;
+
+  --t-fast: 150ms cubic-bezier(0.3, 0.7, 0.4, 1);
+  --t-med: 240ms cubic-bezier(0.3, 0.7, 0.4, 1);
+  --t-spring: 350ms cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 16px rgba(0, 0, 0, 0.18);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.32), 0 12px 40px rgba(0, 0, 0, 0.28);
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0d14;
+  --bg-1: #101522;
+  --bg-2: #171e30;
+  --bg-3: #1f2840;
+  --glass: rgba(16, 21, 34, 0.82);
+  --glass-border: rgba(148, 163, 184, 0.14);
+  --ink: #e6ebf5;
+  --ink-2: #9aa7bd;
+  --ink-3: #5c6a82;
+  --line: rgba(148, 163, 184, 0.12);
+  --map-filter: none;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f6fb;
+  --bg-1: #ffffff;
+  --bg-2: #eef1f8;
+  --bg-3: #e3e8f2;
+  --glass: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(15, 23, 42, 0.08);
+  --ink: #101522;
+  --ink-2: #4a5568;
+  --ink-3: #8a94a6;
+  --line: rgba(15, 23, 42, 0.08);
+  --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.08), 0 4px 16px rgba(15, 23, 42, 0.08);
+  --shadow-2: 0 4px 12px rgba(15, 23, 42, 0.12), 0 12px 40px rgba(15, 23, 42, 0.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 0ms linear;
+    --t-med: 0ms linear;
+    --t-spring: 0ms linear;
+  }
+}
