@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://*.basemaps.cartocdn.com; connect-src 'self'; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="theme-color" content="#0a0d14">
+<title>Starling</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/app.css">
+<script src="vendor/leaflet/leaflet.js"></script>
+<script type="module" src="js/main.js"></script>
+</head>
+<body>
+
+<section id="screen-onboarding" class="screen" hidden>
+  <div class="ob-wrap">
+    <div class="ob-hero">
+      <div class="ob-logo-ring">
+        <img class="ob-logo" src="icons/starling.svg" alt="" width="84" height="84">
+      </div>
+      <h1 class="ob-wordmark">starling</h1>
+      <p class="ob-tagline">Your people, on your map. Nobody else.</p>
+    </div>
+    <div class="ob-actions">
+      <button type="button" class="btn btn-primary" data-testid="onboarding-create">Create a circle</button>
+      <button type="button" class="btn btn-secondary" data-testid="onboarding-join">I have an invite</button>
+      <button type="button" class="btn btn-ghost" data-testid="onboarding-demo">Watch the demo</button>
+    </div>
+    <p class="ob-footer">End to end encrypted. No accounts. Open protocol.</p>
+  </div>
+</section>
+
+<section id="screen-map" class="screen" hidden>
+  <div id="map" aria-label="Map"></div>
+
+  <div class="top-chrome">
+    <div class="pill" data-testid="circle-pill">
+      <span class="status-dot dot-idle" id="status-dot" aria-hidden="true"></span>
+      <span class="pill-name" id="pill-name">My circle</span>
+      <button type="button" class="pill-gear" data-testid="settings-open" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Zm7.4-3.2c0 .5 0 .9-.1 1.4l2 1.6-1.9 3.3-2.4-1a7.5 7.5 0 0 1-2.4 1.4l-.4 2.6h-3.8l-.4-2.6a7.5 7.5 0 0 1-2.4-1.4l-2.4 1-1.9-3.3 2-1.6a8 8 0 0 1 0-2.8l-2-1.6 1.9-3.3 2.4 1a7.5 7.5 0 0 1 2.4-1.4l.4-2.6h3.8l.4 2.6a7.5 7.5 0 0 1 2.4 1.4l2.4-1 1.9 3.3-2 1.6c.1.5.1.9.1 1.4Z"/></svg>
+      </button>
+    </div>
+    <div class="banners" id="banners">
+      <div class="banner banner-demo" id="banner-demo" data-testid="demo-banner" hidden>
+        <span>Demo flight - nothing is real</span>
+        <button type="button" class="banner-btn" id="banner-demo-exit">Exit</button>
+      </div>
+      <div class="banner banner-warn" id="banner-offline" hidden>
+        <span class="banner-dot" aria-hidden="true"></span><span>Reconnecting...</span>
+      </div>
+      <div class="banner banner-warn" id="banner-insecure" hidden>
+        <span>Location needs HTTPS. Open the deployed app or localhost.</span>
+      </div>
+    </div>
+  </div>
+
+  <button type="button" class="fab" id="fab-locate" aria-label="Center the map on me">
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.6"/><path d="M12 1.8v3M12 19.2v3M1.8 12h3M19.2 12h3"/></g></svg>
+  </button>
+
+  <div class="focus-card" id="focus-card" hidden></div>
+
+  <div class="sheet" data-testid="sheet" id="sheet">
+    <div class="sheet-drag" id="sheet-drag">
+      <div class="grabber" aria-hidden="true"></div>
+      <div class="you-card" id="you-card">
+        <div class="ava" id="you-ava"><span class="ava-emoji" id="you-emoji">&#129517;</span></div>
+        <div class="you-info">
+          <div class="you-name" id="you-name">You</div>
+          <div class="you-sub" id="you-sub">Not sharing</div>
+        </div>
+        <div class="quick">
+          <button type="button" class="qbtn qbtn-check" data-testid="checkin-button" aria-label="Check in with your circle">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+          </button>
+          <button type="button" class="qbtn qbtn-sos" data-testid="sos-button" aria-label="Hold to send SOS">SOS</button>
+        </div>
+      </div>
+      <button type="button" class="share-toggle" data-testid="share-toggle" aria-pressed="false">
+        <span class="share-dot" aria-hidden="true"></span>
+        <span id="share-label">Start sharing</span>
+      </button>
+      <div class="ava-strip" id="ava-strip" aria-hidden="true"></div>
+    </div>
+    <div class="sheet-body" id="sheet-body">
+      <div class="notice notice-warn" id="geo-warn" hidden>
+        <p class="notice-title">Location is blocked</p>
+        <p class="notice-text">Your browser is blocking location for this site. Allow location in your browser's site settings, then tap Start sharing again.</p>
+      </div>
+      <div class="nudge" id="nudge" hidden>
+        <p class="nudge-title">Just you here so far</p>
+        <p class="nudge-text">Starling only gets good when your people are on the map. Send them your invite link.</p>
+        <button type="button" class="btn btn-primary btn-small" id="nudge-invite">Invite your people</button>
+      </div>
+      <div id="member-list"></div>
+      <p class="sheet-foot">End to end encrypted. The relay sees ciphertext only.</p>
+    </div>
+  </div>
+</section>
+
+<div id="overlays"></div>
+<div id="toasts" aria-live="polite"></div>
+
+</body>
+</html>
