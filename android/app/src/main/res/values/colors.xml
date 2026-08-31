@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors the web app's design tokens (css/tokens.css). -->
+    <color name="starling_bg">#0a0d14</color>
+    <color name="starling_fg">#e8ecf4</color>
+    <color name="starling_fg_dim">#a8b0c0</color>
+</resources>

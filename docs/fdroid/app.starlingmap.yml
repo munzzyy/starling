@@ -1,0 +1,78 @@
+# Draft fdroiddata metadata for Starling.
+#
+# This file is a DRAFT to be copied into a fork of gitlab.com/fdroid/fdroiddata
+# as metadata/app.starlingmap.yml. It does not do anything sitting here; see
+# docs/fdroid/SUBMISSION.md for the actual submission process. Nothing here
+# submits automatically.
+
+Categories:
+  - Navigation
+  - Security
+
+License: MIT
+
+SourceCode: https://github.com/munzzyy/starling
+IssueTracker: https://github.com/munzzyy/starling/issues
+Changelog: https://github.com/munzzyy/starling/blob/main/CHANGELOG.md
+
+AutoName: Starling
+
+Summary: End to end encrypted location sharing. No accounts, no tracking.
+
+Description: |-
+    Starling is private location sharing for a small circle: family, a
+    partner, a group of friends. No accounts, no phone numbers, no company
+    in the middle reading your position.
+
+    Locations are encrypted on your device with AES-256-GCM under a key
+    derived from a secret that lives only in your invite link, in the part
+    of the URL that never reaches a server. The relay that moves messages
+    between your circle's devices stores and forwards ciphertext it cannot
+    decrypt, and every row expires after 24 hours.
+
+    No analytics, no crash reporting, no third party requests beyond the
+    relay and, optionally, OpenStreetMap map tiles for the street basemap
+    (an Off-grid basemap renders locally with zero network requests
+    instead). The relay is open source; you can self-host it and point the
+    app at your own instance from settings.
+
+    The Android app adds background sharing with a persistent notification,
+    fingerprint or face unlock through the Android Keystore, a panic wipe
+    reachable through PanicKit, and Orbot support.
+
+    * End to end encrypted (AES-256-GCM, HKDF-derived key)
+    * No accounts, no phone numbers, no tracking
+    * Zero-knowledge relay, ciphertext expires after 24 hours
+    * Self-hostable relay
+    * Optional app lock with biometric unlock
+    * SOS and check-ins
+    * Works with Orbot
+
+RepoType: git
+Repo: https://github.com/munzzyy/starling
+
+Builds:
+  - versionName: 0.2.0
+    versionCode: 200
+    commit: COMMIT_HASH_OF_v0.2.0_TAG
+    subdir: android/app
+    # fdroidserver runs init with cwd set to subdir (android/app), so hop to
+    # the repo root first to reach package.json and tools/.
+    init:
+      - cd ../.. && npm ci && bash tools/sync-vendor.sh
+    gradle:
+      - yes
+    scandelete:
+      - node_modules
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 0.2.0
+CurrentVersionCode: 200
+
+# Enable once the F-Droid build has been proven byte-identical to a build
+# signed with our upload key (see docs/fdroid/SUBMISSION.md, "Reproducible
+# builds"). Until then F-Droid signs the APK with its own key and these
+# stay commented out.
+# Binaries: https://github.com/munzzyy/starling/releases/download/v%v/starling-%v.apk
+# AllowedAPKSigningKeys: dbb0c491530f7475409c4c2953e9f68a52519c2f681dd9e5f69938f3bf9b8c9e

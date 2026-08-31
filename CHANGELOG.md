@@ -3,6 +3,25 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [0.2.0]
+
+- Android app: a hand-written Kotlin WebView wrapper around the same `app/`
+  code, targeting both Google Play and F-Droid. Adds background sharing
+  through a foreground service with a persistent notification, fingerprint
+  or face unlock through the Android Keystore in place of WebAuthn PRF, a
+  PanicKit responder for panic-button apps, and Orbot support (per-app VPN
+  mode with no setup, plus an in-app SOCKS toggle for Orbot's Power User
+  Mode).
+- Custom relay setting, on both the web app and the Android wrapper, so
+  anyone can point their client at a self-hosted relay instead of the
+  default one. The relay's allowed origins now include the WebView asset
+  origin and an optional operator-configured list for self-hosters.
+- Leaflet moved from a vendored, committed copy to a normal npm dependency
+  pinned by `package-lock.json`. `tools/sync-vendor.sh` copies the
+  unminified build into `app/vendor/leaflet` at build time instead of that
+  directory living in git, which is also what makes the app buildable from
+  source for F-Droid.
+
 ## [0.1.0]
 
 First release.

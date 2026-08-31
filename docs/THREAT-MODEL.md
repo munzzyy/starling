@@ -84,3 +84,66 @@ gets ciphertext and metadata only:
    passcode only and says so rather than faking a biometric gate. PBKDF2 is the
    WebCrypto-native choice; an Argon2id (memory-hard) upgrade is roadmap and
    would require shipping a vetted WASM build and a narrow CSP allowance for it.
+
+## Android app deltas
+
+The Android app is the same `app/` code inside a native WebView wrapper.
+Everything above still applies; this section states what changes and why
+none of it weakens the core claim (the relay never sees a position).
+
+- **Asset origin, no service worker.** App assets are bundled into the APK
+  and served locally through `WebViewAssetLoader` at
+  `https://appassets.androidplatform.net/`, which WebView treats as a
+  secure context, so WebCrypto and IndexedDB behave the same as on the web.
+  `sw.js` is never registered in the wrapper: there is nothing to cache
+  offline when the app itself already ships as the offline copy. This also
+  removes the service-worker-pins-the-shell mitigation the web threat model
+  leans on for a compromised-server scenario, but the wrapper does not need
+  it, since its assets ship in the signed APK rather than being fetched
+  from the server on every load.
+- **Keystore-backed biometric wrap, not WebAuthn PRF.** A plain WebView has
+  no `navigator.credentials`, so the wrapper cannot use the web app's
+  WebAuthn PRF path. It substitutes a native bridge: an AES-GCM key held in
+  the Android Keystore with `setUserAuthenticationRequired(true)`, unlocked
+  through `BiometricPrompt` with a `CryptoObject`. This is hardware-gated
+  the same way PRF is (the key material never leaves secure hardware), and
+  Android invalidates the Keystore key automatically when the user's
+  biometric enrollment changes, closing the same "new fingerprint added by
+  an attacker" gap PRF closes on the web. The passcode path (PBKDF2-SHA-256,
+  600k iterations) is unchanged and remains the guaranteed unlock method.
+- **Foreground service visibility.** Background location sharing runs as an
+  Android foreground service, which Android requires to show a persistent,
+  non-dismissible notification the entire time it runs. This is a design
+  constraint the app leans into rather than works around: sharing is never
+  silent, matching the same "always show a live sharing indicator"
+  principle from the web app's design consequences above. The service
+  requests fine and coarse location while-in-use only; it does not request
+  `ACCESS_BACKGROUND_LOCATION`, and it only starts while the app has
+  foreground state to begin with.
+- **Panic trigger via PanicKit.** The app responds to
+  `info.guardianproject.panic` `ACTION_TRIGGER` from a paired app (for
+  example Ripple) by immediately wiping IndexedDB, localStorage, and
+  WebView's storage and cache, with no confirmation step, then closing the
+  activity. Pairing itself (`ACTION_CONNECT`) is a visible, user-initiated
+  step, and the trigger handler checks the sender package against the
+  paired app before acting, so an arbitrary app on the device cannot fire a
+  wipe by sending the intent. This is the same effect as the in-app panic
+  wipe button, reachable without unlocking the app first.
+- **Tile fetches and relay visibility unchanged.** The Android app talks to
+  the same relay over the same protocol, so everything in "What the relay
+  does learn, honestly" above applies without modification: IP addresses,
+  timing, and channel shape, never positions or identities. Map tile
+  requests to `tile.openstreetmap.org` behave identically to the web app,
+  including the Off-grid basemap's zero-request alternative.
+- **Custom relay trust boundary.** The Android app exposes the same
+  self-hosted relay setting as the web app. Pointing the app at a relay run
+  by someone else, malicious or not, does not change what that relay can
+  learn: ciphertext, IPs, and timing, the same set described above for the
+  default relay. A malicious custom relay cannot read positions or
+  identities any more than a malicious default-relay operator could,
+  because the encryption boundary is the client, not the server a client
+  happens to be configured to talk to. It could, however, refuse to expire
+  data, drop or delay messages, or log metadata more aggressively than the
+  default relay does; those are availability and metadata-retention risks,
+  not confidentiality risks, and are the user's own choice when they pick a
+  relay to trust.

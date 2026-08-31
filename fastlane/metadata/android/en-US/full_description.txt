@@ -1,0 +1,33 @@
+Starling is private location sharing for your circle: family, a partner, a small group of friends. There is no account to make and no company sitting in the middle reading your position.
+
+<b>End to end encrypted</b>
+Your location is encrypted on your device with AES-256-GCM under a key derived from a 32-byte secret that only exists in your invite link, in the part of the URL browsers never send to a server (the fragment). The relay stores ciphertext it cannot read. Names, avatars, and statuses ride inside that same ciphertext.
+
+<b>Nothing to sign up for</b>
+No phone number. No email. No push tokens. Starling runs no analytics, no crash reporting, and makes no third party requests. The only thing it fetches from outside its own server is OpenStreetMap map tiles, and only if you leave the street basemap on. Switch to the Off-grid basemap and the app draws the map locally, with zero network requests.
+
+<b>A zero-knowledge relay</b>
+The relay is a small server that moves ciphertext between your circle's devices. It sees channel ids, message sizes (padded to a fixed length so they carry no information), timing, and IP addresses, but never a position, a name, or who is in your circle. Every row expires after 24 hours and there are no backups by design.
+
+<b>Panic wipe</b>
+One action clears the app: local storage, cached data, everything. If you need to disappear from a circle fast, this is the button.
+
+<b>App lock</b>
+Optional passcode lock encrypts your circle secret at rest (PBKDF2-SHA-256, 600k iterations). Where the device supports it, your fingerprint or face opens the vault through the Android Keystore, which never leaves the secure hardware on your phone.
+
+<b>SOS and check-ins</b>
+Hold to fire an SOS that your circle sees immediately. Check in with a status without leaving your location on all the time.
+
+<b>Live sharing that keeps running</b>
+The Android app keeps sharing your location while your screen is off, with a persistent notification the whole time so it is never silent about what it is doing. Turn it off with one tap; your circle sees "stopped" instead of a dot that just goes stale.
+
+<b>Self-hostable</b>
+Don't want to trust our relay? Run your own. The app has a setting for a custom relay address, and the relay is open source and small enough to read in one sitting.
+
+<b>Works with Orbot</b>
+Per-app VPN mode needs no setup. Turn on Power User Mode in Orbot and Starling proxies directly through its SOCKS port instead.
+
+<b>Honest about its limits</b>
+The relay still sees IP addresses and timing, because something has to move your ciphertext around. An invite link is a bearer capability: whoever holds it is in the circle, so share it somewhere you trust and rotate it if it leaks. There is no forward secrecy ratchet yet inside a circle's lifetime, so exposure is bounded by the 24-hour relay retention rather than eliminated. All of this is written out in full, with what is and is not backed by tests, in the project's threat model.
+
+Source is on GitHub under the MIT license. Read the code, run the tests, or self-host the relay.

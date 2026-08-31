@@ -1,7 +1,60 @@
 // Geolocation and battery. watchPosition is only ever started on explicit
 // user intent (sharing turned on, or the demo); never at boot.
+//
+// Inside the Android wrapper the fix stream comes from the native foreground
+// service instead: page-level watchPosition stops the moment the app leaves
+// the foreground, while the service keeps delivering with the screen off.
+
+import { native } from "./env.js";
+
+function startNativeWatch(n, onFix, onError) {
+  globalThis.__starlingFix = (json) => {
+    let p;
+    try {
+      p = JSON.parse(json);
+    } catch {
+      return;
+    }
+    // Everything from the service is terminal: it does not retry, so the page
+    // must actually stop sharing rather than keep publishing the last fix.
+    if (p && p.stopped) {
+      onError({ code: 2, message: "stopped", native: true, stopped: true });
+      return;
+    }
+    if (p && p.error) {
+      onError({ code: Number(p.code) || 2, message: String(p.error), native: true });
+      return;
+    }
+    if (!Number.isFinite(p?.lat) || !Number.isFinite(p?.lon)) return;
+    onFix({
+      lat: p.lat,
+      lon: p.lon,
+      acc: Number.isFinite(p.acc) ? Math.round(p.acc) : null,
+      spd: Number.isFinite(p.spd) ? p.spd : null,
+      hdg: Number.isFinite(p.hdg) ? p.hdg : null,
+      ts: Number.isFinite(p.ts) ? p.ts : Date.now(),
+    });
+  };
+  try {
+    n.startLocation();
+  } catch {
+    delete globalThis.__starlingFix;
+    onError({ code: 2, message: "native location failed" });
+    return () => {};
+  }
+  return () => {
+    delete globalThis.__starlingFix;
+    try {
+      n.stopLocation();
+    } catch {
+      // service already gone
+    }
+  };
+}
 
 export function startWatch(onFix, onError) {
+  const n = native();
+  if (n?.startLocation) return startNativeWatch(n, onFix, onError);
   if (!("geolocation" in navigator)) {
     onError({ code: 2, message: "geolocation unsupported" });
     return () => {};

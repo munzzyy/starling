@@ -3,3 +3,9 @@ test/screenshots/*.tmp
 *.png.tmp
 .wrangler/
 __pycache__/
+
+# Generated from npm by tools/sync-vendor.sh; never committed.
+app/vendor/
+
+# Signed release artifacts, produced by tools/release-android.sh.
+dist/

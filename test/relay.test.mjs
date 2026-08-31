@@ -424,6 +424,98 @@ test("Origin mismatch is 403, matching Origin is accepted", async () => {
   assert.equal(res.status, 200);
 });
 
+test("the wrapper's asset origin and ALLOWED_ORIGINS entries may write", async () => {
+  const env = freshEnv({ ALLOWED_ORIGINS: "https://relay.example.org, https://alt.example.org" });
+  const circle = await makeCircle();
+  const id = await generateIdentity();
+  let res = await postLoc(env, circle.channel, await validPost(circle, id, Date.now()), {
+    headers: { origin: "https://appassets.androidplatform.net" },
+  });
+  assert.equal(res.status, 200);
+  res = await postLoc(env, circle.channel, await validPost(circle, id, Date.now() + 1), {
+    headers: { origin: "https://alt.example.org" },
+  });
+  assert.equal(res.status, 200);
+  // The env list is additive, never a bypass for everything else.
+  const before = snap(env);
+  await assertRejected(
+    env,
+    postLoc(env, circle.channel, await validPost(circle, id, Date.now() + 2), {
+      headers: { origin: "https://evil.example" },
+    }),
+    403,
+    before,
+  );
+});
+
+test("CORS: allowed foreign origins get a preflight and echoed headers, others get nothing", async () => {
+  const env = freshEnv({ ALLOWED_ORIGINS: "https://alt.example.org" });
+  const circle = await makeCircle();
+  const wrapper = "https://appassets.androidplatform.net";
+
+  // Preflight from the wrapper origin: 204 with the full CORS answer.
+  let res = await req(env, `/api/v1/f/${circle.channel}/loc`, {
+    method: "OPTIONS",
+    headers: { origin: wrapper },
+  });
+  assert.equal(res.status, 204);
+  assert.equal(res.headers.get("access-control-allow-origin"), wrapper);
+  assert.equal(res.headers.get("access-control-allow-methods"), "GET, POST");
+  assert.equal(res.headers.get("access-control-allow-headers"), "content-type");
+  assert.equal(res.headers.get("vary"), "origin");
+
+  // Preflight from a hostile origin: refused, no CORS grant.
+  res = await req(env, `/api/v1/f/${circle.channel}/loc`, {
+    method: "OPTIONS",
+    headers: { origin: "https://evil.example" },
+  });
+  assert.equal(res.status, 403);
+  assert.equal(res.headers.get("access-control-allow-origin"), null);
+
+  // Real GET/POST responses echo the allowed origin so the browser releases
+  // the body; same-origin and originless requests stay header-free.
+  res = await req(env, `/api/v1/f/${circle.channel}?since=0`, { headers: { origin: wrapper } });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("access-control-allow-origin"), wrapper);
+  const id = await generateIdentity();
+  res = await postLoc(env, circle.channel, await validPost(circle, id, Date.now()), {
+    headers: { origin: wrapper },
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("access-control-allow-origin"), wrapper);
+  res = await req(env, `/api/v1/f/${circle.channel}?since=0`);
+  assert.equal(res.headers.get("access-control-allow-origin"), null);
+  res = await req(env, `/api/v1/f/${circle.channel}?since=0`, {
+    headers: { origin: "https://evil.example" },
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("access-control-allow-origin"), null);
+});
+
+test("ALLOWED_ORIGINS entries are normalized to origins before matching", async () => {
+  const env = freshEnv({ ALLOWED_ORIGINS: "HTTPS://Relay.Example.org/, not a url" });
+  const circle = await makeCircle();
+  const id = await generateIdentity();
+  const res = await postLoc(env, circle.channel, await validPost(circle, id, Date.now()), {
+    headers: { origin: "https://relay.example.org" },
+  });
+  assert.equal(res.status, 200);
+});
+
+test("assetlinks.json is served with the exact type Android verification wants", async () => {
+  const env = freshEnv();
+  const res = await req(env, "/.well-known/assetlinks.json");
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("content-type"), "application/json");
+  const body = await res.json();
+  assert.equal(body[0].relation[0], "delegate_permission/common.handle_all_urls");
+  assert.equal(body[0].target.package_name, "app.starlingmap");
+  for (const fp of body[0].target.sha256_cert_fingerprints) {
+    assert.match(fp, /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
+  }
+  assert.equal((await req(env, "/.well-known/assetlinks.json", { method: "POST", body: {} })).status, 405);
+});
+
 test("post rate limit trips at RATE_POST_MIN=3 and not under it", async () => {
   const env = freshEnv({ RATE_POST_MIN: "3" });
   const circle = await makeCircle();

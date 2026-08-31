@@ -15,6 +15,9 @@
 // and returns null: the GCM tag is the verifier, so there is nothing separate
 // to brute force offline beyond the KDF itself.
 
+import { b64uEncode, b64uDecode } from "./wire.js";
+import { native } from "./env.js";
+
 const subtle = globalThis.crypto.subtle;
 const te = new TextEncoder();
 
@@ -109,6 +112,9 @@ export async function openPasscodeRecord(record, passcode) {
 const rpId = () => location.hostname;
 
 export function webauthnAvailable() {
+  // The wrapper never uses WebAuthn: its WebView cannot mint PRF output, so
+  // the Keystore path below is the only biometric wrap offered there.
+  if (native()) return false;
   return !!(globalThis.PublicKeyCredential && globalThis.navigator?.credentials?.create);
 }
 
@@ -119,6 +125,89 @@ export async function platformAuthenticatorAvailable() {
   } catch {
     return false;
   }
+}
+
+// One biometric answer for the settings sheet, whatever the platform path is.
+export async function bioAvailable() {
+  const n = native();
+  if (n) {
+    try {
+      return !!n.bioSupported();
+    } catch {
+      return false;
+    }
+  }
+  return platformAuthenticatorAvailable();
+}
+
+// --------------------------------------------------- android keystore wrapper
+// The wrapper's bridge holds an AES-GCM key in the Android Keystore that the
+// OS only unseals after a biometric prompt; it wraps K the same way the PRF
+// path does. addJavascriptInterface cannot return async values, so results
+// come back through a token on a global callback.
+
+const BIO_TIMEOUT_MS = 90000;
+let bioTokenN = 0;
+const bioPending = new Map();
+
+globalThis.__starlingBio = (token, payload) => {
+  const p = bioPending.get(token);
+  if (!p) return;
+  bioPending.delete(token);
+  clearTimeout(p.timer);
+  p.resolve(payload ?? null);
+};
+
+function bridgeCall(fn) {
+  return new Promise((resolve) => {
+    const token = `b${++bioTokenN}`;
+    const timer = setTimeout(() => {
+      bioPending.delete(token);
+      resolve(null);
+    }, BIO_TIMEOUT_MS);
+    bioPending.set(token, { resolve, timer });
+    try {
+      fn(token);
+    } catch {
+      bioPending.delete(token);
+      clearTimeout(timer);
+      resolve(null);
+    }
+  });
+}
+
+async function makeKeystoreRecord(n, vaultKeyBytes) {
+  const b64 = b64uEncode(vaultKeyBytes);
+  const res = await bridgeCall((token) => n.bioWrap(b64, token));
+  if (typeof res !== "string") return null;
+  let obj;
+  try {
+    obj = JSON.parse(res);
+  } catch {
+    return null;
+  }
+  if (typeof obj?.nonce !== "string" || typeof obj?.ct !== "string") return null;
+  try {
+    return { v: 1, kind: "android-keystore", nonce: b64uDecode(obj.nonce), ct: b64uDecode(obj.ct) };
+  } catch {
+    return null;
+  }
+}
+
+async function openKeystoreRecord(record) {
+  const n = native();
+  if (!n) return null;
+  const nonce = b64uEncode(record.nonce);
+  const ct = b64uEncode(record.ct);
+  const res = await bridgeCall((token) => n.bioUnwrap(nonce, ct, token));
+  if (typeof res !== "string") return null;
+  let key;
+  try {
+    key = b64uDecode(res);
+  } catch {
+    return null;
+  }
+  return key.length === 32 ? key : null;
 }
 
 async function evalPrf(credentialId) {
@@ -151,6 +240,8 @@ async function prfWrapKey(prfSecret) {
 // output, and wrap K with it. Returns the on-disk bio record, or null if the
 // device or browser does not actually produce PRF output (honest fallback).
 export async function makeBioRecord(vaultKeyBytes) {
+  const n = native();
+  if (n) return makeKeystoreRecord(n, vaultKeyBytes);
   if (!webauthnAvailable()) return null;
   let cred;
   try {
@@ -194,6 +285,7 @@ export async function makeBioRecord(vaultKeyBytes) {
 
 // Unlock with biometrics: returns the vault key K, or null on failure.
 export async function openBioRecord(record) {
+  if (record?.kind === "android-keystore") return openKeystoreRecord(record);
   if (!record || !record.credentialId) return null;
   let prfSecret;
   try {

@@ -27,6 +27,9 @@ jobs:
           python-version: '3.12'
       - name: QR ground-truth tool (dev-only)
         run: python -m pip install qrcode
+      - name: Vendor sync
+        run: npm ci && bash tools/sync-vendor.sh
+        shell: bash
       - name: Unit tests
         run: node --test test/*.test.mjs
 
@@ -38,3 +41,23 @@ jobs:
           fetch-depth: 0
       - name: No em/en dashes or AI attribution
         run: bash tools/check-clean.sh
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Vendor sync
+        run: npm ci && bash tools/sync-vendor.sh
+      - name: Build release APK (unsigned)
+        run: cd android && ./gradlew --no-daemon assembleRelease lint
+      - uses: actions/upload-artifact@v4
+        with:
+          name: starling-release-unsigned
+          path: android/app/build/outputs/apk/release/app-release-unsigned.apk

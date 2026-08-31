@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Starling</string>
+    <string name="notif_channel">Location sharing</string>
+    <string name="notif_title">Sharing your location</string>
+    <string name="notif_text">Your circle sees your encrypted position. Tap Stop to end it.</string>
+    <string name="notif_stop">Stop</string>
+    <string name="bio_wrap_title">Confirm to set up biometric unlock</string>
+    <string name="bio_unwrap_title">Unlock Starling</string>
+    <string name="bio_cancel">Use passcode</string>
+    <string name="panic_connect_title">Panic button</string>
+    <string name="panic_connect_text">Allow %1$s to trigger Starling\'s panic wipe? A trigger erases the circle secret, your identity, and every trace of Starling on this device, immediately and without asking. There is no undo.</string>
+    <string name="panic_allow">Allow panic wipe</string>
+    <string name="panic_deny">Don\'t allow</string>
+    <string name="panic_unknown_app">this app</string>
+</resources>

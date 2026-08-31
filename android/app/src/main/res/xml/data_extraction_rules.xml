@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nothing leaves the device: no cloud backup, no device-to-device copy.
+     The circle secret and identity keys must never ride along in a Google
+     backup or a phone migration; a new device joins from a fresh invite. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
+</data-extraction-rules>

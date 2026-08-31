@@ -15,6 +15,12 @@ WORKER=starling
 DB=starling
 W=(npx --yes wrangler@latest)
 
+# The vendor directory is generated from npm, never committed; a deploy from
+# a fresh clone must not silently ship an app with no map library.
+if [ ! -f ../app/vendor/leaflet/leaflet.js ]; then
+  echo "app/vendor is missing. Run: npm ci && bash tools/sync-vendor.sh"; exit 1
+fi
+
 if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
   T=$(secret-tool lookup service cloudflare-deploy 2>/dev/null || true)
   [ -n "$T" ] && export CLOUDFLARE_API_TOKEN="$T"

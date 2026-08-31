@@ -531,7 +531,7 @@ export function openPasscodeSheet({ title, intro, cta, confirm = false, current 
   return ov;
 }
 
-export function openSettingsSheet({ values, demo, lock, lockActions, onChange, onInvite, onPanic }) {
+export function openSettingsSheet({ values, demo, tor, lock, lockActions, onChange, onInvite, onPanic }) {
   const ov = openOverlay({ title: "Settings", testid: "settings-sheet", className: "ov-settings" });
   const b = ov.body;
 
@@ -732,6 +732,39 @@ export function openSettingsSheet({ values, demo, lock, lockActions, onChange, o
           ],
           value: String(lock.autolockMs),
           onChange: (v) => lockActions.setAutolock(Number(v)),
+        }),
+      );
+    }
+  }
+
+  // Advanced. The relay field arrives null outside the wrapper (the web CSP
+  // could never reach a foreign relay), so the group only renders where its
+  // contents can work.
+  if (!demo && (values.relay != null || tor)) {
+    const gAdv = group("Advanced");
+    if (values.relay != null) {
+      const relayField = el("label", "field");
+      relayField.append(el("span", "field-label", "Relay"));
+      const relayIn = el("input", "text-input");
+      relayIn.type = "url";
+      relayIn.placeholder = "https://starlingmap.app";
+      relayIn.autocomplete = "off";
+      relayIn.value = values.relay || "";
+      relayIn.dataset.testid = "relay-input";
+      relayIn.addEventListener("change", () => onChange("relay", relayIn.value));
+      relayField.append(relayIn);
+      gAdv.append(
+        relayField,
+        el("p", "field-note", "Point Starling at your own relay if you run one. The relay source ships with the app, so anyone can host it. Leave this empty for the default. A change applies the next time Starling starts."),
+      );
+    }
+    if (tor) {
+      gAdv.append(
+        switchRow({
+          label: "Route through Orbot",
+          note: "Sends relay and map traffic through Orbot's Tor proxy on this device. Needs Orbot installed with Power User Mode on. Orbot's per-app VPN mode also covers Starling with this off.",
+          value: tor.enabled,
+          onChange: (v) => onChange("tor", v),
         }),
       );
     }

@@ -62,9 +62,50 @@ const sweepStmts = (env, now) => [
   env.DB.prepare("DELETE FROM members WHERE srv < ?").bind(now - TTL_MS),
 ];
 
+// Origins allowed to write. The Android wrapper serves the same app from
+// bundled assets on WebView's fixed pseudo-origin, so it is allowed alongside
+// the relay's own origin; posts are signature-checked regardless, this check
+// only stops drive-by CSRF from arbitrary websites. Self-hosters can extend
+// the list with a comma-separated ALLOWED_ORIGINS var.
+const APP_ORIGINS = ["https://appassets.androidplatform.net"];
+
+function originAllowed(origin, env, url) {
+  if (origin === null) return true;
+  if (origin === url.origin || APP_ORIGINS.includes(origin)) return true;
+  return envOrigins(env).includes(origin);
+}
+
+// Entries are normalized to canonical origin form, so a trailing slash or
+// uppercase host in the var cannot silently never-match a real Origin header.
+function envOrigins(env) {
+  return String(env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => {
+      try {
+        return new URL(s).origin;
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
+// CORS: the wrapper's WebView fetches the API from its own asset origin, so
+// allowed cross origins get their Origin echoed back; everyone else gets no
+// header and the browser blocks the read. Writes stay guarded by
+// originAllowed + signatures regardless; CORS only opens the read path, and
+// reading requires the unguessable channel id either way.
+function corsHeaders(origin, env, url) {
+  if (origin === null || origin === url.origin) return {};
+  if (!originAllowed(origin, env, url)) return {};
+  return { "access-control-allow-origin": origin, vary: "origin" };
+}
+
 async function handlePost(request, env, channel, url) {
   const origin = request.headers.get("origin");
-  if (origin !== null && origin !== url.origin) return err(403, "forbidden");
+  if (!originAllowed(origin, env, url)) return err(403, "forbidden");
 
   const text = await request.text();
   if (new TextEncoder().encode(text).length > MAX_BODY) return err(413, "too large");
@@ -197,9 +238,36 @@ async function handleGet(request, env, channel, url) {
   return json(200, { now, members: [...out.values()] });
 }
 
+// Digital Asset Links: proves to Android that the app and this origin belong
+// together, so starlingmap.app links open straight in the installed app.
+// Served by the worker because verification is strict about the exact path,
+// the content type, and following no redirects. The first fingerprint is the
+// developer upload key that signs sideloaded and F-Droid builds; the Play App
+// Signing fingerprint joins it once Google mints one.
+const ASSETLINKS = [
+  {
+    relation: ["delegate_permission/common.handle_all_urls"],
+    target: {
+      namespace: "android_app",
+      package_name: "app.starlingmap",
+      sha256_cert_fingerprints: [
+        "DB:B0:C4:91:53:0F:74:75:40:9C:4C:29:53:E9:F6:8A:52:51:9C:2F:68:1D:D9:E5:F6:99:38:F3:BF:9B:8C:9E",
+      ],
+    },
+  },
+];
+
 async function route(request, env) {
   const url = new URL(request.url);
   const p = url.pathname;
+
+  if (p === "/.well-known/assetlinks.json") {
+    if (request.method !== "GET") return err(405, "method not allowed");
+    return new Response(JSON.stringify(ASSETLINKS), {
+      status: 200,
+      headers: { ...HEADERS, "content-type": "application/json", "cache-control": "max-age=3600" },
+    });
+  }
 
   if (p === "/api/v1/health") {
     if (request.method !== "GET") return err(405, "method not allowed");
@@ -211,6 +279,21 @@ async function route(request, env) {
   const [, seg, loc] = m;
   if (!isChannelId(seg)) return err(404, "not found");
 
+  if (request.method === "OPTIONS") {
+    const origin = request.headers.get("origin");
+    const cors = corsHeaders(origin, env, url);
+    if (!cors["access-control-allow-origin"]) return err(403, "forbidden");
+    return new Response(null, {
+      status: 204,
+      headers: {
+        ...cors,
+        "access-control-allow-methods": "GET, POST",
+        "access-control-allow-headers": "content-type",
+        "access-control-max-age": "86400",
+      },
+    });
+  }
+
   if (loc) {
     if (request.method !== "POST") return err(405, "method not allowed");
     return handlePost(request, env, seg, url);
@@ -219,10 +302,22 @@ async function route(request, env) {
   return handleGet(request, env, seg, url);
 }
 
+// Feed and post responses carry CORS headers for allowed foreign origins; the
+// route handlers themselves stay origin-unaware.
+async function withCors(request, env, response) {
+  const url = new URL(request.url);
+  if (!/^\/api\/v1\/f\//.test(url.pathname)) return response;
+  const cors = corsHeaders(request.headers.get("origin"), env, url);
+  if (!cors["access-control-allow-origin"]) return response;
+  const headers = new Headers(response.headers);
+  for (const [k, v] of Object.entries(cors)) headers.set(k, v);
+  return new Response(response.body, { status: response.status, headers });
+}
+
 export default {
   async fetch(request, env) {
     try {
-      return await route(request, env);
+      return await withCors(request, env, await route(request, env));
     } catch {
       return err(500, "server error");
     }

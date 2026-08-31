@@ -19,9 +19,10 @@ import {
   openBioRecord,
   sealUnderVault,
   openUnderVault,
-  platformAuthenticatorAvailable,
+  bioAvailable,
   zero,
 } from "./lock.js";
+import { isWrapped, native, shareUrlBase, normalizeRelay, setApiBase } from "./env.js";
 import * as ui from "./ui.js";
 import { createMapView } from "./map.js";
 import { createPoller, createRoster, createSender, statusOf, sortMembers, STALE_MS } from "./net.js";
@@ -61,6 +62,7 @@ const state = {
   locked: false,
   lock: null, // { enabled, autolockMs, pass, bio } when app lock is on
   vaultKey: null, // 32 bytes in memory only while unlocked
+  relay: "", // custom relay URL; "" means the default
 };
 
 let roster = null;
@@ -771,8 +773,9 @@ async function rotateCircle() {
   render();
 }
 
-const inviteLink = () =>
-  `${location.origin}${location.pathname}${inviteFragment(state.secret)}`;
+// In the wrapper the page lives on an asset origin that means nothing off this
+// device, so invites always name the canonical web origin instead.
+const inviteLink = () => `${shareUrlBase()}${inviteFragment(state.secret)}`;
 
 function qrColors() {
   return resolvedTheme() === "light"
@@ -796,18 +799,33 @@ function openInvite() {
 // -------------------------------------------------------------- settings
 
 async function openSettings() {
-  const bioAvailable = await platformAuthenticatorAvailable();
+  const bioOk = await bioAvailable();
+  const n = native();
+  let tor = null;
+  if (n?.torSupported) {
+    try {
+      if (n.torSupported()) tor = { enabled: !!n.torEnabled() };
+    } catch {
+      tor = null;
+    }
+  }
   ui.openSettingsSheet({
     values: {
       circleName: state.circleName,
       profile: state.profile || { name: "", emoji: "\u{1F9ED}" },
       settings: state.settings,
+      // The relay choice is wrapper-only: the web deployment's CSP pins
+      // connect-src to its own origin, so a cross-origin relay set there
+      // could never be reached. Web self-hosters serve app and relay from
+      // one origin and need no setting.
+      relay: isWrapped() ? state.relay || "" : null,
     },
     demo: state.demo,
+    tor,
     lock: {
       enabled: !!state.lock?.enabled,
       hasBio: !!state.lock?.bio,
-      bioAvailable,
+      bioAvailable: bioOk,
       autolockMs: state.lock?.autolockMs ?? 60000,
     },
     lockActions: {
@@ -828,6 +846,22 @@ async function onSettingChange(key, value) {
   if (key === "circleName") {
     state.circleName = value;
     await dbSet("circleName", value);
+  } else if (key === "relay") {
+    const norm = normalizeRelay(value);
+    if (String(value).trim() && !norm) {
+      ui.toast("A relay must be an https URL, like https://relay.example.org", "warn");
+      return;
+    }
+    state.relay = norm || "";
+    if (norm) await dbSet("relay", norm);
+    else await dbDel("relay");
+    ui.toast("Relay saved. It applies the next time Starling starts.");
+  } else if (key === "tor") {
+    try {
+      native()?.setTor(!!value);
+    } catch {
+      ui.toast("Could not change the Orbot setting.", "warn");
+    }
   } else if (key === "name" || key === "emoji") {
     state.profile = { ...(state.profile || {}), [key]: value };
     await dbSet("profile", state.profile);
@@ -911,6 +945,12 @@ function onGeoError(err) {
   if (err && err.code === 1) {
     state.geoDenied = true;
     if (state.sharing) stopSharingInternals();
+  } else if (err && err.native) {
+    // The foreground service quit (notification Stop, refused start, no
+    // provider) and will not retry. Anything short of a full stop here would
+    // keep the share timer republishing the last fix as if it were fresh.
+    if (state.sharing) setSharing(false);
+    if (!err.stopped) ui.toast(`Location stopped: ${err.message || "service error"}`, "warn");
   } else if (err && err.code === 2 && !navigator.geolocation) {
     // No geolocation API at all: sharing can never work here.
     if (state.sharing) stopSharingInternals();
@@ -1121,6 +1161,16 @@ document.addEventListener("keydown", (e) => {
 });
 
 async function boot() {
+  // Everything downstream needs WebCrypto and IndexedDB. A secure context
+  // without them is an outdated engine and gets a plain explanation instead
+  // of a page of silent errors. An insecure context also lacks crypto.subtle,
+  // but that case keeps its own banner and degraded boot below.
+  if (!insecureContext && (!globalThis.crypto?.subtle || !globalThis.indexedDB)) {
+    $("#screen-oldweb").hidden = false;
+    $("#screen-onboarding").hidden = true;
+    return;
+  }
+
   const params = new URLSearchParams(location.search);
   const invite = parseInviteFragment(location.hash);
   if (invite) history.replaceState(null, "", location.pathname + location.search);
@@ -1129,19 +1179,25 @@ async function boot() {
   byTestid("onboarding-join").addEventListener("click", promptPasteInvite);
   byTestid("onboarding-demo").addEventListener("click", startDemo);
 
+  // Ask the OS not to evict our store under storage pressure. Wrapper only:
+  // the WebView grants or denies silently, while desktop Firefox turns a bare
+  // persist() into a permission prompt the web app never used to show.
+  if (isWrapped()) navigator.storage?.persist?.().catch(() => {});
+
   // Persistence is optional. If the store cannot be read, boot with defaults
   // to onboarding instead of a dead page.
   let secret = null;
   let identity = null;
   let lock = null;
   try {
-    const [sec, id, profile, settings, circleName, lk] = await Promise.all([
+    const [sec, id, profile, settings, circleName, lk, relay] = await Promise.all([
       dbGet("secret"),
       dbGet("identity"),
       dbGet("profile"),
       dbGet("settings"),
       dbGet("circleName"),
       dbGet("lock"),
+      dbGet("relay"),
     ]);
     secret = sec;
     identity = id;
@@ -1149,9 +1205,12 @@ async function boot() {
     if (profile) state.profile = profile;
     if (settings) state.settings = { ...state.settings, ...settings };
     if (circleName) state.circleName = circleName;
+    if (typeof relay === "string") state.relay = relay;
   } catch (e) {
     window.__starlingErrors.push(`store: ${String(e)}`);
   }
+  // The API base is fixed for this run before any poller or sender is built.
+  setApiBase(state.relay);
   applyTheme();
 
   try {
@@ -1191,7 +1250,9 @@ async function boot() {
     if (state.screen === "map" && !state.demo) render();
   }, 5000);
 
-  if (!insecureContext && "serviceWorker" in navigator) {
+  // The wrapper serves assets locally already and WebView never wires up
+  // service worker interception, so registration is web-only.
+  if (!insecureContext && !isWrapped() && "serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch((e) => {
       window.__starlingErrors.push(`sw: ${String(e)}`);
     });

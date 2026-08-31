@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- HTTPS only, everywhere, no exceptions. Custom relays are https by
+     validation in the app, and this makes cleartext impossible at the
+     platform level too. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

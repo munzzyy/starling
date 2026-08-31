@@ -3,7 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self'; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+<!-- connect-src carries https: for the Android wrapper, which loads this page
+     from bundled assets and talks to the relay cross-origin. On the web the
+     served header pins connect-src to 'self' and browsers enforce the
+     intersection of both policies, so the site keeps its strict posture. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https:; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="theme-color" content="#0a0d14">
 <meta name="description" content="Private, end to end encrypted location sharing for your circle. No accounts, no tracking.">
 <meta name="mobile-web-app-capable" content="yes">
@@ -15,6 +19,7 @@
 <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="modulepreload" href="js/env.js">
 <link rel="modulepreload" href="js/wire.js">
 <link rel="modulepreload" href="js/fmt.js">
 <link rel="modulepreload" href="js/crypto.js">
@@ -52,6 +57,15 @@
       <span>Unlock with biometrics</span>
     </button>
     <button type="button" class="btn btn-ghost lock-wipe" id="lock-wipe" data-testid="lock-wipe">Forgot passcode</button>
+  </div>
+</section>
+
+<section id="screen-oldweb" class="screen" hidden>
+  <div class="ob-wrap">
+    <div class="ob-hero">
+      <h1 class="ob-wordmark">starling</h1>
+      <p class="ob-tagline">This browser is missing WebCrypto or IndexedDB, which Starling needs for its encryption. Update Android System WebView or switch to a current browser, then reopen Starling.</p>
+    </div>
   </div>
 </section>
 

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="theme-color" content="#0a0d14">
+<meta name="description" content="Starling privacy policy: what the app and relay do and do not know about you.">
+<title>Privacy policy - Starling</title>
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/privacy.css">
+</head>
+<body>
+
+<h1>Privacy policy</h1>
+<p class="effective">Effective 2026-08-31</p>
+
+<p>Starling is a location sharing app built so that the people running it cannot
+see your location, and there is nothing to sell because there is nothing
+collected to sell. This page says exactly what the app and its relay know
+about you, in plain language.</p>
+
+<h2>There is no account</h2>
+<p>Starling does not ask for a name, email address, phone number, or any
+sign-up. There is no user database. A "circle" is created by generating a
+random secret on your device; nothing about you is attached to it.</p>
+
+<h2>Your location is encrypted before it leaves your device</h2>
+<p>Positions are encrypted with AES-256-GCM using a key derived from your
+circle's secret before they are sent anywhere. That secret lives only inside
+invite links, in the part of the URL that browsers never transmit to a
+server. The relay that moves messages between your circle's devices stores
+and forwards ciphertext it cannot decrypt. Names, avatars, and status text
+travel inside that same ciphertext.</p>
+
+<h2>What the relay does see</h2>
+<p>Running any server means the server sees some things. The relay sees:</p>
+<ul>
+  <li>IP addresses making requests, and when they happen.</li>
+  <li>Channel identifiers and ciphertext sizes, which are padded to a fixed
+  length so they reveal nothing about message content.</li>
+  <li>That a device is using Starling at all, from the origin it connects to.</li>
+</ul>
+<p>The relay never sees a position, a name, or which people belong to a
+circle together. All ciphertext rows expire automatically after 24 hours,
+and there are no backups kept beyond that window by design.</p>
+
+<h2>Map tiles</h2>
+<p>When the street map basemap is on, the app fetches map tiles from
+<code>tile.openstreetmap.org</code> to draw the background map. That request
+reveals your IP address and the rough area you are viewing to OpenStreetMap's
+tile hosts, the same as any map app that uses their tiles. Switch to the
+Off-grid basemap in settings and the app renders the map locally and makes
+no tile requests at all.</p>
+
+<h2>What stays only on your device</h2>
+<p>Your circle memberships, the app lock passcode, cached member positions,
+and any local settings live in your device's local storage only. Starling
+does not run analytics, crash reporting, or advertising code, and makes no
+network requests beyond the relay and, optionally, map tiles.</p>
+
+<h2>Deleting your data</h2>
+<p>There is no account to delete because there is no account. To leave a
+circle, stop sharing and remove it from your device; its ciphertext on the
+relay expires within 24 hours regardless. Panic wipe, available from the
+app, immediately clears everything Starling has stored on your device. If
+you self-host your own relay, deletion of that relay's data is entirely
+under your own control.</p>
+
+<h2>Nothing is sold or shared</h2>
+<p>Starling does not sell, rent, or share any data with advertisers, data
+brokers, or any third party, because it does not have your data to share in
+the first place. The people who run the default relay cannot read your
+location even if compelled to hand over everything they have.</p>
+
+<h2>Self-hosting</h2>
+<p>The relay is open source. If you would rather not use the default relay
+at all, you can run your own and point the app at it in settings. This
+policy describes the default relay at starlingmap.app; a relay you run
+yourself is governed by whatever you choose to do with it.</p>
+
+<h2>Changes to this policy</h2>
+<p>If this policy changes, the effective date at the top of this page
+changes with it. Material changes will be noted in the project's
+<a href="https://github.com/munzzyy/starling/blob/main/CHANGELOG.md">changelog</a>.</p>
+
+<h2>Contact</h2>
+<p>Questions or concerns: <a href="mailto:Munzzyy1@proton.me">Munzzyy1@proton.me</a>.</p>
+
+</body>
+</html>

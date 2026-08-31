@@ -10,6 +10,7 @@ import {
   memberIdFromPub,
 } from "./wire.js";
 import { openMessage, sealMessage, buildPost } from "./crypto.js";
+import { apiUrl } from "./env.js";
 
 const POLL_MS = 10000;
 const BACKOFF_MAX_MS = 120000;
@@ -132,7 +133,7 @@ export function createPoller({ channelId, roster, onChange, onStatus }) {
     if (document.visibilityState === "hidden") return;
     inFlight = true;
     try {
-      const res = await fetch(`/api/v1/f/${channelId}?since=${since}`, { cache: "no-store" });
+      const res = await fetch(apiUrl(`/api/v1/f/${channelId}?since=${since}`), { cache: "no-store" });
       if (!res.ok) throw new Error(`poll ${res.status}`);
       const data = await res.json();
       const fresh = (data.members || []).map((entry) => ({
@@ -215,7 +216,7 @@ export function createSender({ identity, channelId, encKey, getLastTs, setLastTs
       const msg = { v: 1, ts, ...fields };
       const sealed = await sealMessage(encKey, channelId, identity.memberId, msg);
       const post = await buildPost(identity, channelId, sealed, ts);
-      const res = await fetch(`/api/v1/f/${channelId}/loc`, {
+      const res = await fetch(apiUrl(`/api/v1/f/${channelId}/loc`), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(post),

@@ -131,6 +131,23 @@ Being clear about the edges is part of the point.
   strict CSP, no third party scripts, and a service worker that pins the shell;
   the real fix is a store-distributed wrapper.
 
+## Android
+
+A native Android wrapper is in progress for Google Play and F-Droid (status:
+in progress, not yet published to either). It runs the same `app/` code
+inside a hand-written Kotlin WebView, and adds what the web platform cannot
+give it on its own: background sharing through a foreground service (with a
+persistent notification the whole time, so it is never silent about what it
+is doing), fingerprint or face unlock through the Android Keystore in place
+of WebAuthn PRF, a PanicKit responder for panic-button apps like Ripple, and
+Orbot support. See [docs/ANDROID.md](docs/ANDROID.md) for building it,
+[docs/play-listing.md](docs/play-listing.md) for the Play Store listing, and
+[docs/fdroid/](docs/fdroid) for the F-Droid submission draft.
+
+## Privacy policy
+
+[starlingmap.app/privacy.html](https://starlingmap.app/privacy.html)
+
 ## Roadmap
 
 - Group ratchet for forward secrecy inside a circle's lifetime

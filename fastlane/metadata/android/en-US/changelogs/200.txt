@@ -1,0 +1,1 @@
+First Android release. Native wrapper around the same end to end encrypted app: background sharing with a visible notification, fingerprint or face unlock through Android Keystore, panic wipe via PanicKit, and a custom relay setting for self-hosters. Works with Orbot.
