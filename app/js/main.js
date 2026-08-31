@@ -10,7 +10,18 @@ import {
   inviteFragment,
 } from "./crypto.js";
 import { qrSvg } from "./qr.js";
-import { dbGet, dbSet, wipeAll, persistenceBroken } from "./store.js";
+import { dbGet, dbSet, dbDel, wipeAll, persistenceBroken } from "./store.js";
+import {
+  newVaultKey,
+  makePasscodeRecord,
+  openPasscodeRecord,
+  makeBioRecord,
+  openBioRecord,
+  sealUnderVault,
+  openUnderVault,
+  platformAuthenticatorAvailable,
+  zero,
+} from "./lock.js";
 import * as ui from "./ui.js";
 import { createMapView } from "./map.js";
 import { createPoller, createRoster, createSender, statusOf, sortMembers, STALE_MS } from "./net.js";
@@ -47,6 +58,9 @@ const state = {
   geoFailed: false,
   netStatus: "idle",
   offline: !navigator.onLine,
+  locked: false,
+  lock: null, // { enabled, autolockMs, pass, bio } when app lock is on
+  vaultKey: null, // 32 bytes in memory only while unlocked
 };
 
 let roster = null;
@@ -92,6 +106,9 @@ window.__starlingState = () => {
     screen: state.screen,
     sharing: !!state.sharing,
     demo: !!state.demo,
+    locked: !!state.locked,
+    lockEnabled: !!state.lock?.enabled,
+    hasBio: !!state.lock?.bio,
     channel: state.channelId || null,
     members: sortMembers(members(), now).map((r) => ({
       id: r.id,
@@ -128,6 +145,7 @@ window.__starlingFit = () => {
 
 function showScreen(name) {
   state.screen = name;
+  $("#screen-lock").hidden = name !== "lock";
   $("#screen-onboarding").hidden = name !== "onboarding";
   $("#screen-map").hidden = name !== "map";
   ensureWakeLock();
@@ -375,7 +393,7 @@ function setupNet() {
 }
 
 async function persistCircle() {
-  await dbSet("secret", state.secret);
+  await writeSecretAtRest();
   await dbSet("identity", {
     alg: state.identity.alg,
     privateKey: state.identity.privateKey,
@@ -384,6 +402,214 @@ async function persistCircle() {
   });
   await dbSet("lastSentTs", 0);
 }
+
+// The circle secret is the crown jewel. With app lock on it is written only
+// sealed under the in-memory vault key; with lock off it is stored as bytes,
+// same as an unlocked phone's other app data. Exactly one form is ever on disk.
+async function writeSecretAtRest() {
+  if (state.lock?.enabled && state.vaultKey) {
+    await dbSet("vaultSecret", await sealUnderVault(state.vaultKey, state.secret));
+    await dbDel("secret");
+  } else {
+    await dbSet("secret", state.secret);
+    await dbDel("vaultSecret");
+  }
+}
+
+// ------------------------------------------------------------------ app lock
+
+let lockTimer = 0;
+let lockWired = false;
+
+async function enableLock(passcode) {
+  const K = newVaultKey();
+  const pass = await makePasscodeRecord(passcode, K);
+  state.vaultKey = K;
+  state.lock = { enabled: true, autolockMs: 60000, pass, bio: null };
+  await dbSet("vaultSecret", await sealUnderVault(K, state.secret));
+  await dbSet("lock", state.lock);
+  await dbDel("secret");
+}
+
+async function disableLock(passcode) {
+  const K = await openPasscodeRecord(state.lock.pass, passcode);
+  if (!K) return false;
+  zero(state.vaultKey);
+  state.vaultKey = null;
+  state.lock = null;
+  await dbSet("secret", state.secret);
+  await dbDel("vaultSecret");
+  await dbDel("lock");
+  return true;
+}
+
+async function changePasscode(oldPc, newPc) {
+  const K = await openPasscodeRecord(state.lock.pass, oldPc);
+  if (!K) return false;
+  state.lock = { ...state.lock, pass: await makePasscodeRecord(newPc, K) };
+  await dbSet("lock", state.lock);
+  zero(K);
+  return true;
+}
+
+async function enableBiometric() {
+  if (!state.vaultKey) return false;
+  const rec = await makeBioRecord(state.vaultKey);
+  if (!rec) return false;
+  state.lock = { ...state.lock, bio: rec };
+  await dbSet("lock", state.lock);
+  return true;
+}
+
+async function disableBiometric() {
+  state.lock = { ...state.lock, bio: null };
+  await dbSet("lock", state.lock);
+}
+
+async function setAutolock(ms) {
+  state.lock = { ...state.lock, autolockMs: ms };
+  await dbSet("lock", state.lock);
+}
+
+// Unlock recovers the vault key by one of the two paths, decrypts the sealed
+// secret, and enters the circle. Returns false on a wrong passcode or a failed
+// biometric so the lock screen can say so; the sealed secret never leaves disk
+// until a path actually authenticates.
+async function unlockWith(recoverKey) {
+  const K = await recoverKey();
+  if (!K) return false;
+  const sealed = await dbGet("vaultSecret");
+  const secret = await openUnderVault(K, sealed);
+  if (!secret) {
+    zero(K);
+    return false;
+  }
+  state.vaultKey = K;
+  state.secret = secret;
+  state.identity = await dbGet("identity");
+  if (!state.identity) {
+    zero(K);
+    return false;
+  }
+  state.locked = false;
+  clearTimeout(lockTimer);
+  await enterCircle();
+  return true;
+}
+
+// Drop every key from memory, tear down the live circle, and show the lock
+// screen. After this the process holds no plaintext secret or vault key.
+function lockNow() {
+  if (!state.lock?.enabled || state.locked) return;
+  clearTimeout(lockTimer);
+  if (state.sharing) {
+    sendMsg("bye").catch(() => {});
+    stopSharingInternals();
+  }
+  poller?.stop();
+  poller = null;
+  sender?.cancel?.();
+  sender = null;
+  roster = null;
+  zero(state.vaultKey);
+  zero(state.secret);
+  state.vaultKey = null;
+  state.secret = null;
+  state.encKey = null;
+  state.channelId = null;
+  state.me = null;
+  focusedId = null;
+  prevStatus.clear();
+  state.locked = true;
+  ensureLockUI();
+  paintLockScreen();
+  showScreen("lock");
+}
+
+function paintLockScreen() {
+  const bioBtn = $("#lock-bio");
+  bioBtn.hidden = !state.lock?.bio;
+  const err = $("#lock-error");
+  err.hidden = true;
+  const input = $("#lock-input");
+  input.value = "";
+  input.disabled = false;
+}
+
+function showLockError(msg) {
+  const err = $("#lock-error");
+  err.textContent = msg;
+  err.hidden = false;
+  const input = $("#lock-input");
+  input.value = "";
+  input.focus();
+  $("#screen-lock").classList.remove("shake");
+  // Reflow so the animation restarts on repeated wrong tries.
+  void $("#screen-lock").offsetWidth;
+  $("#screen-lock").classList.add("shake");
+}
+
+function ensureLockUI() {
+  if (lockWired) return;
+  lockWired = true;
+  const form = $("#lock-form");
+  const input = $("#lock-input");
+  const unlockBtn = $("#lock-unlock");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const pc = input.value;
+    if (!pc) return;
+    input.disabled = true;
+    unlockBtn.disabled = true;
+    unlockBtn.textContent = "Unlocking...";
+    let ok = false;
+    try {
+      ok = await unlockWith(() => openPasscodeRecord(state.lock.pass, pc));
+    } catch {
+      ok = false;
+    }
+    unlockBtn.disabled = false;
+    unlockBtn.textContent = "Unlock";
+    input.disabled = false;
+    if (!ok) showLockError("Wrong passcode. Try again.");
+  });
+  $("#lock-bio").addEventListener("click", async () => {
+    if (!state.lock?.bio) return;
+    let ok = false;
+    try {
+      ok = await unlockWith(() => openBioRecord(state.lock.bio));
+    } catch {
+      ok = false;
+    }
+    if (!ok) showLockError("Biometric unlock did not work. Use your passcode.");
+  });
+  $("#lock-wipe").addEventListener("click", forgotPasscode);
+}
+
+function forgotPasscode() {
+  const ov = ui.openOverlay({ title: "Forgot passcode", testid: "forgot-sheet" });
+  ov.body.append(
+    ui.el(
+      "p",
+      "ov-note",
+      "Starling cannot recover a forgotten passcode. Nothing about your circle leaves your device unencrypted, so there is no reset link. You can erase this device and rejoin your circle from a fresh invite. Hold the button to erase everything on this device.",
+    ),
+  );
+  const hold = ui.el("button", "btn btn-danger btn-hold", "Hold to erase this device");
+  hold.type = "button";
+  ui.holdToFire(hold, { ms: 1500, onFire: panic });
+  ov.body.append(hold);
+}
+
+// Auto-lock: relock after the chosen idle delay once the tab is hidden, and
+// always start locked on a fresh launch (handled in boot).
+document.addEventListener("visibilitychange", () => {
+  if (!state.lock?.enabled || state.locked) return;
+  clearTimeout(lockTimer);
+  if (document.visibilityState === "hidden") {
+    lockTimer = setTimeout(lockNow, state.lock.autolockMs);
+  }
+});
 
 async function saveProfile(p) {
   state.profile = { name: p.name, emoji: p.emoji };
@@ -551,7 +777,8 @@ function openInvite() {
 
 // -------------------------------------------------------------- settings
 
-function openSettings() {
+async function openSettings() {
+  const bioAvailable = await platformAuthenticatorAvailable();
   ui.openSettingsSheet({
     values: {
       circleName: state.circleName,
@@ -559,6 +786,20 @@ function openSettings() {
       settings: state.settings,
     },
     demo: state.demo,
+    lock: {
+      enabled: !!state.lock?.enabled,
+      hasBio: !!state.lock?.bio,
+      bioAvailable,
+      autolockMs: state.lock?.autolockMs ?? 60000,
+    },
+    lockActions: {
+      enable: enableLock,
+      disable: disableLock,
+      change: changePasscode,
+      enableBio: enableBiometric,
+      disableBio: disableBiometric,
+      setAutolock,
+    },
     onChange: onSettingChange,
     onInvite: openInvite,
     onPanic: panic,
@@ -872,16 +1113,19 @@ async function boot() {
   // to onboarding instead of a dead page.
   let secret = null;
   let identity = null;
+  let lock = null;
   try {
-    const [sec, id, profile, settings, circleName] = await Promise.all([
+    const [sec, id, profile, settings, circleName, lk] = await Promise.all([
       dbGet("secret"),
       dbGet("identity"),
       dbGet("profile"),
       dbGet("settings"),
       dbGet("circleName"),
+      dbGet("lock"),
     ]);
     secret = sec;
     identity = id;
+    lock = lk;
     if (profile) state.profile = profile;
     if (settings) state.settings = { ...state.settings, ...settings };
     if (circleName) state.circleName = circleName;
@@ -891,7 +1135,15 @@ async function boot() {
   applyTheme();
 
   try {
-    if (secret && identity) {
+    if (lock?.enabled) {
+      // A locked circle starts locked on every launch. Nothing is decrypted
+      // until the passcode or a biometric recovers the vault key.
+      state.lock = lock;
+      state.locked = true;
+      ensureLockUI();
+      paintLockScreen();
+      showScreen("lock");
+    } else if (secret && identity) {
       state.secret = secret;
       state.identity = identity;
       await enterCircle();
@@ -907,8 +1159,11 @@ async function boot() {
     ui.toast("This browser is blocking storage. Starling runs, but nothing is saved after you close it.", "warn");
   }
 
-  if (params.get("demo") === "1") startDemo();
-  else if (invite) promptJoin(invite);
+  // Demo and invite auto-actions only apply past the lock screen.
+  if (!state.locked) {
+    if (params.get("demo") === "1") startDemo();
+    else if (invite) promptJoin(invite);
+  }
 
   if (params.get("sheet") === "full" && sheet) sheet.snapTo("full", false);
 

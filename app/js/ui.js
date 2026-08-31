@@ -436,7 +436,70 @@ function switchRow({ label, note, value, onChange }) {
   return row;
 }
 
-export function openSettingsSheet({ values, demo, onChange, onInvite, onPanic }) {
+// A passcode entry sheet. `confirm` requires a matching second entry (used when
+// setting a new passcode). `onSubmit(passcode)` resolves true on success or
+// false to keep the sheet open with an error (e.g. a wrong current passcode).
+export function openPasscodeSheet({ title, intro, cta, confirm = false, current = false, minLen = 4, onSubmit }) {
+  const ov = openOverlay({ title, testid: "passcode-sheet", className: "ov-passcode" });
+  if (intro) ov.body.append(el("p", "ov-note", intro));
+
+  function pcField(labelText, testid) {
+    const f = el("label", "field");
+    f.append(el("span", "field-label", labelText));
+    const i = el("input", "text-input");
+    i.type = "password";
+    i.inputMode = "numeric";
+    i.autocomplete = "off";
+    i.dataset.testid = testid;
+    i.setAttribute("aria-label", labelText);
+    f.append(i);
+    ov.body.append(f);
+    return i;
+  }
+
+  const curIn = current ? pcField("Current passcode", "passcode-current") : null;
+  const newIn = pcField(current ? "New passcode" : "Passcode", "passcode-input");
+  const confIn = confirm ? pcField("Confirm passcode", "passcode-confirm") : null;
+
+  const err = el("p", "ov-warn-note", "");
+  err.setAttribute("role", "alert");
+  err.hidden = true;
+  ov.body.append(err);
+
+  const submit = btn("btn btn-primary", cta || "Save");
+  submit.dataset.testid = "passcode-save";
+  let busy = false;
+  const fail = (m) => {
+    err.textContent = m;
+    err.hidden = false;
+  };
+  submit.addEventListener("click", async () => {
+    if (busy) return;
+    const pc = newIn.value;
+    if (pc.length < minLen) return fail(`Use at least ${minLen} characters.`);
+    if (confIn && confIn.value !== pc) return fail("The two passcodes do not match.");
+    busy = true;
+    submit.disabled = true;
+    try {
+      const ok = await onSubmit(current ? { current: curIn.value, next: pc } : pc);
+      if (ok) ov.close();
+      else {
+        fail(current ? "That current passcode is wrong." : "Could not save. Try again.");
+        busy = false;
+        submit.disabled = false;
+      }
+    } catch {
+      fail("Something went wrong. Try again.");
+      busy = false;
+      submit.disabled = false;
+    }
+  });
+  ov.body.append(submit);
+  (curIn || newIn).focus();
+  return ov;
+}
+
+export function openSettingsSheet({ values, demo, lock, lockActions, onChange, onInvite, onPanic }) {
   const ov = openOverlay({ title: "Settings", testid: "settings-sheet", className: "ov-settings" });
   const b = ov.body;
 
@@ -535,6 +598,101 @@ export function openSettingsSheet({ values, demo, onChange, onInvite, onPanic })
       onChange: (v) => onChange("wakeLock", v),
     }),
   );
+
+  // App lock
+  if (lock && !demo) {
+    const gLock = group("App lock");
+    const lockRow = switchRow({
+      label: "Require passcode",
+      note: "Encrypts your circle secret on this device. Nobody can open Starling, or read the secret from storage, without your passcode.",
+      value: lock.enabled,
+      onChange: (on) => {
+        if (on) {
+          openPasscodeSheet({
+            title: "Set a passcode",
+            intro: "Choose a passcode to lock Starling on this device. There is no reset: if you forget it you erase this device and rejoin from an invite.",
+            cta: "Turn on app lock",
+            confirm: true,
+            onSubmit: async (pc) => {
+              await lockActions.enable(pc);
+              toast("App lock is on.");
+              ov.close();
+              return true;
+            },
+          });
+        } else {
+          openPasscodeSheet({
+            title: "Turn off app lock",
+            intro: "Enter your passcode to stop encrypting the circle secret at rest.",
+            cta: "Turn off app lock",
+            onSubmit: async (pc) => {
+              const ok = await lockActions.disable(pc);
+              if (ok) {
+                toast("App lock is off.");
+                ov.close();
+              }
+              return ok;
+            },
+          });
+        }
+      },
+    });
+    gLock.append(lockRow);
+
+    if (lock.enabled) {
+      const changeBtn = btn("btn btn-secondary", "Change passcode");
+      changeBtn.dataset.testid = "passcode-change";
+      changeBtn.addEventListener("click", () =>
+        openPasscodeSheet({
+          title: "Change passcode",
+          cta: "Change passcode",
+          current: true,
+          confirm: true,
+          onSubmit: async ({ current, next }) => {
+            const ok = await lockActions.change(current, next);
+            if (ok) toast("Passcode changed.");
+            return ok;
+          },
+        }),
+      );
+      gLock.append(changeBtn);
+
+      if (lock.bioAvailable || lock.hasBio) {
+        gLock.append(
+          switchRow({
+            label: "Unlock with biometrics",
+            note: "Use this device's Face ID, fingerprint, or Windows Hello to unlock. Your passcode still works as backup.",
+            value: lock.hasBio,
+            onChange: async (on) => {
+              if (on) {
+                const ok = await lockActions.enableBio();
+                toast(ok ? "Biometric unlock is on." : "Your device or browser could not set up biometric unlock.", ok ? "info" : "warn");
+                if (!ok) ov.close();
+              } else {
+                await lockActions.disableBio();
+                toast("Biometric unlock is off.");
+              }
+            },
+          }),
+        );
+      }
+
+      gLock.append(
+        segControl({
+          label: "Auto-lock",
+          note: "Relock after the app has been in the background this long.",
+          options: [
+            { value: "0", label: "Now" },
+            { value: "60000", label: "1 min" },
+            { value: "300000", label: "5 min" },
+            { value: "3600000", label: "1 hr" },
+          ],
+          value: String(lock.autolockMs),
+          onChange: (v) => lockActions.setAutolock(Number(v)),
+        }),
+      );
+    }
+  }
 
   // Danger
   const gDanger = group("Danger zone");

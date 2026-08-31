@@ -36,7 +36,8 @@ gets ciphertext and metadata only:
 | Attacker who scrapes a `channel_id` (128-bit, unguessable; would require relay compromise) | can fetch ciphertext they cannot decrypt; can write junk rows that fail GCM authentication on every member's device and render as nothing; cannot overwrite real members (writes are signature-checked against pinned keys) |
 | Network attacker replaying captured requests | whole-body replay blocked at the relay by the strictly-increasing `ts` rule; cross-channel and cross-member replay blocked by AAD binding; stale-point replay dropped by receivers |
 | Malicious circle member | already trusted with your location while you share; can spam or lie about their own position. Remedy is rotation: new secret, re-invite. Same trust model as a Signal group |
-| Stolen unlocked phone | attacker sees what the app shows and holds the circle secret. Panic wipe clears local state; rotating the circle from another device cuts the stolen device off within one TTL |
+| Stolen unlocked phone, app lock OFF | attacker sees what the app shows and holds the circle secret. Panic wipe clears local state; rotating the circle from another device cuts the stolen device off within one TTL |
+| Stolen unlocked phone, app lock ON | the circle secret is AES-256-GCM encrypted at rest under a random vault key, which is itself wrapped by a PBKDF2-SHA-256 (600k iterations) key from the passcode and, optionally, by a WebAuthn PRF secret gated behind device biometrics. A locked app holds no plaintext secret, vault key, or channel id in memory or on disk. The attacker must defeat the passcode (brute force bounded by the KDF) or the OS biometric to read anything, and a dump of IndexedDB yields only ciphertext. `test/e2e_lock.py` asserts the plaintext secret is deleted the moment lock turns on and that a reload comes back with no derivable channel |
 | Malicious server operator shipping poisoned app JS | fatal, as for every web app including web clients of E2EE messengers. Mitigations: no third party scripts, strict CSP, subresource-free single origin, service worker pins the app shell. Real fix is a store-distributed native wrapper; out of scope for v1 |
 
 ## Design consequences (privacy first, opposite defaults to Life360)
@@ -52,6 +53,12 @@ gets ciphertext and metadata only:
   and makes zero tile requests. The settings screen explains this trade.
 - No analytics, no telemetry, no crash reporting, no third party requests of
   any kind from the app origin.
+- Optional app lock encrypts the circle secret at rest. It is off by default
+  (like Signal's screen lock), turns on with a passcode, and can add biometric
+  unlock where the browser supports the WebAuthn PRF extension. Auto-lock
+  relocks after a chosen idle delay in the background, and every launch starts
+  locked. The passcode is always the guaranteed unlock path; biometrics are an
+  additive convenience that is only offered when it produces real key material.
 
 ## Known limits, stated plainly
 
@@ -68,3 +75,12 @@ gets ciphertext and metadata only:
 4. **Web platform ceiling.** Background sharing ends when the OS suspends the
    tab. Starling is honest about being live-when-open (plus a wake lock
    toggle), rather than pretending to be an always-on tracker.
+5. **App-lock passcode strength is the user's.** The at-rest encryption is only
+   as strong as the passcode behind it; PBKDF2 raises the cost of each guess but
+   a four-digit PIN is still a four-digit PIN. There is no passcode recovery by
+   design: a forgotten passcode means erasing the device and rejoining from an
+   invite, because the secret is genuinely unrecoverable without it. Biometric
+   unlock needs the WebAuthn PRF extension; where it is missing the app offers
+   passcode only and says so rather than faking a biometric gate. PBKDF2 is the
+   WebCrypto-native choice; an Argon2id (memory-hard) upgrade is roadmap and
+   would require shipping a vetted WASM build and a narrow CSP allowance for it.

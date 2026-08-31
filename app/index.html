@@ -17,6 +17,27 @@
 </head>
 <body>
 
+<section id="screen-lock" class="screen" data-testid="lock-screen" hidden>
+  <div class="lock-wrap">
+    <div class="lock-logo-ring">
+      <img class="lock-logo" src="icons/starling.svg" alt="" width="64" height="64">
+    </div>
+    <h1 class="lock-title">Locked</h1>
+    <p class="lock-sub" id="lock-sub">Enter your passcode to open your circle.</p>
+    <form class="lock-form" id="lock-form" autocomplete="off">
+      <input class="lock-input" id="lock-input" data-testid="lock-input" type="password"
+        inputmode="numeric" autocomplete="off" aria-label="Passcode" placeholder="Passcode">
+      <p class="lock-error" id="lock-error" role="alert" hidden></p>
+      <button type="submit" class="btn btn-primary" id="lock-unlock" data-testid="lock-unlock">Unlock</button>
+    </form>
+    <button type="button" class="btn btn-secondary lock-bio" id="lock-bio" data-testid="lock-bio" hidden>
+      <span class="lock-bio-icon" aria-hidden="true"></span>
+      <span>Unlock with biometrics</span>
+    </button>
+    <button type="button" class="btn btn-ghost lock-wipe" id="lock-wipe" data-testid="lock-wipe">Forgot passcode</button>
+  </div>
+</section>
+
 <section id="screen-onboarding" class="screen" hidden>
   <div class="ob-wrap">
     <div class="ob-hero">
