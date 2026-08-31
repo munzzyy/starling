@@ -1,0 +1,18 @@
+{
+  "name": "starling",
+  "version": "0.1.0",
+  "description": "Private, end to end encrypted location sharing for your circle. No accounts, no tracking.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "e2e": "python3 test/e2e_marionette.py",
+    "e2e:lock": "python3 test/e2e_lock.py",
+    "check": "bash tools/check-clean.sh",
+    "deploy": "bash relay/deploy.sh"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
