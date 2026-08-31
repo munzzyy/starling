@@ -92,11 +92,18 @@ function resolvedTheme() {
   return t === "auto" ? (mqLight.matches ? "light" : "dark") : t;
 }
 function applyTheme() {
-  document.documentElement.dataset.theme = resolvedTheme();
+  const t = resolvedTheme();
+  document.documentElement.dataset.theme = t;
+  // Match the browser chrome (status bar, address bar) to the active theme.
+  const bar = document.querySelector('meta[name="theme-color"]');
+  if (bar) bar.setAttribute("content", t === "light" ? "#f4f6fb" : "#0a0d14");
 }
-mqLight.addEventListener("change", () => {
+const onSchemeChange = () => {
   if (state.settings.theme === "auto") applyTheme();
-});
+};
+// Safari < 14 only has the legacy MediaQueryList.addListener.
+if (mqLight.addEventListener) mqLight.addEventListener("change", onSchemeChange);
+else if (mqLight.addListener) mqLight.addListener(onSchemeChange);
 
 // ------------------------------------------------------------ debug hook
 

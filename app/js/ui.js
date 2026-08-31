@@ -29,6 +29,9 @@ export function toast(message, kind = "info") {
   const host = document.getElementById("toasts");
   const t = el("div", `toast toast-${kind}`, message);
   t.dataset.testid = "toast";
+  // Safety-critical toasts (an incoming SOS, a warning) announce assertively
+  // instead of waiting behind the polite live region.
+  if (kind === "sos" || kind === "warn") t.setAttribute("role", "alert");
   host.append(t);
   requestAnimationFrame(() => t.classList.add("in"));
   setTimeout(() => {
@@ -42,6 +45,23 @@ export function toast(message, kind = "info") {
 
 const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])';
+
+// Fallback for browsers without the `inert` property: pull a subtree out of
+// (or back into) the tab order, remembering any prior tabindex so it restores.
+function setTabbable(root, on) {
+  for (const el of root.querySelectorAll("a, button, input, select, textarea, [tabindex]")) {
+    if (on) {
+      if (el.dataset.prevTab !== undefined) {
+        if (el.dataset.prevTab === "") el.removeAttribute("tabindex");
+        else el.tabIndex = Number(el.dataset.prevTab);
+        delete el.dataset.prevTab;
+      }
+    } else if (el.dataset.prevTab === undefined) {
+      el.dataset.prevTab = el.getAttribute("tabindex") ?? "";
+      el.tabIndex = -1;
+    }
+  }
+}
 
 export function trapFocus(root, { autofocus = true } = {}) {
   function onKey(e) {
@@ -758,10 +778,11 @@ export function createSheet(sheetEl, dragEl, bodyEl, { onSnap } = {}) {
   const peekH = () => dragEl.offsetHeight + 8;
   // The drag region grows when the avatar strip fills in; re-apply so the
   // peek snap never clips content that appeared after the last measure.
-  const ro = new ResizeObserver(() => {
-    if (!dragging && snap === "peek") apply(false);
-  });
-  ro.observe(dragEl);
+  if ("ResizeObserver" in window) {
+    new ResizeObserver(() => {
+      if (!dragging && snap === "peek") apply(false);
+    }).observe(dragEl);
+  }
   function heightFor(name) {
     if (name === "peek") return Math.min(peekH(), Math.round(H() * 0.72));
     if (name === "half") return Math.round(H() * 0.56);
@@ -780,12 +801,17 @@ export function createSheet(sheetEl, dragEl, bodyEl, { onSnap } = {}) {
     bodyEl.style.overflowY = snap === "peek" ? "hidden" : "auto";
     // At peek the body is clipped to zero height; keep its member cards and
     // nudges out of the tab order and the accessibility tree until expanded.
+    // inert is the clean tool; where it is missing, hide from AT and drop the
+    // whole subtree out of tab order the portable way.
+    const hasInert = "inert" in HTMLElement.prototype;
     if (snap === "peek") {
-      bodyEl.inert = true;
       bodyEl.setAttribute("aria-hidden", "true");
+      if (hasInert) bodyEl.inert = true;
+      else setTabbable(bodyEl, false);
     } else {
-      bodyEl.inert = false;
       bodyEl.removeAttribute("aria-hidden");
+      if (hasInert) bodyEl.inert = false;
+      else setTabbable(bodyEl, true);
     }
     // Overflow clips at the padding box, so bottom padding would leak a
     // sliver of the first card at peek.
@@ -853,9 +879,6 @@ export function createSheet(sheetEl, dragEl, bodyEl, { onSnap } = {}) {
   dragEl.addEventListener("pointercancel", endDrag);
 
   window.addEventListener("resize", () => apply(false));
-  if ("ResizeObserver" in window) {
-    new ResizeObserver(() => apply(false)).observe(dragEl);
-  }
 
   return {
     snapTo(name, animate = true) {
@@ -947,18 +970,40 @@ export function updateMemberList(container, items, { now, mePos, statusOf, onTap
 }
 
 export function updateAvaStrip(container, items, { statusOf, now }) {
-  container.replaceChildren();
   const shown = items.slice(0, 7);
+  const existing = new Map();
+  for (const node of container.querySelectorAll(".ava[data-id]")) existing.set(node.dataset.id, node);
+
+  let cursor = container.firstChild;
   for (const rec of shown) {
-    const a = buildAva("ava ava-mini");
+    const st = statusOf(rec, now);
+    let a = existing.get(rec.id);
+    if (a) existing.delete(rec.id);
+    else {
+      a = buildAva("ava ava-mini");
+      a.dataset.id = rec.id;
+    }
     a.style.setProperty("--m-hue", String(rec.hue ?? 0));
-    a.classList.toggle("ava-sos", statusOf(rec, now) === "sos");
-    a.classList.toggle("ava-dim", ["stale", "stopped"].includes(statusOf(rec, now)));
-    $(".ava-emoji", a).textContent = rec.emoji || "";
-    container.append(a);
+    a.classList.toggle("ava-sos", st === "sos");
+    a.classList.toggle("ava-dim", st === "stale" || st === "stopped");
+    const emoji = $(".ava-emoji", a);
+    if (emoji.textContent !== (rec.emoji || "")) emoji.textContent = rec.emoji || "";
+    // Place it at the cursor so order tracks the sorted list without churn.
+    if (cursor !== a) container.insertBefore(a, cursor);
+    else cursor = a.nextSibling;
   }
-  if (items.length > shown.length) {
-    container.append(el("div", "ava ava-mini ava-more", `+${items.length - shown.length}`));
+  for (const node of existing.values()) node.remove();
+
+  let more = container.querySelector(".ava-more");
+  const overflow = items.length - shown.length;
+  if (overflow > 0) {
+    if (!more) {
+      more = el("div", "ava ava-mini ava-more");
+      container.append(more);
+    } else container.append(more);
+    more.textContent = `+${overflow}`;
+  } else if (more) {
+    more.remove();
   }
 }
 

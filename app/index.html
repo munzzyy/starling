@@ -5,14 +5,31 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self'; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="theme-color" content="#0a0d14">
+<meta name="description" content="Private, end to end encrypted location sharing for your circle. No accounts, no tracking.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Starling">
 <title>Starling</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="modulepreload" href="js/wire.js">
+<link rel="modulepreload" href="js/fmt.js">
+<link rel="modulepreload" href="js/crypto.js">
+<link rel="modulepreload" href="js/store.js">
+<link rel="modulepreload" href="js/net.js">
+<link rel="modulepreload" href="js/map.js">
+<link rel="modulepreload" href="js/ui.js">
+<link rel="modulepreload" href="js/geo.js">
+<link rel="modulepreload" href="js/lock.js">
+<link rel="modulepreload" href="js/qr.js">
+<link rel="modulepreload" href="js/demo.js">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/app.css">
-<script src="vendor/leaflet/leaflet.js"></script>
+<script defer src="vendor/leaflet/leaflet.js"></script>
 <script type="module" src="js/main.js"></script>
 </head>
 <body>

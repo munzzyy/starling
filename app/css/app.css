@@ -606,6 +606,7 @@ input {
   z-index: 40;
   transform: translateY(calc(100% - 210px));
   transition: transform var(--t-med);
+  background: var(--bg-1);
   background: color-mix(in srgb, var(--bg-1) 94%, transparent);
   backdrop-filter: blur(24px) saturate(1.6);
   -webkit-backdrop-filter: blur(24px) saturate(1.6);
@@ -828,6 +829,7 @@ input {
   box-shadow: 0 0 0 3px color-mix(in srgb, hsl(var(--m-hue) 70% 55%) 18%, transparent);
   font-size: 20px;
   line-height: 1;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -964,6 +966,14 @@ input {
   background: color-mix(in srgb, var(--stale) 14%, transparent);
 }
 
+/* Darker chip text on the light theme so it clears AA on the pale tint. */
+:root[data-theme="light"] .chip-live {
+  color: #047857;
+}
+:root[data-theme="light"] .chip-checkin {
+  color: #0f766e;
+}
+
 .bat {
   width: 26px;
   height: 10px;
@@ -1076,6 +1086,7 @@ input {
   bottom: calc(var(--peek, 210px) + var(--safe-bottom) + 14px);
   z-index: 45;
   border-radius: var(--r-lg);
+  background: var(--bg-1);
   background: color-mix(in srgb, var(--bg-1) 96%, transparent);
   border: 1px solid var(--glass-border);
   backdrop-filter: blur(24px) saturate(1.6);

@@ -12,6 +12,20 @@ const RING_RADII = [250, 500, 1000, 2000];
 const MOVE_MS = 400;
 const easeOut = (t) => 1 - (1 - t) ** 3;
 
+// Warm DNS/TCP/TLS to the tile host, but only once a street basemap is actually
+// chosen. Off-grid and the demo pick no basemap and so still contact nothing.
+let tileHostWarmed = false;
+function warmTileHost() {
+  if (tileHostWarmed) return;
+  tileHostWarmed = true;
+  for (const rel of ["preconnect", "dns-prefetch"]) {
+    const link = document.createElement("link");
+    link.rel = rel;
+    link.href = "https://tile.openstreetmap.org";
+    document.head.appendChild(link);
+  }
+}
+
 export function createMapView(container, { onMarkerTap } = {}) {
   const L = globalThis.L;
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
@@ -62,6 +76,7 @@ export function createMapView(container, { onMarkerTap } = {}) {
     container.classList.toggle("offgrid", kind === "none");
     container.classList.toggle("tiles-dark", kind === "dark");
     if (kind === "dark" || kind === "light") {
+      warmTileHost();
       tiles = L.tileLayer(TILE_URL, {
         maxZoom: 19,
         attribution: ATTRIB,
