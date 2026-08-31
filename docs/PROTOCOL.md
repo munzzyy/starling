@@ -92,11 +92,14 @@ Returns every member's pinned key and their stored points newer than `since`:
 
 ```json
 {"now":1756500000000,"members":[
-  {"m":"...","alg":"ed25519","pk":"...","points":[{"ts":1,"n":"...","c":"..."}]}
+  {"m":"...","alg":"ed25519","pk":"...","points":[{"ts":1,"srv":2,"n":"...","c":"..."}]}
 ]}
 ```
 
-Readers poll this every 10 s while the app is visible. Receivers verify the
+Each point carries `srv`, the relay's own receive time. The feed filters and
+pages on `srv` (not the client-claimed `ts`), so one member's skewed clock can
+never filter another member's points out of the feed. Readers poll this every
+10 s while the app is visible. Receivers verify the
 `member_id`/`pk` binding themselves, decrypt with `enc_key`, and drop anything
 that fails to authenticate, so junk written by someone who scraped a
 `channel_id` renders as nothing.

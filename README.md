@@ -29,8 +29,8 @@ hours of ciphertext.
   strictly increasing timestamp rule kills replays.
 - The relay is a small Cloudflare Worker with a D1 table of ciphertext rows.
   It knows channel ids, ciphertext sizes, timing, and IPs. It never learns
-  where you are or who your circle is. Rows expire after 24
-  hours, deterministically, on every request.
+  where you are or who your circle is. Rows expire after 24 hours, swept
+  deterministically on every read and write.
 - No push tokens, no analytics, no third party requests. The only external
   fetch in the whole app is OpenStreetMap tiles, and only when a street basemap
   is on; the Off-grid basemap renders locally and makes zero requests.
@@ -80,6 +80,10 @@ node test/serve_local.mjs 8899
 python3 test/e2e_marionette.py   # sharing: create, invite, join, SOS, stop
 python3 test/e2e_lock.py         # the app-lock lifecycle
 ```
+
+The QR tests cross-check the encoder against the Python `qrcode` library when it
+is installed (`pip install qrcode`); without it those checks skip rather than
+fail, so a bare clone still runs green.
 
 The sharing e2e drives two headless Firefox profiles through create, invite,
 join, live sharing, SOS, and stop, then dumps the relay database and asserts no

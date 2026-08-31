@@ -5,8 +5,10 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
+# This script is excluded from its own scan: its patterns necessarily contain
+# the very strings it searches for, which would otherwise self-flag.
 files=$(git ls-files -- '*.js' '*.mjs' '*.css' '*.html' '*.md' '*.py' '*.sh' '*.json' '*.toml' \
-  ':!:app/vendor/**')
+  ':!:app/vendor/**' ':!:tools/check-clean.sh')
 
 fail=0
 

@@ -17,8 +17,26 @@ qr.make(fit=True)
 print(json.dumps([[bool(v) for v in row] for row in qr.modules]))
 `;
 
+// The Python qrcode library is a dev-only ground truth, not a runtime or a
+// required test dependency. When it (or python) is absent the cross-check tests
+// skip (reported as skipped, not failed) so `node --test` stays self-contained
+// on a bare clone; CI installs it so the cross-check actually runs there.
+// python3 on Linux/macOS, python on Windows.
+const PY = (() => {
+  for (const bin of ["python3", "python"]) {
+    try {
+      execFileSync(bin, ["-c", "import qrcode"], { stdio: "ignore" });
+      return bin;
+    } catch {
+      // try the next name
+    }
+  }
+  return null;
+})();
+const pySkip = PY ? false : "python qrcode library not installed (dev-only QR ground truth)";
+
 function pythonMatrix(payload, mask) {
-  const out = execFileSync("python3", ["-c", PY_SCRIPT, payload, String(mask)], {
+  const out = execFileSync(PY, ["-c", PY_SCRIPT, payload, String(mask)], {
     maxBuffer: 1 << 25,
   });
   return JSON.parse(out.toString());
@@ -78,7 +96,7 @@ function checkSeparators(m) {
 for (const { text, version } of PAYLOADS) {
   const label = text.length > 40 ? `${text.slice(0, 34)}... (${text.length} chars)` : text;
 
-  test(`matches python for every forced mask: ${label}`, () => {
+  test(`matches python for every forced mask: ${label}`, { skip: pySkip }, () => {
     for (let mask = 0; mask <= 7; mask++) {
       const want = pythonMatrix(text, mask);
       const got = qrMatrixForced(text, mask);
@@ -86,7 +104,7 @@ for (const { text, version } of PAYLOADS) {
     }
   });
 
-  test(`matches python automatic mask choice: ${label}`, () => {
+  test(`matches python automatic mask choice: ${label}`, { skip: pySkip }, () => {
     const want = pythonMatrix(text, -1);
     const got = qrMatrix(text);
     assert.deepEqual(got, want, `payload ${JSON.stringify(label)} auto mask`);
