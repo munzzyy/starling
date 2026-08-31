@@ -407,7 +407,11 @@ async function persistCircle() {
 // sealed under the in-memory vault key; with lock off it is stored as bytes,
 // same as an unlocked phone's other app data. Exactly one form is ever on disk.
 async function writeSecretAtRest() {
-  if (state.lock?.enabled && state.vaultKey) {
+  if (state.lock?.enabled) {
+    // Fail closed: with lock on, the secret is NEVER written in plaintext. If
+    // the vault key is not in memory we are locked or mid-teardown and must not
+    // be persisting a secret at all, so refuse rather than silently downgrade.
+    if (!state.vaultKey) throw new Error("locked: refusing to write the secret");
     await dbSet("vaultSecret", await sealUnderVault(state.vaultKey, state.secret));
     await dbDel("secret");
   } else {
@@ -521,6 +525,11 @@ function lockNow() {
   focusedId = null;
   prevStatus.clear();
   state.locked = true;
+  // Drop decrypted member positions from the map and dismiss any open sheet so
+  // nothing sensitive sits behind the lock screen.
+  ui.closeAllOverlays();
+  mapView?.clearAll();
+  $("#focus-card").hidden = true;
   ensureLockUI();
   paintLockScreen();
   showScreen("lock");
@@ -617,6 +626,7 @@ async function saveProfile(p) {
 }
 
 function promptCreate() {
+  if (state.locked) return;
   ui.openIdentitySheet({
     title: "Create your circle",
     intro: "How you appear to the people you invite. This never leaves your circle.",
@@ -644,6 +654,7 @@ function promptCreate() {
 }
 
 function promptJoin(secret) {
+  if (state.locked) return;
   ui.openJoinSheet({
     profile: state.profile,
     hasCircle: !!state.secret,
@@ -1086,6 +1097,8 @@ window.addEventListener("hashchange", () => {
   const invite = parseInviteFragment(location.hash);
   if (!invite) return;
   history.replaceState(null, "", location.pathname + location.search);
+  // A locked circle must be unlocked before any join can touch its state.
+  if (state.locked) return;
   promptJoin(invite);
 });
 

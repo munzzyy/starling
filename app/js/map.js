@@ -216,6 +216,13 @@ export function createMapView(container, { onMarkerTap } = {}) {
     upsert,
     removeMarker,
     markerIds: () => [...markers.keys()],
+    clearAll: () => {
+      for (const id of [...markers.keys()]) removeMarker(id);
+      for (const id of [...trails.keys()]) clearTrail(id);
+      for (const r of rings) r.remove();
+      rings = [];
+      ringCenter = null;
+    },
     setTrail,
     clearTrail,
     focusOn,

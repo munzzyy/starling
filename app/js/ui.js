@@ -120,6 +120,10 @@ export function closeTopOverlay() {
   return true;
 }
 
+export function closeAllOverlays() {
+  while (overlayStack.length) overlayStack[overlayStack.length - 1].close();
+}
+
 export const overlaysOpen = () => overlayStack.length > 0;
 
 // ------------------------------------------------------------ hold-to-fire
@@ -439,8 +443,14 @@ function switchRow({ label, note, value, onChange }) {
 // A passcode entry sheet. `confirm` requires a matching second entry (used when
 // setting a new passcode). `onSubmit(passcode)` resolves true on success or
 // false to keep the sheet open with an error (e.g. a wrong current passcode).
-export function openPasscodeSheet({ title, intro, cta, confirm = false, current = false, minLen = 4, onSubmit }) {
-  const ov = openOverlay({ title, testid: "passcode-sheet", className: "ov-passcode" });
+export function openPasscodeSheet({ title, intro, cta, confirm = false, current = false, minLen = 4, onSubmit, onClose }) {
+  let succeeded = false;
+  const ov = openOverlay({
+    title,
+    testid: "passcode-sheet",
+    className: "ov-passcode",
+    onClose: () => onClose?.(succeeded),
+  });
   if (intro) ov.body.append(el("p", "ov-note", intro));
 
   function pcField(labelText, testid) {
@@ -482,8 +492,10 @@ export function openPasscodeSheet({ title, intro, cta, confirm = false, current 
     submit.disabled = true;
     try {
       const ok = await onSubmit(current ? { current: curIn.value, next: pc } : pc);
-      if (ok) ov.close();
-      else {
+      if (ok) {
+        succeeded = true;
+        ov.close();
+      } else {
         fail(current ? "That current passcode is wrong." : "Could not save. Try again.");
         busy = false;
         submit.disabled = false;
@@ -607,12 +619,22 @@ export function openSettingsSheet({ values, demo, lock, lockActions, onChange, o
       note: "Encrypts your circle secret on this device. Nobody can open Starling, or read the secret from storage, without your passcode.",
       value: lock.enabled,
       onChange: (on) => {
+        // The switch paints optimistically; if the passcode sheet is dismissed
+        // without finishing, snap it back to the real lock state so it never
+        // shows ON over an off lock (a false security promise).
+        const sw = lockRow.querySelector(".switch");
+        const revert = (succeeded) => {
+          if (succeeded) return;
+          sw.classList.toggle("on", lock.enabled);
+          sw.setAttribute("aria-checked", String(lock.enabled));
+        };
         if (on) {
           openPasscodeSheet({
             title: "Set a passcode",
             intro: "Choose a passcode to lock Starling on this device. There is no reset: if you forget it you erase this device and rejoin from an invite.",
             cta: "Turn on app lock",
             confirm: true,
+            onClose: revert,
             onSubmit: async (pc) => {
               await lockActions.enable(pc);
               toast("App lock is on.");
@@ -625,6 +647,7 @@ export function openSettingsSheet({ values, demo, lock, lockActions, onChange, o
             title: "Turn off app lock",
             intro: "Enter your passcode to stop encrypting the circle secret at rest.",
             cta: "Turn off app lock",
+            onClose: revert,
             onSubmit: async (pc) => {
               const ok = await lockActions.disable(pc);
               if (ok) {

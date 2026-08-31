@@ -103,6 +103,28 @@ def main():
         b.shot("07-lock.png")
         log("reload: app is locked, no channel in state")
 
+        # An invite arriving as a hashchange while locked must NOT bypass the
+        # lock or write a plaintext secret (regression for the critical finding).
+        fake_invite = "#j=" + ("A" * 43)
+        b.exec(
+            "location.hash = arguments[0];"
+            "window.dispatchEvent(new HashChangeEvent('hashchange'));",
+            fake_invite,
+        )
+        time.sleep(1.0)
+        if b.state().get("locked") is not True:
+            raise E2EError("hashchange invite bypassed the lock screen")
+        if b.state().get("screen") != "lock":
+            raise E2EError("hashchange invite navigated off the lock screen")
+        if get_idb(b, "secret") is not None:
+            raise E2EError("hashchange invite wrote a plaintext secret while locked")
+        if get_idb(b, "vaultSecret") != "present":
+            raise E2EError("hashchange invite destroyed the sealed vaultSecret")
+        # No join sheet should have opened over the lock screen.
+        if b.exec("return !!document.querySelector('[data-testid=\"join-sheet\"]')"):
+            raise E2EError("a join sheet opened over the lock screen")
+        log("hashchange invite while locked was ignored; sealed secret intact")
+
         # Wrong passcode is rejected and stays locked.
         b.send_keys('[data-testid="lock-input"]', "000000")
         b.click('[data-testid="lock-unlock"]')
