@@ -146,7 +146,7 @@ Orbot support. See [docs/ANDROID.md](docs/ANDROID.md) for building it,
 
 ## Privacy policy
 
-[starlingmap.app/privacy.html](https://starlingmap.app/privacy.html)
+[starlingmap.app/privacy](https://starlingmap.app/privacy)
 
 ## Roadmap
 

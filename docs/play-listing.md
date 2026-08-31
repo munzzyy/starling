@@ -76,7 +76,7 @@ review turns out to expect turn-by-turn features Starling does not have.)
 **Contact details:**
 - Email: Munzzyy1@proton.me
 - Website: https://starlingmap.app
-- Privacy policy: https://starlingmap.app/privacy.html
+- Privacy policy: https://starlingmap.app/privacy
 
 **Tags / store presence suggestion:** "location sharing," "family locator
 alternative," "privacy," "end to end encryption." Do not claim
@@ -126,7 +126,7 @@ request needed for server-side data since nothing outlives that window
 anyway, and panic wipe deletes all on-device data immediately. If the form
 insists on a deletion contact regardless, use Munzzyy1@proton.me.
 
-Does your app have a privacy policy? Yes: https://starlingmap.app/privacy.html
+Does your app have a privacy policy? Yes: https://starlingmap.app/privacy
 
 ## Content rating questionnaire
 
