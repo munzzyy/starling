@@ -2,13 +2,11 @@
 // ever touches globalThis.L. All marker DOM is built with createElement and
 // textContent, never markup strings: member names are not trusted.
 
-const CARTO = {
-  dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-  light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png",
-};
+// One tile source: OpenStreetMap. Dark mode is a CSS filter on the tile pane
+// only, so data colors (markers, trails, rings) stay untouched.
+const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
-const ATTRIB =
-  '<a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="https://carto.com/">CARTO</a>';
+const ATTRIB = '<a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 const RING_RADII = [250, 500, 1000, 2000];
 const MOVE_MS = 400;
@@ -62,11 +60,14 @@ export function createMapView(container, { onMarkerTap } = {}) {
       tiles = null;
     }
     container.classList.toggle("offgrid", kind === "none");
+    container.classList.toggle("tiles-dark", kind === "dark");
     if (kind === "dark" || kind === "light") {
-      tiles = L.tileLayer(CARTO[kind], {
-        subdomains: "abcd",
-        maxZoom: 20,
+      tiles = L.tileLayer(TILE_URL, {
+        maxZoom: 19,
         attribution: ATTRIB,
+        // The app itself is no-referrer everywhere. OSM's tile policy requires
+        // a Referer, so tile images alone send the bare origin, nothing more.
+        referrerPolicy: "origin",
       }).addTo(map);
     }
     drawRings();

@@ -202,8 +202,8 @@ function renderYou() {
     ? state.sosActive
       ? "SOS armed · sharing live"
       : state.settings.precision === "coarse"
-        ? "Sharing live · Neighborhood"
-        : "Sharing live"
+        ? "Live · Neighborhood accuracy"
+        : "Live · Precise"
     : "Not sharing";
   $("#you-sub").textContent = sub;
   const toggle = byTestid("share-toggle");

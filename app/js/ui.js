@@ -487,7 +487,7 @@ export function openSettingsSheet({ values, onChange, onInvite, onPanic }) {
   gMap.append(
     segControl({
       label: "Basemap",
-      note: "Street maps load tiles from CARTO, which sees your map viewport. Off-grid loads nothing.",
+      note: "Street maps load tiles from OpenStreetMap, which sees your map viewport. Off-grid loads nothing.",
       options: [
         { value: "dark", label: "Dark" },
         { value: "light", label: "Light" },
@@ -553,6 +553,12 @@ export function createSheet(sheetEl, dragEl, bodyEl, { onSnap } = {}) {
   const H = () => window.innerHeight;
 
   const peekH = () => dragEl.offsetHeight + 8;
+  // The drag region grows when the avatar strip fills in; re-apply so the
+  // peek snap never clips content that appeared after the last measure.
+  const ro = new ResizeObserver(() => {
+    if (!dragging && snap === "peek") apply(false);
+  });
+  ro.observe(dragEl);
   function heightFor(name) {
     if (name === "peek") return Math.min(peekH(), Math.round(H() * 0.72));
     if (name === "half") return Math.round(H() * 0.56);
