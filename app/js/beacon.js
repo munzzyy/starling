@@ -47,15 +47,23 @@ export async function startBeacon() {
     },
     // Ending says goodbye so the helper page can show "ended" instead of
     // guessing from staleness, then cancels so nothing further can land.
+    //
+    // The goodbye is best effort and must never hold the door open: a fetch
+    // with no response and no timeout would otherwise hang here forever and
+    // the cancel would never run, leaving a live sender behind a switch the
+    // user already flipped. So the cancel happens on every path, and a
+    // goodbye that has not landed within a few seconds is abandoned to it.
     async end() {
       if (ended) return;
       ended = true;
       try {
-        await sender.send({ t: "bye" });
-      } catch {
-        // the trail going stale is the fallback signal
+        await Promise.race([
+          sender.send({ t: "bye" }).catch(() => {}),
+          new Promise((r) => setTimeout(r, 3000)),
+        ]);
+      } finally {
+        sender.cancel();
       }
-      sender.cancel();
     },
   };
 }

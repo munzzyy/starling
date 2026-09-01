@@ -27,8 +27,35 @@ function showPanel(title, body) {
   $("#hv-banner").hidden = true;
 }
 
+// The secret arrives in the fragment, which no browser sends to a server, but
+// it would otherwise sit in the address bar and in this browser's history,
+// where it can outlive the emergency and sync to the helper's other devices.
+// So it moves into sessionStorage, which belongs to this tab and dies with
+// it, and the URL is rewritten without it. A reload still works; a new tab
+// needs the original link, which is still in whatever message carried it.
+const STASH = "starling-beacon";
+
+function takeSecret() {
+  const fromHash = parseBeaconFragment(location.hash);
+  if (fromHash) {
+    try {
+      sessionStorage.setItem(STASH, location.hash.slice(3));
+    } catch {
+      // private mode or storage denied: the page still works for this view
+    }
+    history.replaceState(null, "", location.pathname + location.search);
+    return fromHash;
+  }
+  try {
+    const stashed = sessionStorage.getItem(STASH);
+    return stashed ? parseBeaconFragment(`#b=${stashed}`) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function boot() {
-  const secret = parseBeaconFragment(location.hash);
+  const secret = takeSecret();
   if (!secret) {
     showPanel(
       "Not a valid help link",

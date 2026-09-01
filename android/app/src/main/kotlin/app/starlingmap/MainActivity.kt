@@ -139,6 +139,14 @@ class MainActivity : FragmentActivity() {
         loadAppUrl(intent?.takeIf { it.data?.host == APP_HOST }?.data?.fragment)
     }
 
+    // Someone who turns Tor mode on and only then starts Orbot would other-
+    // wise never hear the port, since a status broadcast is only trusted in
+    // the window after we ask. Coming back to the app asks again.
+    override fun onResume() {
+        super.onResume()
+        if (torEnabled()) OrbotStatus.ask(this)
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         val fragment = intent.data?.takeIf { it.host == APP_HOST }?.fragment ?: return

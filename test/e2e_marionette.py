@@ -634,7 +634,8 @@ def flow_help_beacon(b):
         timeout=30, desc="help link offered", interval=1)
     if "#b=" not in link:
         raise E2EError(f"help link is not a beacon link: {link!r}")
-    secret = b64u_decode(link.split("#b=")[1])
+    secret_b64 = link.split("#b=")[1]
+    secret = b64u_decode(secret_b64)
     if len(secret) != 32:
         raise E2EError(f"beacon secret is {len(secret)} bytes, want 32")
     help_channel = hkdf_sha256(secret, "starling/v1/help-channel-id", 16).hex()
@@ -656,6 +657,22 @@ def flow_help_beacon(b):
         if not marker:
             raise E2EError("helper page drew no marker for the live position")
         log(f"helper sees: {status}, {marker} marker(s)")
+
+        # The secret must not linger in the address bar or this browser's
+        # history, where it would outlive the emergency and sync away.
+        shown = c.url()
+        if "#b=" in shown or secret_b64 in shown:
+            raise E2EError(f"beacon secret still in the viewer URL: {shown}")
+        log("viewer URL scrubbed of the beacon secret")
+
+        # ...but a reload inside the same tab must still work, or a helper
+        # who fumbles the page loses the person they are trying to reach.
+        c.navigate(shown)
+        wait_for(lambda: c.exec(
+            "var n = document.querySelector('#hv-name');"
+            "return n && n.textContent ? n.textContent : null"),
+            timeout=45, desc="helper survives a reload", interval=1)
+        log("helper page survives a reload with no secret in the URL")
         c.shot("help-viewer.png")
 
         # The helper page must never hold circle material.

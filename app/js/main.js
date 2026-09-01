@@ -1509,7 +1509,11 @@ async function fireSos() {
   // are a neighbour, a colleague, whoever is nearby, and none of them are
   // going to install anything right now. The beacon is a second, separate
   // share they can open in a browser.
-  startBeaconForSos().catch(() => {});
+  //
+  // Re-checked after the await: a location failure can land while the SOS
+  // post is in flight and switch sharing back off, and starting a beacon
+  // then would leave one running with no SOS on screen to end it.
+  if (state.sosActive) startBeaconForSos().catch(() => {});
   render();
 }
 
@@ -1518,12 +1522,20 @@ async function fireSos() {
 // out circle history and never links the two channels for the relay.
 async function startBeaconForSos() {
   if (beacon) return;
+  let started;
   try {
-    beacon = await startBeacon();
+    started = await startBeacon();
   } catch {
-    beacon = null;
     return;
   }
+  // Minting is asynchronous, so the SOS can be cancelled while it runs. A
+  // beacon nobody is looking at must not be left posting: end it here, where
+  // the UI that would have switched it off no longer exists.
+  if (!state.sosActive) {
+    started.end().catch(() => {});
+    return;
+  }
+  beacon = started;
   await pushBeacon();
   render();
 }

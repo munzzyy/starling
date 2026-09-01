@@ -31,7 +31,20 @@ object OrbotStatus {
     private const val EXTRA_SOCKS_PORT = "org.torproject.android.intent.extra.SOCKS_PROXY_PORT"
     private const val STATUS_ON = "ON"
 
+    // A status broadcast can only be trusted for this long after we asked for
+    // one. The receiver has to be exported, because Orbot is a separate app,
+    // and a receiver cannot see who sent it an intent, so any app on the
+    // device can send this one a status with a port of its choosing. Nothing
+    // catastrophic follows from believing it (traffic to a port that is not
+    // Tor fails closed, and what would reach a local listener is TLS to the
+    // relay carrying already-encrypted payloads), but there is no reason to
+    // accept an answer to a question nobody asked.
+    private const val TRUST_WINDOW_MS = 30_000L
+
     private var receiver: BroadcastReceiver? = null
+
+    @Volatile
+    private var askedAt = 0L
 
     // Last port Orbot reported, or the default until it says otherwise.
     @Volatile
@@ -47,6 +60,7 @@ object OrbotStatus {
         val r = object : BroadcastReceiver() {
             override fun onReceive(c: Context, intent: Intent) {
                 if (intent.action != ACTION_STATUS) return
+                if (android.os.SystemClock.elapsedRealtime() - askedAt > TRUST_WINDOW_MS) return
                 if (intent.getStringExtra(EXTRA_STATUS) != STATUS_ON) return
                 // Absent or -1 means Orbot has not configured a port yet;
                 // keep whatever is in use rather than proxying to port -1.
@@ -64,6 +78,8 @@ object OrbotStatus {
     // Also the way to re-ask: Orbot replies with current status and ports
     // every time, and starting an already-running Tor does nothing.
     fun ask(context: Context) {
+        if (receiver == null) return
+        askedAt = android.os.SystemClock.elapsedRealtime()
         val intent = Intent(ACTION_START)
             .setPackage(ORBOT_PACKAGE)
             .putExtra(EXTRA_PACKAGE_NAME, context.packageName)

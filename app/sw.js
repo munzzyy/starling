@@ -82,7 +82,9 @@ self.addEventListener("fetch", (event) => {
     // The help viewer is its own page, not the app shell. Answering its
     // navigation from the cached index would hand someone following an
     // emergency link the map app instead of the emergency, on exactly the
-    // devices most likely to have this worker installed.
+    // devices most likely to have this worker installed. It is deliberately
+    // not precached either: it exists to show a live position, so a cached
+    // copy with no network to poll would have nothing to say.
     if (url.pathname === "/help.html") return;
     event.respondWith(
       (async () => {

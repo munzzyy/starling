@@ -50,7 +50,10 @@ export function unpackCircles(bytes, identities) {
     // 64-bit id. Both are prefixes of the same hash, so the short form still
     // identifies the same key: register it too, or the first boot after the
     // upgrade would find no identity for the meta and drop a live circle.
-    if (id.memberId.length > 16) byId.set(id.memberId.slice(0, 16), id);
+    // Never let a prefix entry displace a real id, and let the first
+    // identity keep a prefix if two ever shared one.
+    const short = id.memberId.slice(0, 16);
+    if (id.memberId.length > 16 && !byId.has(short)) byId.set(short, id);
   }
   const out = [];
   for (const m of metas) {

@@ -74,6 +74,11 @@ export const ALGS = {
 };
 
 // True only if alg is known, key length matches, and the signature verifies.
+// `alg` is an allowlist lookup, never a name handed to the crypto layer, so an
+// unknown or hostile value fails here rather than selecting some other
+// primitive. Note also that a P-256 signature is not a unique bitstring for
+// its message (the S value is malleable), so nothing may ever treat `sig` as
+// an identity or a dedup key; replay defenses key on channel, member and ts.
 export async function verifySig(alg, pkBytes, sigBytes, baseString) {
   const spec = ALGS[alg];
   if (!spec || pkBytes.length !== spec.pkLen || sigBytes.length !== spec.sigLen) return false;

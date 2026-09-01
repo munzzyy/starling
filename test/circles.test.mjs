@@ -655,3 +655,80 @@ test("create/join torn after the fixed identity-first order repairs back to the 
     "the abandoned fresh identity never belonged to any stored circle",
   );
 });
+
+// ---------------------------------------------- 64 to 128 bit member ids
+
+// The upgrade recomputes every stored id from the key it already holds. The
+// risk it has to avoid is silent data loss: sealed metas still name their
+// identity by the old short id, and a meta whose identity cannot be found is
+// dropped, so a careless migration would take live circles with it.
+import { migrateMemberIds } from "../app/js/circles.js";
+import { memberIdFromPub } from "../app/js/wire.js";
+import { generateIdentity } from "../app/js/crypto.js";
+
+function memKv(init = {}) {
+  const store = new Map(Object.entries(init));
+  return {
+    store,
+    get: async (k) => store.get(k),
+    set: async (k, v) => void store.set(k, v),
+    del: async (k) => void store.delete(k),
+  };
+}
+
+const short = (id) => ({ ...id, memberId: id.memberId.slice(0, 16) });
+
+test("migration widens ids everywhere they are stored, and is idempotent", async () => {
+  const id = await generateIdentity();
+  const full = await memberIdFromPub(id.pk);
+  const kv = memKv({
+    identity: short(id),
+    circles: [{ name: "family", identity: short(id) }],
+    circleIdentities: [short(id)],
+  });
+
+  assert.equal(await migrateMemberIds(kv), true, "an old install reports a change");
+  assert.equal((await kv.get("identity")).memberId, full);
+  assert.equal((await kv.get("circles"))[0].identity.memberId, full);
+  assert.equal((await kv.get("circleIdentities"))[0].memberId, full);
+
+  assert.equal(await migrateMemberIds(kv), false, "a second pass changes nothing");
+  assert.equal((await kv.get("identity")).memberId, full);
+});
+
+test("a circle sealed before the upgrade survives it", async () => {
+  // The exact upgrade order: metas were packed with the old short id, then
+  // the identities beside them were widened. Pairing has to bridge that.
+  const idA = await generateIdentity();
+  const idB = await generateIdentity();
+  const oldA = short(idA);
+  const oldB = short(idB);
+  const bytes = packCircles([
+    { name: "family", secret: new Uint8Array(32).fill(7), identity: oldA, lastTs: 4 },
+    { name: "friends", secret: new Uint8Array(32).fill(9), identity: oldB, lastTs: 6 },
+  ]);
+
+  const kv = memKv({ circleIdentities: [oldA, oldB] });
+  await migrateMemberIds(kv);
+  const widened = await kv.get("circleIdentities");
+  assert.equal(widened[0].memberId.length, 32, "identities were widened in place");
+
+  const back = unpackCircles(bytes, widened);
+  assert.equal(back.length, 2, "neither circle was dropped by the id change");
+  assert.equal(back[0].name, "family");
+  assert.equal(back[1].name, "friends");
+  assert.equal(back[0].identity.memberId, await memberIdFromPub(idA.pk));
+  assert.equal(back[1].identity.memberId, await memberIdFromPub(idB.pk), "and they did not swap keys");
+});
+
+test("re-packing after the upgrade converges metas onto full ids", async () => {
+  const id = await generateIdentity();
+  const kv = memKv({ circleIdentities: [short(id)] });
+  await migrateMemberIds(kv);
+  const [widened] = await kv.get("circleIdentities");
+
+  const bytes = packCircles([{ name: "family", secret: new Uint8Array(32).fill(3), identity: widened, lastTs: 1 }]);
+  const meta = JSON.parse(new TextDecoder().decode(bytes))[0];
+  assert.equal(meta.memberId.length, 32, "the next write stores the full id");
+  assert.equal(unpackCircles(bytes, [widened]).length, 1);
+});
