@@ -1,0 +1,1 @@
+Help links point at the address the site actually serves, instead of one that answered with a redirect, and a helper who already has Starling installed now gets the emergency page rather than the app.

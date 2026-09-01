@@ -3,6 +3,15 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [0.4.1]
+
+- Help links point at `/help`, which is where the site actually serves that
+  page; the `.html` spelling was answered with a redirect. The service
+  worker now recognises both spellings, so a helper who already has the app
+  installed gets the emergency page instead of the app. The local dev server
+  resolves extensionless paths the same way the host does, so this class of
+  difference shows up in testing rather than in production.
+
 ## [0.4.0]
 
 - Get help from outside your circle. An SOS can now mint a help link that

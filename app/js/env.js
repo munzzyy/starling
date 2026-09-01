@@ -72,8 +72,12 @@ export const getApiBase = () => {
 // its own origin, so the link names the relay's origin: the custom relay when
 // one is set (self-hosters serve app and relay from one origin), otherwise
 // the canonical origin in the wrapper or this page's origin on the web.
+// `/help`, not `/help.html`: the host serves the page there and answers the
+// .html spelling with a redirect. An emergency link should not spend a round
+// trip on a redirect, and should not be the thing that discovers a client
+// which drops the fragment across one.
 export function helpUrlBase() {
   const base = getApiBase();
-  if (base) return `${base}/help.html`;
-  return `${globalThis.location.origin}/help.html`;
+  if (base) return `${base}/help`;
+  return `${globalThis.location.origin}/help`;
 }

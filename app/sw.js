@@ -85,7 +85,10 @@ self.addEventListener("fetch", (event) => {
     // devices most likely to have this worker installed. It is deliberately
     // not precached either: it exists to show a live position, so a cached
     // copy with no network to poll would have nothing to say.
-    if (url.pathname === "/help.html") return;
+    //
+    // Both spellings: the host serves this page at /help and redirects
+    // /help.html to it, while a local dev server serves the file itself.
+    if (url.pathname === "/help" || url.pathname === "/help.html") return;
     event.respondWith(
       (async () => {
         const cached = await caches.match("/index.html");

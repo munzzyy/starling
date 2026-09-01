@@ -75,7 +75,13 @@ const server = http.createServer(async (req, res) => {
     return res.end("method not allowed");
   }
 
-  const rel = pathname === "/" ? "/index.html" : pathname;
+  // Extensionless paths resolve to their .html file, matching how the host
+  // serves the deployed app. Without this, dev and production disagree about
+  // what /help means, and only production would be wrong.
+  let rel = pathname === "/" ? "/index.html" : pathname;
+  if (!path.extname(rel) && fs.existsSync(path.resolve(APP_DIR, "." + rel + ".html"))) {
+    rel += ".html";
+  }
   const fp = path.resolve(APP_DIR, "." + rel);
   if (fp !== APP_DIR && !fp.startsWith(APP_DIR + path.sep)) {
     res.statusCode = 404;
