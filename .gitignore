@@ -9,3 +9,4 @@ app/vendor/
 
 # Signed release artifacts, produced by tools/release-android.sh.
 dist/
+app/starling.apk

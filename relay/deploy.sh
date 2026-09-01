@@ -52,6 +52,19 @@ echo "== 2/4 schema =="
 "${W[@]}" d1 execute "$DB" --remote --yes --file schema.sql
 
 echo "== 3/4 deploy =="
+# Stage the signed APK as a first-party download at /starling.apk for this
+# deploy only. Phone download managers regularly choke on GitHub's two-hop
+# redirect to a third-party signed URL; same-origin with a plain 200 does not.
+# The repo never tracks the binary (gitignored), so a checkout without a
+# built dist falls back to the latest release.
+if [ -f ../dist/starling.apk ]; then
+  cp ../dist/starling.apk ../app/starling.apk
+else
+  curl -fsSL -o ../app/starling.apk \
+    https://github.com/munzzyy/starling/releases/latest/download/starling.apk \
+    || { echo "no dist/starling.apk and the release fetch failed"; rm -f ../app/starling.apk; }
+fi
+trap 'rm -f ../app/starling.apk' EXIT
 "${W[@]}" deploy
 
 echo "== 4/4 health check =="
