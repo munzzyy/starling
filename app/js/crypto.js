@@ -92,6 +92,34 @@ export async function buildPost(identity, channelId, sealed, ts) {
   return { m: identity.memberId, alg: identity.alg, pk: b64uEncode(identity.pk), ts, n, c, sig: b64uEncode(sig) };
 }
 
+// Beacon (emergency help) sessions: a fresh 32-byte secret per SOS whose
+// channel and key derive under their own HKDF info strings, so a beacon
+// secret and a circle secret can never produce overlapping material. The
+// helper link carries the secret in the fragment, same rule as invites.
+export async function deriveHelpChannelId(secret) {
+  return bytesToHex(await hkdf(secret, `${PROTO}/help-channel-id`, 16));
+}
+
+export async function deriveHelpEncKey(secret) {
+  const raw = await hkdf(secret, `${PROTO}/help-enc`, 32);
+  return subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+}
+
+export function beaconFragment(secret) {
+  return `#b=${b64uEncode(secret)}`;
+}
+
+export function parseBeaconFragment(hash) {
+  const m = /^#b=([A-Za-z0-9_-]{43})$/.exec(hash || "");
+  if (!m) return null;
+  try {
+    const secret = b64uDecode(m[1]);
+    return secret.length === 32 ? secret : null;
+  } catch {
+    return null;
+  }
+}
+
 // Invite links: secret in the URL fragment, never sent to any server.
 export function inviteFragment(secret) {
   return `#j=${b64uEncode(secret)}`;

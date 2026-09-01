@@ -79,6 +79,11 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (req.mode === "navigate") {
+    // The help viewer is its own page, not the app shell. Answering its
+    // navigation from the cached index would hand someone following an
+    // emergency link the map app instead of the emergency, on exactly the
+    // devices most likely to have this worker installed.
+    if (url.pathname === "/help.html") return;
     event.respondWith(
       (async () => {
         const cached = await caches.match("/index.html");

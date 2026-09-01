@@ -10,6 +10,8 @@ Ports: 8920 (http), 2840/2841 (marionette). Everything started here is killed
 before exit.
 """
 import base64
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -27,6 +29,7 @@ HTTP_PORT = 8920
 BASE = f"http://127.0.0.1:{HTTP_PORT}"
 PORT_A = 2840
 PORT_B = 2841
+PORT_C = 2842
 PAD_LEN = 512
 
 TIMES_SQ = (40.7580, -73.9855)
@@ -604,6 +607,76 @@ def move_checkin_sos_stop(a, b):
     log("B sees Avery's bye")
 
 
+def hkdf_sha256(secret, info, length):
+    """Independent HKDF, so the help channel id is checked against a second
+    implementation instead of whatever the app happened to compute."""
+    prk = hmac.new(b"\x00" * 32, secret, hashlib.sha256).digest()
+    out, t, i = b"", b"", 1
+    while len(out) < length:
+        t = hmac.new(prk, t + info.encode() + bytes([i]), hashlib.sha256).digest()
+        out += t
+        i += 1
+    return out[:length]
+
+
+def flow_help_beacon(b):
+    """B fires an SOS, then a third browser with no app state and no circle
+    secret opens the help link and sees the live position."""
+    b.exec(f"window.__geoSet({MOVED[0]}, {MOVED[1]})")
+    b.click('[data-testid="sos-button"]')
+    wait_for(lambda: b.state().get("sosActive") is True, timeout=20, desc="B SOS armed")
+
+    link = wait_for(lambda: b.exec(
+        "var el = document.querySelector('[data-testid=\"sos-help\"]');"
+        "if (!el || el.hidden) return null; el.click();"
+        "var l = document.querySelector('[data-testid=\"help-link\"]');"
+        "return l ? l.textContent : null;"),
+        timeout=30, desc="help link offered", interval=1)
+    if "#b=" not in link:
+        raise E2EError(f"help link is not a beacon link: {link!r}")
+    secret = b64u_decode(link.split("#b=")[1])
+    if len(secret) != 32:
+        raise E2EError(f"beacon secret is {len(secret)} bytes, want 32")
+    help_channel = hkdf_sha256(secret, "starling/v1/help-channel-id", 16).hex()
+    log(f"help link minted: {link.split('#')[0]}#b=<secret>")
+    b.escape()
+
+    # A helper: fresh browser, fresh profile, no circle secret, no app state.
+    c = Browser("C", PORT_C)
+    try:
+        c.navigate(link)
+        wait_for(lambda: c.exec(
+            "var n = document.querySelector('#hv-name');"
+            "return n && n.textContent ? n.textContent : null"),
+            timeout=45, desc="helper sees the sharer", interval=1)
+        status = c.exec("return document.querySelector('#hv-status').textContent")
+        if "SOS" not in status:
+            raise E2EError(f"helper page status is {status!r}, expected an SOS")
+        marker = c.exec("return document.querySelectorAll('.leaflet-marker-icon').length")
+        if not marker:
+            raise E2EError("helper page drew no marker for the live position")
+        log(f"helper sees: {status}, {marker} marker(s)")
+        c.shot("help-viewer.png")
+
+        # The helper page must never hold circle material.
+        leaked = c.exec(
+            "return Object.keys(localStorage).length + (window.__starlingState ? 1 : 0)")
+        if leaked:
+            raise E2EError("help viewer holds app state it should not have")
+
+        # Ending the session tells the helper, rather than going quiet.
+        b.click('[data-testid="checkin-button"]')
+        wait_for(lambda: c.exec(
+            "return document.querySelector('#hv-ended') && "
+            "!document.querySelector('#hv-ended').hidden"),
+            timeout=45, desc="helper sees the session end", interval=1)
+        log("helper sees the session end after check-in")
+        console_check([c])
+    finally:
+        c.close()
+    return help_channel
+
+
 def zero_knowledge_dump(channels):
     _, body = http_get("/debug/dump")
     for needle in ["Avery", "Blair", "40.7", "73.9", "lat", "name"]:
@@ -629,7 +702,7 @@ def zero_knowledge_dump(channels):
             raise E2EError(f"members table columns {sorted(row.keys())}, want {sorted(want_cols)}")
         if not re.fullmatch(r"[0-9a-f]{32}", row["channel"]):
             raise E2EError(f"bad channel in members row: {row['channel']}")
-        if not re.fullmatch(r"[0-9a-f]{16}", row["member"]):
+        if not re.fullmatch(r"[0-9a-f]{32}", row["member"]):
             raise E2EError(f"bad member id in members row: {row['member']}")
         if row["channel"] not in channels:
             raise E2EError("unexpected foreign channel in dump")
@@ -691,8 +764,9 @@ def main():
         cross_visibility(a, b)
         flagship_map_shots(a, b)
         move_checkin_sos_stop(a, b)
+        help_chan = flow_help_beacon(b)
         chan2 = flow_multicircle(a, channel)
-        zero_knowledge_dump({channel, chan2})
+        zero_knowledge_dump({channel, chan2, help_chan})
         console_check([a, b])
         a.close()
         a = None
@@ -716,7 +790,7 @@ def main():
                 server.kill()
         if logfile:
             logfile.close()
-        for port in (HTTP_PORT, PORT_A, PORT_B):
+        for port in (HTTP_PORT, PORT_A, PORT_B, PORT_C):
             if not port_free(port):
                 log(f"WARNING: port {port} still occupied after cleanup")
 

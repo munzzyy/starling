@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https:; base-uri 'none'; form-action 'none'">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0a0d14">
+<title>Starling help link</title>
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/help.css">
+<script defer src="vendor/leaflet/leaflet.js"></script>
+<script type="module" src="js/helpview.js"></script>
+</head>
+<body class="hv">
+<div id="hv-map"></div>
+
+<header id="hv-banner" hidden>
+  <div class="hv-row">
+    <span id="hv-name"></span>
+    <span id="hv-status" data-state="live"></span>
+  </div>
+  <div class="hv-sub">
+    <span id="hv-ago"></span>
+    <span id="hv-net" hidden>Reconnecting...</span>
+  </div>
+</header>
+
+<div id="hv-waiting" class="hv-card">
+  <h1>Waiting for a location...</h1>
+  <p>Someone shared this emergency link with you. Their live position appears
+  here the moment it arrives. Keep this page open.</p>
+</div>
+
+<div id="hv-panel" class="hv-card" hidden>
+  <h1 id="hv-panel-title"></h1>
+  <p id="hv-panel-body"></p>
+</div>
+
+<div id="hv-ended" class="hv-card" hidden>
+  <h1>This session has ended</h1>
+  <p>The person who shared this link stopped their emergency share or checked
+  in safe. The last known position stays on the map.</p>
+</div>
+
+<button id="hv-recenter" class="hv-recenter" hidden>Recenter</button>
+
+<footer class="hv-foot">
+  <span>End to end encrypted. This page can read this one emergency share and
+  nothing else.</span>
+</footer>
+</body>
+</html>

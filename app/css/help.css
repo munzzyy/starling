@@ -1,0 +1,134 @@
+/* Beacon viewer chrome. The map fills the screen; everything else floats. */
+
+body.hv {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font, system-ui, sans-serif);
+  overflow: hidden;
+}
+
+#hv-map {
+  position: fixed;
+  inset: 0;
+}
+
+#hv-banner {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  min-width: min(340px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  background: color-mix(in srgb, var(--bg-1) 88%, transparent);
+  backdrop-filter: blur(14px);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  border-radius: 16px;
+  padding: 10px 16px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.35);
+}
+
+.hv-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 650;
+  font-size: 1.02rem;
+}
+
+#hv-status {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+#hv-status[data-state="sos"] {
+  background: color-mix(in srgb, var(--sos) 20%, transparent);
+  color: var(--sos);
+  animation: hv-pulse 1.6s ease-in-out infinite;
+}
+
+#hv-status[data-state="stale"],
+#hv-status[data-state="stopped"] {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  color: color-mix(in srgb, var(--text) 70%, transparent);
+}
+
+@keyframes hv-pulse {
+  50% { opacity: 0.55; }
+}
+
+.hv-sub {
+  display: flex;
+  gap: 12px;
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: color-mix(in srgb, var(--text) 65%, transparent);
+}
+
+.hv-card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1001;
+  width: min(360px, calc(100vw - 40px));
+  background: var(--bg-1);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  border-radius: 20px;
+  padding: 22px 24px;
+  text-align: center;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.45);
+}
+
+.hv-card h1 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+
+.hv-card p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--text) 75%, transparent);
+}
+
+#hv-ended {
+  top: auto;
+  bottom: max(64px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+}
+
+.hv-recenter {
+  position: fixed;
+  right: 14px;
+  bottom: max(64px, calc(env(safe-area-inset-bottom) + 56px));
+  z-index: 1000;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-weight: 700;
+  background: var(--accent-grad);
+  color: var(--accent-ink);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.4);
+}
+
+.hv-foot {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: 0.72rem;
+  color: color-mix(in srgb, var(--text) 55%, transparent);
+  background: linear-gradient(transparent, color-mix(in srgb, var(--bg) 85%, transparent));
+  pointer-events: none;
+}

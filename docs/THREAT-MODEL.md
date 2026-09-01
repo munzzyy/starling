@@ -35,7 +35,8 @@ gets ciphertext and metadata only:
 | Relay operator, or attacker with full DB read | ciphertext + the metadata above; no positions, no identities |
 | Attacker who scrapes a `channel_id` (128-bit, unguessable; would require relay compromise) | can fetch ciphertext they cannot decrypt; can write junk rows that fail GCM authentication on every member's device and render as nothing; cannot overwrite real members (writes are signature-checked against pinned keys) |
 | Network attacker replaying captured requests | whole-body replay blocked at the relay by the strictly-increasing `ts` rule; cross-channel and cross-member replay blocked by AAD binding; stale-point replay dropped by receivers |
-| Malicious circle member | already trusted with your location while you share; can spam or lie about their own position. Remedy is rotation: new secret, re-invite. Same trust model as a Signal group |
+| Malicious circle member | already trusted with your location while you share; can spam or lie about their own position. Cannot speak as another member: they hold the shared content key, but not that member's signing key, and receivers check the signature. Remedy for the rest is rotation: new secret, re-invite. Same trust model as a Signal group |
+| Malicious member colluding with the relay | still cannot forge another member's position, for the same reason. This is why receivers verify signatures themselves instead of trusting the relay's check |
 | Stolen unlocked phone, app lock OFF | attacker sees what the app shows and holds the circle secret. Panic wipe clears local state; rotating the circle from another device cuts the stolen device off within one TTL |
 | Stolen unlocked phone, app lock ON | the circle secret is AES-256-GCM encrypted at rest under a random vault key, which is itself wrapped by a PBKDF2-SHA-256 (600k iterations) key from the passcode and, optionally, by a WebAuthn PRF secret gated behind device biometrics. A locked app holds no plaintext secret, vault key, or channel id in memory or on disk. The attacker must defeat the passcode (brute force bounded by the KDF) or the OS biometric to read anything, and a dump of IndexedDB yields only ciphertext. `test/e2e_lock.py` asserts the plaintext secret is deleted the moment lock turns on and that a reload comes back with no derivable channel |
 | Malicious server operator shipping poisoned app JS | fatal, as for every web app including web clients of E2EE messengers. Mitigations: no third party scripts, strict CSP, subresource-free single origin, service worker pins the app shell. Real fix is a store-distributed native wrapper; out of scope for v1 |
@@ -67,8 +68,10 @@ gets ciphertext and metadata only:
    ciphertext trail. Bounded by TTL, fixed properly only by a group ratchet,
    which is roadmap, not v1.
 2. **Availability is not guaranteed.** The relay can drop or delay messages.
-   It cannot forge or alter them (GCM + signatures), and staleness is visible
-   in the UI ("last seen 4 min ago").
+   It cannot forge or alter them: receiving devices verify each sender's
+   signature against the key their member id hashes from, so a relay that
+   invents or edits a point cannot make it look like it came from a member.
+   Staleness is visible in the UI ("last seen 4 min ago").
 3. **A circle invite is a bearer capability.** Anyone holding the link joins
    silently. Share it over a trusted channel and rotate if it leaks. The invite
    screen says exactly this.
@@ -88,6 +91,34 @@ gets ciphertext and metadata only:
    passcode only and says so rather than faking a biometric gate. PBKDF2 is the
    WebCrypto-native choice; an Argon2id (memory-hard) upgrade is roadmap and
    would require shipping a vetted WASM build and a narrow CSP allowance for it.
+
+## Emergency beacon
+
+An SOS can mint a beacon: a separate share, on its own channel, under its own
+secret and its own fresh signing identity, for people outside the circle. The
+link opens in any browser with no app and no account.
+
+What it is good for: the neighbour, the colleague, the friend three blocks away
+who is not in your circle and will not install anything in the next two
+minutes. Circulo's limitation was exactly this, that help had to already be
+inside the system.
+
+Its honest properties:
+
+- A help link is a **bearer capability for one emergency**. Whoever holds it
+  watches that session's positions, and nothing else in the system: not the
+  circle, not its other members, not any history. That key decrypts one
+  emergency.
+- The beacon is **memory-only** and ends on check-in, stop-sharing, or app
+  lock, sending `bye` so the helper sees "session ended" rather than a frozen
+  dot. A new SOS mints a new secret, so an old link stays dead.
+- The relay learns one more channel exists. It cannot link that channel to a
+  circle by key material or member id, though a relay watching traffic timing
+  can of course see two channels updating together from one address, exactly
+  as it can for any two channels.
+- Anyone the link reaches can **forward it**. That is inherent to a link that
+  works with no account, and it is the trade being made: reachability in an
+  emergency, in exchange for not controlling who ends up watching.
 
 ## Multiple circles
 

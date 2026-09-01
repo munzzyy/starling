@@ -6,8 +6,8 @@ import assert from "node:assert/strict";
 
 import { createPoller } from "../app/js/net.js";
 
-const A = "a".repeat(16);
-const B = "b".repeat(16);
+const A = "a".repeat(32);
+const B = "b".repeat(32);
 const CHANNEL = "c".repeat(32);
 
 function stubGlobals(responses, urls) {

@@ -62,8 +62,8 @@ const server = http.createServer(async (req, res) => {
 
   if (TEST_MODE && pathname === "/debug/dump" && req.method === "GET") {
     const dump = {
-      members: db._raw.prepare("SELECT * FROM members").all(),
-      points: db._raw.prepare("SELECT * FROM points").all(),
+      members: db._raw.prepare("SELECT * FROM members_v2").all(),
+      points: db._raw.prepare("SELECT * FROM points_v2").all(),
     };
     res.statusCode = 200;
     res.setHeader("content-type", "application/json; charset=utf-8");

@@ -99,7 +99,7 @@ Two independent paths, both supported:
   Starling's side. Turn it on for Starling in Orbot and its traffic routes
   through Tor like any other app's.
 - **In-app SOCKS toggle.** Settings has a proxy toggle that routes requests
-  through `socks5://127.0.0.1:9050` using `androidx.webkit`'s
+  through Orbot's SOCKS port using `androidx.webkit`'s
   `ProxyController` (SOCKS5, so hostname resolution happens proxy-side and
   DNS rides through Tor too), feature-detected at runtime so it silently
   does nothing on WebView versions that lack `PROXY_OVERRIDE` support
@@ -110,10 +110,20 @@ Two independent paths, both supported:
   off-device lookup service, which is the kind of side channel the toggle
   exists to avoid.
 
+The port is not assumed. Turning the toggle on registers a receiver and asks
+Orbot for its status (`ACTION_START` with our package name); Orbot answers
+with a broadcast carrying the live SOCKS port, and the proxy is re-applied if
+it differs from the 9050 default. That receiver has to be registered
+`RECEIVER_EXPORTED`, since Orbot is a separate app, and the manifest needs a
+`<queries>` entry for `org.torproject.android` or the request is dropped
+silently on Android 11 and up. NetCipher used to be the polite way to do
+this; it has been unmaintained since 2020 and never actually read the port
+extra it declared a constant for, so this talks to Orbot directly.
+
 Honest limits of the toggle, so nobody has to discover them the hard way:
-it assumes Orbot's default SOCKS port 9050. If Orbot's port was changed,
-requests fail closed rather than leak, but sharing stops until the ports
-agree again. It covers the WebView only. A link that leaves the app (say a
+if Orbot never answers, 9050 stands, and a wrong port fails closed rather
+than leaking, but sharing stops until the ports agree. It covers the WebView
+only. A link that leaves the app (say a
 repo link in settings) opens in the system browser, which the toggle does
 not proxy. And nothing binds 127.0.0.1:9050 to Orbot specifically; another
 local app could squat the port, and while it would only ever see TLS to

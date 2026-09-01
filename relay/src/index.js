@@ -43,23 +43,30 @@ function envInt(v, dflt) {
 // key, so scanning many channels or IPs cannot grow it without bound.
 const RATE_WINDOW_MS = 60_000;
 const RATE_KEYS_MAX = 4096;
-const rateBuckets = new Map();
 
-function rateLimited(key, limit, now) {
-  const hits = rateBuckets.get(key) || [];
-  rateBuckets.delete(key);
+// One map per namespace. Sharing a single map let cheap keys evict expensive
+// ones: channel ids are attacker-chosen and unlimited, so spraying random
+// channels would push every IP bucket out of a shared map and hand the
+// sprayer an unlimited budget. An address cannot evict itself out of a map
+// that only ever holds addresses.
+const rateBuckets = { c: new Map(), i: new Map() };
+
+function rateLimited(ns, key, limit, now) {
+  const buckets = rateBuckets[ns];
+  const hits = buckets.get(key) || [];
+  buckets.delete(key);
   while (hits.length && hits[0] <= now - RATE_WINDOW_MS) hits.shift();
   const limited = hits.length >= limit;
   if (!limited) hits.push(now);
-  rateBuckets.set(key, hits);
-  if (rateBuckets.size > RATE_KEYS_MAX) rateBuckets.delete(rateBuckets.keys().next().value);
+  buckets.set(key, hits);
+  if (buckets.size > RATE_KEYS_MAX) buckets.delete(buckets.keys().next().value);
   return limited;
 }
 
 // Deterministic TTL sweep, run on every feed request.
 const sweepStmts = (env, now) => [
-  env.DB.prepare("DELETE FROM points WHERE srv < ?").bind(now - TTL_MS),
-  env.DB.prepare("DELETE FROM members WHERE srv < ?").bind(now - TTL_MS),
+  env.DB.prepare("DELETE FROM points_v2 WHERE srv < ?").bind(now - TTL_MS),
+  env.DB.prepare("DELETE FROM members_v2 WHERE srv < ?").bind(now - TTL_MS),
 ];
 
 // Origins allowed to write. The Android wrapper serves the same app from
@@ -131,7 +138,7 @@ async function handlePost(request, env, channel, url) {
   if (body.ts > now + FUTURE_SKEW_MS) return err(400, "bad request");
 
   const pinned = await env.DB
-    .prepare("SELECT alg, pk, last_ts FROM members WHERE channel = ? AND member = ?")
+    .prepare("SELECT alg, pk, last_ts FROM members_v2 WHERE channel = ? AND member = ?")
     .bind(channel, body.m)
     .first();
   if (pinned) {
@@ -140,7 +147,7 @@ async function handlePost(request, env, channel, url) {
   } else {
     // Early reject for the sequential case; the batch below enforces the cap
     // atomically, so this read is a fast path, not the guard.
-    const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM members WHERE channel = ?").bind(channel).first();
+    const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM members_v2 WHERE channel = ?").bind(channel).first();
     if (row.n >= MEMBER_CAP) return err(403, "forbidden");
   }
 
@@ -155,8 +162,8 @@ async function handlePost(request, env, channel, url) {
 
   const ip = request.headers.get("cf-connecting-ip") || "";
   if (
-    rateLimited("c:" + channel, envInt(env.RATE_POST_MIN, 60), now) ||
-    rateLimited("i:" + ip, envInt(env.RATE_GET_MIN, 240), now)
+    rateLimited("c", channel, envInt(env.RATE_POST_MIN, 60), now) ||
+    rateLimited("i", ip, envInt(env.RATE_GET_MIN, 240), now)
   ) {
     return err(429, "rate limited");
   }
@@ -173,24 +180,29 @@ async function handlePost(request, env, channel, url) {
     results = await env.DB.batch([
       env.DB
         .prepare(
-          "INSERT INTO members (channel, member, alg, pk, last_ts, srv) " +
+          "INSERT INTO members_v2 (channel, member, alg, pk, last_ts, srv) " +
             "SELECT ?, ?, ?, ?, ?, ? " +
-            "WHERE EXISTS (SELECT 1 FROM members WHERE channel = ? AND member = ?) " +
-            "OR (SELECT COUNT(*) FROM members WHERE channel = ?) < ? " +
-            "ON CONFLICT (channel, member) DO UPDATE SET last_ts = excluded.last_ts, srv = excluded.srv",
+            "WHERE EXISTS (SELECT 1 FROM members_v2 WHERE channel = ? AND member = ?) " +
+            "OR (SELECT COUNT(*) FROM members_v2 WHERE channel = ?) < ? " +
+            // last_ts only ever moves forward. Two concurrent posts from one
+            // member can both pass the read-side replay check above, and if
+            // the older one lands second a blind assignment would walk the
+            // pin backwards and re-open the window it exists to close.
+            "ON CONFLICT (channel, member) DO UPDATE SET " +
+            "last_ts = MAX(members_v2.last_ts, excluded.last_ts), srv = excluded.srv",
         )
         .bind(channel, body.m, body.alg, body.pk, body.ts, now, channel, body.m, channel, MEMBER_CAP),
       env.DB
         .prepare(
-          "INSERT INTO points (channel, member, ts, srv, n, c) " +
-            "SELECT ?, ?, ?, ?, ?, ? " +
-            "WHERE EXISTS (SELECT 1 FROM members WHERE channel = ? AND member = ?)",
+          "INSERT INTO points_v2 (channel, member, ts, srv, n, c, sig) " +
+            "SELECT ?, ?, ?, ?, ?, ?, ? " +
+            "WHERE EXISTS (SELECT 1 FROM members_v2 WHERE channel = ? AND member = ?)",
         )
-        .bind(channel, body.m, body.ts, now, body.n, body.c, channel, body.m),
+        .bind(channel, body.m, body.ts, now, body.n, body.c, body.sig, channel, body.m),
       env.DB
         .prepare(
-          "DELETE FROM points WHERE channel = ? AND member = ? AND ts NOT IN " +
-            "(SELECT ts FROM points WHERE channel = ? AND member = ? ORDER BY ts DESC LIMIT ?)",
+          "DELETE FROM points_v2 WHERE channel = ? AND member = ? AND ts NOT IN " +
+            "(SELECT ts FROM points_v2 WHERE channel = ? AND member = ? ORDER BY ts DESC LIMIT ?)",
         )
         .bind(channel, body.m, channel, body.m, TRAIL_CAP),
       ...sweepStmts(env, now),
@@ -205,7 +217,7 @@ async function handlePost(request, env, channel, url) {
 
 async function handleGet(request, env, channel, url) {
   const ip = request.headers.get("cf-connecting-ip") || "";
-  if (rateLimited("i:" + ip, envInt(env.RATE_GET_MIN, 240), Date.now())) return err(429, "rate limited");
+  if (rateLimited("i", ip, envInt(env.RATE_GET_MIN, 240), Date.now())) return err(429, "rate limited");
 
   // The feed cursor is the relay's own receive time (srv), never the
   // client-claimed ts, so one member's skewed clock can never filter another
@@ -223,18 +235,20 @@ async function handleGet(request, env, channel, url) {
   await env.DB.batch(sweepStmts(env, now));
 
   const members = (
-    await env.DB.prepare("SELECT member, alg, pk FROM members WHERE channel = ? ORDER BY member").bind(channel).all()
+    await env.DB.prepare("SELECT member, alg, pk FROM members_v2 WHERE channel = ? ORDER BY member").bind(channel).all()
   ).results;
   const points = (
     await env.DB
-      .prepare("SELECT member, ts, srv, n, c FROM points WHERE channel = ? AND srv >= ? ORDER BY srv, ts")
+      .prepare("SELECT member, ts, srv, n, c, sig FROM points_v2 WHERE channel = ? AND srv >= ? ORDER BY srv, ts")
       .bind(channel, since)
       .all()
   ).results;
 
   const out = new Map();
   for (const r of members) out.set(r.member, { m: r.member, alg: r.alg, pk: r.pk, points: [] });
-  for (const r of points) out.get(r.member)?.points.push({ ts: r.ts, srv: r.srv, n: r.n, c: r.c });
+  // sig travels with every point: receivers verify it themselves rather than
+  // taking the relay's word that it checked one on the way in.
+  for (const r of points) out.get(r.member)?.points.push({ ts: r.ts, srv: r.srv, n: r.n, c: r.c, sig: r.sig });
   return json(200, { now, members: [...out.values()] });
 }
 

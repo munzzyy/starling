@@ -34,13 +34,19 @@ export async function sha256(bytes) {
   return new Uint8Array(await subtle.digest("SHA-256", bytes));
 }
 
-// member_id = first 16 hex chars of SHA-256(raw public key)
+// member_id = first 32 hex chars of SHA-256(raw public key).
+//
+// 128 bits, not 64. This binding is the whole of a receiver's trust in "who
+// sent this": a member is their key, and the id is how the key is named. At
+// 64 bits a second preimage is within reach of anyone who can rent enough
+// hashing, and finding one lets an attacker occupy a member's slot with a key
+// they control. 128 bits puts that out of reach.
 export async function memberIdFromPub(pkBytes) {
-  return bytesToHex(await sha256(pkBytes)).slice(0, 16);
+  return bytesToHex(await sha256(pkBytes)).slice(0, 32);
 }
 
 export const isChannelId = (s) => typeof s === "string" && /^[0-9a-f]{32}$/.test(s);
-export const isMemberId = (s) => typeof s === "string" && /^[0-9a-f]{16}$/.test(s);
+export const isMemberId = (s) => typeof s === "string" && /^[0-9a-f]{32}$/.test(s);
 
 // The exact string a location post signs.
 export function sigBase(channel, member, ts, n, c) {

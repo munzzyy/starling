@@ -8,6 +8,8 @@ import {
   TRAIL_CAP,
   b64uDecode,
   memberIdFromPub,
+  sigBase,
+  verifySig,
 } from "./wire.js";
 import { openMessage, sealMessage, buildPost } from "./crypto.js";
 import { apiUrl } from "./env.js";
@@ -54,13 +56,23 @@ export function createRoster({ channelId, encKey, selfId }) {
       const points = [...(entry.points || [])].sort((a, b) => a.ts - b.ts);
       let rec = members.get(entry.m);
       for (const p of points) {
-        let n, c;
+        let n, c, sig;
         try {
           n = b64uDecode(p.n);
           c = b64uDecode(p.c);
+          sig = b64uDecode(p.sig);
         } catch {
           continue;
         }
+        // Verify the sender's signature here, on the receiving device.
+        // GCM alone proves only that someone holding the circle key wrote
+        // this, and every member holds it, so a member colluding with the
+        // relay could otherwise put words in another member's mouth. The
+        // signature is over the same bytes the relay checked, but checking
+        // it here is what makes the relay untrusted rather than merely
+        // honest. Member id is the hash of this key, verified just above,
+        // so the key is pinned by identity rather than by the relay's word.
+        if (!(await verifySig(entry.alg, pk, sig, sigBase(channelId, entry.m, p.ts, p.n, p.c)))) continue;
         const obj = await openMessage(encKey, channelId, entry.m, n, c);
         if (!obj || !Number.isFinite(obj.ts)) continue;
         if (rec && obj.ts <= rec.ts) continue;

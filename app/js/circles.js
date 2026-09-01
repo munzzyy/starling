@@ -14,7 +14,7 @@
 // reconcileCircles to drop the duplicate.
 
 import { sealUnderVault, openUnderVault } from "./lock.js";
-import { b64uEncode, b64uDecode } from "./wire.js";
+import { b64uEncode, b64uDecode, memberIdFromPub } from "./wire.js";
 
 const te = new TextEncoder();
 const td = new TextDecoder();
@@ -44,7 +44,13 @@ export function unpackCircles(bytes, identities) {
   if (!Array.isArray(metas)) return null;
   const byId = new Map();
   for (const id of identities || []) {
-    if (id?.memberId) byId.set(id.memberId, id);
+    if (!id?.memberId) continue;
+    byId.set(id.memberId, id);
+    // A meta sealed before member ids widened names its identity by the old
+    // 64-bit id. Both are prefixes of the same hash, so the short form still
+    // identifies the same key: register it too, or the first boot after the
+    // upgrade would find no identity for the meta and drop a live circle.
+    if (id.memberId.length > 16) byId.set(id.memberId.slice(0, 16), id);
   }
   const out = [];
   for (const m of metas) {
@@ -70,6 +76,56 @@ export function unpackCircles(bytes, identities) {
     });
   }
   return out;
+}
+
+// Member ids widened from 64 to 128 bits. The id is derived data, the hash
+// of a key we still hold, so an upgrade recomputes it rather than asking
+// anyone to re-create a circle: the signing keys, secrets, and invite links
+// all keep working, and the member simply reappears in the circle under a
+// full-length name. Idempotent, so it costs one pass on every later boot and
+// changes nothing. Metas pair with identities by the id stored at the time of
+// writing, so pairing happens before this runs, never after.
+export async function migrateMemberIds(kv) {
+  let changed = false;
+
+  const fix = async (identity) => {
+    if (!identity?.pk) return false;
+    const fresh = await memberIdFromPub(identity.pk);
+    if (identity.memberId === fresh) return false;
+    identity.memberId = fresh;
+    return true;
+  };
+
+  const active = await kv.get("identity");
+  if (await fix(active)) {
+    await kv.set("identity", active);
+    changed = true;
+  }
+
+  const plain = await kv.get("circles");
+  if (Array.isArray(plain)) {
+    let touched = false;
+    for (const c of plain) if (await fix(c?.identity)) touched = true;
+    if (touched) {
+      await kv.set("circles", plain);
+      changed = true;
+    }
+  }
+
+  // Locked installs keep identities beside the sealed metas. The metas hold
+  // the old id too, but they are resealed on the next circle write and pair
+  // correctly until then, because unpack reads both sides as they were.
+  const ids = await kv.get("circleIdentities");
+  if (Array.isArray(ids)) {
+    let touched = false;
+    for (const id of ids) if (await fix(id)) touched = true;
+    if (touched) {
+      await kv.set("circleIdentities", ids);
+      changed = true;
+    }
+  }
+
+  return changed;
 }
 
 export function sameSecret(a, b) {

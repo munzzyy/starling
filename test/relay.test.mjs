@@ -64,8 +64,8 @@ async function validPost(circle, identity, ts, msg = msgAt(ts)) {
 function snap(env) {
   const db = env.DB._raw;
   return {
-    members: db.prepare("SELECT COUNT(*) AS n FROM members").get().n,
-    points: db.prepare("SELECT COUNT(*) AS n FROM points").get().n,
+    members: db.prepare("SELECT COUNT(*) AS n FROM members_v2").get().n,
+    points: db.prepare("SELECT COUNT(*) AS n FROM points_v2").get().n,
   };
 }
 
@@ -306,7 +306,7 @@ test("pinned key conflict is 403 and writes nothing", async () => {
   // Pin a's member slot to a DIFFERENT key directly in the DB, then a genuine
   // post from a (binding passes) must hit the pin check and bounce.
   env.DB._raw
-    .prepare("INSERT INTO members (channel, member, alg, pk, last_ts, srv) VALUES (?, ?, ?, ?, ?, ?)")
+    .prepare("INSERT INTO members_v2 (channel, member, alg, pk, last_ts, srv) VALUES (?, ?, ?, ?, ?, ?)")
     .run(circle.channel, a.memberId, a.alg, b64uEncode(b.pk), 1, Date.now());
   const before = snap(env);
   await assertRejected(env, postLoc(env, circle.channel, await validPost(circle, a, Date.now())), 403, before);
@@ -314,7 +314,7 @@ test("pinned key conflict is 403 and writes nothing", async () => {
   // Same key bytes but a different pinned alg must bounce too.
   const c = await generateIdentity();
   env.DB._raw
-    .prepare("INSERT INTO members (channel, member, alg, pk, last_ts, srv) VALUES (?, ?, ?, ?, ?, ?)")
+    .prepare("INSERT INTO members_v2 (channel, member, alg, pk, last_ts, srv) VALUES (?, ?, ?, ?, ?, ?)")
     .run(circle.channel, c.memberId, c.alg === "ed25519" ? "p256" : "ed25519", b64uEncode(c.pk), 1, Date.now());
   const before2 = snap(env);
   await assertRejected(env, postLoc(env, circle.channel, await validPost(circle, c, Date.now())), 403, before2);
@@ -546,10 +546,10 @@ test("TTL sweep removes rows older than TTL_MS on any feed request", async () =>
   const circle = await makeCircle();
   const db = env.DB._raw;
   const old = Date.now() - TTL_MS - 60_000;
-  db.prepare("INSERT INTO members (channel, member, alg, pk, last_ts, srv) VALUES (?, ?, ?, ?, ?, ?)")
+  db.prepare("INSERT INTO members_v2 (channel, member, alg, pk, last_ts, srv) VALUES (?, ?, ?, ?, ?, ?)")
     .run(circle.channel, "aaaaaaaaaaaaaaaa", "ed25519", "AAAA", 5, old);
-  db.prepare("INSERT INTO points (channel, member, ts, srv, n, c) VALUES (?, ?, ?, ?, ?, ?)")
-    .run(circle.channel, "aaaaaaaaaaaaaaaa", 5, old, "AAAA", "BBBB");
+  db.prepare("INSERT INTO points_v2 (channel, member, ts, srv, n, c, sig) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .run(circle.channel, "aaaaaaaaaaaaaaaa", 5, old, "AAAA", "BBBB", "CCCC");
   assert.deepEqual(snap(env), { members: 1, points: 1 });
 
   const res = await getFeed(env, circle.channel);
@@ -558,11 +558,11 @@ test("TTL sweep removes rows older than TTL_MS on any feed request", async () =>
   assert.deepEqual(snap(env), { members: 0, points: 0 });
 
   // The sweep runs on the post path too, and fresh rows survive it.
-  db.prepare("INSERT INTO members (channel, member, alg, pk, last_ts, srv) VALUES (?, ?, ?, ?, ?, ?)")
+  db.prepare("INSERT INTO members_v2 (channel, member, alg, pk, last_ts, srv) VALUES (?, ?, ?, ?, ?, ?)")
     .run(circle.channel, "bbbbbbbbbbbbbbbb", "ed25519", "AAAA", 5, old);
   const id = await generateIdentity();
   assert.equal((await postLoc(env, circle.channel, await validPost(circle, id, Date.now()))).status, 200);
-  const members = db.prepare("SELECT member FROM members").all().map((r) => r.member);
+  const members = db.prepare("SELECT member FROM members_v2").all().map((r) => r.member);
   assert.deepEqual(members, [id.memberId]);
   assert.deepEqual(snap(env), { members: 1, points: 1 });
 });
@@ -578,7 +578,7 @@ test("trail is pruned to the newest TRAIL_CAP points", async () => {
     assert.equal(res.status, 200, `post ${i + 1}`);
   }
   const stored = env.DB._raw
-    .prepare("SELECT COUNT(*) AS n, MIN(ts) AS lo, MAX(ts) AS hi FROM points WHERE channel = ? AND member = ?")
+    .prepare("SELECT COUNT(*) AS n, MIN(ts) AS lo, MAX(ts) AS hi FROM points_v2 WHERE channel = ? AND member = ?")
     .get(circle.channel, id.memberId);
   assert.equal(stored.n, TRAIL_CAP);
   assert.equal(stored.lo, base + extra);
@@ -610,4 +610,55 @@ test("a p256 member is accepted end to end", async () => {
     b64uDecode(feed.members[0].points[0].c),
   );
   assert.deepEqual(opened, msg);
+});
+
+// --------------------------------------------------- v2 security properties
+
+test("the feed serves each point's signature, so receivers can verify", async () => {
+  const env = freshEnv();
+  const circle = await makeCircle();
+  const id = await generateIdentity();
+  const ts = Date.now();
+  const body = await validPost(circle, id, ts);
+  assert.equal((await postLoc(env, circle.channel, body)).status, 200);
+
+  const feed = await (await getFeed(env, circle.channel)).json();
+  const point = feed.members[0].points[0];
+  assert.equal(point.sig, body.sig, "sig must survive the round trip verbatim");
+});
+
+test("last_ts never walks backwards, even if an older post lands second", async () => {
+  const env = freshEnv();
+  const circle = await makeCircle();
+  const id = await generateIdentity();
+  const now = Date.now();
+
+  assert.equal((await postLoc(env, circle.channel, await validPost(circle, id, now))).status, 200);
+  // A newer point, then a request carrying an older ts: the older one is a
+  // replay and must be refused, and must not drag the pin back with it.
+  assert.equal((await postLoc(env, circle.channel, await validPost(circle, id, now + 5000))).status, 200);
+  const pinned = () =>
+    env.DB._raw.prepare("SELECT last_ts FROM members_v2 WHERE channel = ?").get(circle.channel).last_ts;
+  assert.equal(pinned(), now + 5000);
+
+  await assertRejected(env, postLoc(env, circle.channel, await validPost(circle, id, now + 1000)), 409, snap(env));
+  assert.equal(pinned(), now + 5000, "a rejected replay must leave the pin at its high-water mark");
+});
+
+test("spraying channels cannot evict an address out of its own rate limit", async () => {
+  // The old shared map let an attacker push their own IP bucket out by
+  // creating enough channel buckets, which reset their budget to zero used.
+  const env = freshEnv({ RATE_GET_MIN: "3" });
+  const ip = freshIp();
+  const chan = "d".repeat(32);
+  for (let i = 0; i < 3; i++) {
+    assert.equal((await getFeed(env, chan, "", { ip })).status, 200);
+  }
+  // 5000 distinct channels: more than RATE_KEYS_MAX, so a shared map would
+  // have discarded this address's bucket several times over.
+  const spray = freshEnv({ RATE_GET_MIN: "1000000" });
+  for (let i = 0; i < 5000; i++) {
+    await getFeed(spray, i.toString(16).padStart(32, "0"), "", { ip: "10.250.0.1" });
+  }
+  assert.equal((await getFeed(env, chan, "", { ip })).status, 429, "the address is still limited");
 });

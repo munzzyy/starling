@@ -156,6 +156,7 @@ class MainActivity : FragmentActivity() {
     override fun onDestroy() {
         LocationService.sink = null
         LocationService.stop(this)
+        OrbotStatus.stop(this)
         super.onDestroy()
     }
 
@@ -238,17 +239,24 @@ class MainActivity : FragmentActivity() {
     // for SOCKS5, so DNS rides through Tor too. The override only governs
     // connections opened after it lands, so the listener reloads the page and
     // strands whatever the old config had pooled.
+    //
+    // The port comes from Orbot itself when Orbot answers; 9050 is the
+    // default and the fallback. Watching for the answer means a user who
+    // moved Orbot's port gets working Tor instead of a share that fails
+    // closed for a reason nothing on screen could explain.
     private fun applyTorPref() {
         if (!torSupported()) return
         val controller = ProxyController.getInstance()
         val reload = Runnable { if (::webView.isInitialized) webView.reload() }
         val executor = ContextCompat.getMainExecutor(this)
         if (torEnabled()) {
+            OrbotStatus.start(this) { applyTorPref() }
             val config = ProxyConfig.Builder()
-                .addProxyRule("socks5://127.0.0.1:9050")
+                .addProxyRule("socks5://127.0.0.1:${OrbotStatus.socksPort}")
                 .build()
             controller.setProxyOverride(config, executor, reload)
         } else {
+            OrbotStatus.stop(this)
             controller.clearProxyOverride(executor, reload)
         }
     }

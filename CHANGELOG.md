@@ -3,6 +3,34 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [0.4.0]
+
+- Get help from outside your circle. An SOS can now mint a help link that
+  opens your live position in any browser, with no app and no account, for
+  whoever can actually reach you: the neighbour, the colleague, the friend
+  three blocks away who was never in your circle. The link carries its own
+  secret, its own channel, and its own signing identity, so it shows that one
+  emergency and can never become access to your circle or its history.
+  Checking in safe, stopping the share, or locking the app ends it and tells
+  the person watching, rather than going quiet.
+- Receiving devices now verify each sender's signature themselves. The
+  circle's content key is shared by everyone in it, so decryption alone only
+  ever proved that some member wrote a message; the signature is what says
+  which member. Until now the relay was the only thing checking it, which
+  meant a member working with a compromised relay could have put someone
+  else's name on a position. The feed carries signatures and every device
+  checks them before it decrypts anything.
+- Member ids widened from 64 to 128 bits, since that id is how a key gets
+  named and a receiver's whole trust in "who sent this" rests on it.
+  Existing installs upgrade in place, keeping their circles, keys, and
+  invite links.
+- Tor mode asks Orbot which SOCKS port it is actually using instead of
+  assuming the default, so a moved port works instead of failing closed for
+  a reason nothing on screen could explain.
+- The relay stops a member's replay window from re-opening under concurrent
+  posts, and separates its rate-limit accounting so flooding new channels
+  can no longer clear an address's own limit.
+
 ## [0.3.1]
 
 - Hardening pass on the Android wrapper after an external review round. The

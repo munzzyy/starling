@@ -424,6 +424,75 @@ export function openCircleSheet({ current, others, onSwitch, onCreate, onJoin })
   return ov;
 }
 
+// --------------------------------------------------------- help link sheet
+
+// Shown after an SOS. The link goes to whoever can actually help right now,
+// including people who will never install anything: it opens a page that
+// follows this one emergency and nothing else.
+export function openHelpSheet({ link, onEnd }) {
+  const ov = openOverlay({ title: "Get outside help", testid: "help-sheet", className: "ov-invite" });
+
+  const linkRow = el("div", "link-row");
+  const linkText = el("code", "invite-link");
+  linkText.dataset.testid = "help-link";
+  linkText.textContent = link;
+  linkRow.append(linkText);
+
+  const share = btn("btn btn-primary", "Share link");
+  const copy = btn("btn btn-secondary btn-copy", "Copy link");
+
+  share.addEventListener("click", async () => {
+    // The OS share sheet is the fast path under stress: it reaches the
+    // messaging apps someone already has open. Clipboard is the fallback.
+    if (navigator.share) {
+      try {
+        await navigator.share({ text: `Follow my location: ${link}` });
+        return;
+      } catch {
+        // cancelled or unavailable: fall through to copying
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(link);
+      toast("Help link copied");
+    } catch {
+      toast("Copy failed. Long-press the link instead.", "warn");
+    }
+  });
+
+  copy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      toast("Help link copied");
+    } catch {
+      toast("Copy failed. Long-press the link instead.", "warn");
+    }
+  });
+
+  ov.body.append(
+    el("p", "ov-note", "Anyone you send this to can watch your live location on any phone or computer, with no app and no account. It shows this emergency only, never your circle."),
+    linkRow,
+    share,
+    copy,
+  );
+
+  const danger = el("div", "danger-zone");
+  danger.append(el("h3", "danger-title", "When you are safe"));
+  const endBtn = btn("btn btn-danger-ghost", "Stop sharing with helpers");
+  endBtn.addEventListener("click", async () => {
+    endBtn.disabled = true;
+    await onEnd();
+    toast("Help link switched off");
+    ov.close();
+  });
+  danger.append(
+    el("p", "ov-note", "The link stops updating and shows that the session ended. A new SOS creates a new link."),
+    endBtn,
+  );
+  ov.body.append(danger);
+  return ov;
+}
+
 // ------------------------------------------------------------ invite sheet
 
 export function openInviteSheet({ getLink, qrSvgFor, onRotate }) {

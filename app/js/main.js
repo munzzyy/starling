@@ -30,6 +30,7 @@ import {
   leaveActive,
   reconcileCircles,
   adoptPairedIdentity,
+  migrateMemberIds,
   sameSecret,
   enableLockTransition,
   disableLockTransition,
@@ -37,6 +38,7 @@ import {
 import * as ui from "./ui.js";
 import { createMapView } from "./map.js";
 import { createPoller, createRoster, createSender, statusOf, sortMembers, STALE_MS } from "./net.js";
+import { startBeacon } from "./beacon.js";
 import { startWatch, batteryLevel } from "./geo.js";
 import { haversineMeters, coarsePos, hueFromMemberId } from "./fmt.js";
 import { createDemo, DEMO_CENTER } from "./demo.js";
@@ -98,6 +100,9 @@ async function activeRecord() {
 let roster = null;
 let poller = null;
 let sender = null;
+// The live emergency beacon, if an SOS is running. Memory only by design:
+// it must not outlive the process that can also cancel it.
+let beacon = null;
 let mapView = null;
 let sheet = null;
 let demo = null;
@@ -149,6 +154,8 @@ window.__starlingState = () => {
     lockEnabled: !!state.lock?.enabled,
     circles: state.circles.length,
     hasBio: !!state.lock?.bio,
+    sosActive: !!state.sosActive,
+    beacon: !!beacon,
     channel: state.channelId || null,
     members: sortMembers(members(), now).map((r) => ({
       id: r.id,
@@ -224,6 +231,7 @@ function ensureMapUI() {
   $("#fab-locate").addEventListener("click", locateMe);
   $("#banner-demo-exit").addEventListener("click", exitDemo);
   $("#nudge-invite").addEventListener("click", openInvite);
+  $("#sos-help").addEventListener("click", openHelpLink);
 }
 
 // ------------------------------------------------------------- rendering
@@ -279,6 +287,7 @@ function renderYou() {
     : "Start sharing";
   $("#geo-warn").hidden = !state.geoDenied;
   $("#sos-notice").hidden = !state.sosActive;
+  $("#sos-help").hidden = !(state.sosActive && beacon);
   const checkBtn = byTestid("checkin-button");
   checkBtn.setAttribute(
     "aria-label",
@@ -709,6 +718,10 @@ function lockNow() {
   sender?.cancel?.();
   sender = null;
   roster = null;
+  // The beacon holds its own key and its own sender; locking drops keys, so
+  // it goes too rather than outliving the screen that can switch it off.
+  beacon?.end().catch(() => {});
+  beacon = null;
   zero(state.vaultKey);
   zero(state.secret);
   for (const c of state.circles) zero(c.secret);
@@ -1356,6 +1369,8 @@ async function setSharing(on) {
     stopGeo?.();
     stopGeo = null;
     lastSentPos = null;
+    // Stopping the share stops every audience, helpers included.
+    endBeacon().catch(() => {});
     // Returned so circle switches can wait for the departure to actually
     // reach the old channel before the sender is cancelled; every other
     // caller ignores it and keeps the old fire-and-forget behavior.
@@ -1384,6 +1399,7 @@ function onFix(fix) {
 function stopSharingInternals() {
   state.sharing = false;
   state.sosActive = false;
+  endBeacon().catch(() => {});
   clearInterval(shareTimer);
   stopGeo?.();
   stopGeo = null;
@@ -1420,6 +1436,8 @@ async function sendLoc(force = false) {
   } catch {
     // poll loop surfaces connectivity trouble
   }
+  // Helpers watching the beacon get the same fixes as the circle.
+  if (beacon) await pushBeacon();
 }
 
 async function sendMsg(type) {
@@ -1459,6 +1477,8 @@ async function doCheckin() {
   }
   try {
     await sendMsg("checkin");
+    // Checking in safe is exactly the moment helpers should stop seeing you.
+    await endBeacon();
     ui.toast(okMsg);
   } catch {
     // The circle still sees the SOS, so keep showing it here too.
@@ -1484,7 +1504,59 @@ async function fireSos() {
   } catch {
     ui.toast("SOS failed to send. Reconnecting...", "warn");
   }
+  // Your circle is who you chose in advance. An emergency is often the
+  // moment that turns out to be the wrong list: the people who can reach you
+  // are a neighbour, a colleague, whoever is nearby, and none of them are
+  // going to install anything right now. The beacon is a second, separate
+  // share they can open in a browser.
+  startBeaconForSos().catch(() => {});
   render();
+}
+
+// The beacon runs alongside the circle share on its own channel with its own
+// key and its own signing identity, so handing out a help link never hands
+// out circle history and never links the two channels for the relay.
+async function startBeaconForSos() {
+  if (beacon) return;
+  try {
+    beacon = await startBeacon();
+  } catch {
+    beacon = null;
+    return;
+  }
+  await pushBeacon();
+  render();
+}
+
+async function pushBeacon() {
+  if (!beacon || !state.me) return;
+  const { lat, lon } = state.me;
+  try {
+    await beacon.send({
+      t: "sos",
+      name: state.profile?.name || "Someone",
+      emoji: state.profile?.emoji || "\u{1F6A8}",
+      hue: myHue(),
+      lat,
+      lon,
+      ...(Number.isFinite(state.me.acc) ? { acc: state.me.acc } : {}),
+    });
+  } catch {
+    // the viewer shows the trail going stale rather than a lie
+  }
+}
+
+async function endBeacon() {
+  if (!beacon) return;
+  const b = beacon;
+  beacon = null;
+  await b.end();
+  render();
+}
+
+function openHelpLink() {
+  if (!beacon) return;
+  ui.openHelpSheet({ link: beacon.link, onEnd: endBeacon });
 }
 
 function checkAlerts() {
@@ -1659,6 +1731,9 @@ async function boot() {
   let lock = null;
   let storedCircles = null;
   try {
+    // Widen any 64-bit member ids left by an older install before anything
+    // reads them, so the rest of boot sees one id length everywhere.
+    await migrateMemberIds(kv).catch(() => {});
     const [sec, id, profile, settings, circleName, lk, relay, circs] = await Promise.all([
       dbGet("secret"),
       dbGet("identity"),

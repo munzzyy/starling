@@ -64,13 +64,13 @@ test("sha256 known vectors", async () => {
   );
 });
 
-test("memberIdFromPub is first 16 hex of sha256", async () => {
+test("memberIdFromPub is first 32 hex of sha256", async () => {
   const pk = te.encode("abc");
-  assert.equal(await memberIdFromPub(pk), "ba7816bf8f01cfea");
+  assert.equal(await memberIdFromPub(pk), "ba7816bf8f01cfea414140de5dae2223");
   const random = new Uint8Array(32);
   globalThis.crypto.getRandomValues(random);
   const full = bytesToHex(await sha256(random));
-  assert.equal(await memberIdFromPub(random), full.slice(0, 16));
+  assert.equal(await memberIdFromPub(random), full.slice(0, 32));
 });
 
 test("sigBase exact string", () => {
@@ -109,13 +109,14 @@ test("isChannelId accept/reject", () => {
 });
 
 test("isMemberId accept/reject", () => {
-  assert.equal(isMemberId("0123456789abcdef"), true);
-  assert.equal(isMemberId("0".repeat(16)), true);
+  assert.equal(isMemberId("0123456789abcdef0123456789abcdef"), true);
+  assert.equal(isMemberId("0".repeat(32)), true);
   const bad = [
-    "0123456789ABCDEF", // uppercase
-    "0123456789abcde",  // 15
-    "0123456789abcdef0", // 17
-    "xyzxyzxyzxyzxyzx", // non-hex
+    "0123456789ABCDEF0123456789ABCDEF", // uppercase
+    "0123456789abcdef",  // the old 64-bit id length
+    "0".repeat(31),
+    "0".repeat(33),
+    "x".repeat(32), // non-hex
     "", null, undefined, 42, {},
   ];
   for (const v of bad) assert.equal(isMemberId(v), false, JSON.stringify(v));
@@ -129,7 +130,7 @@ test("ALGS lengths", () => {
 });
 
 const validBody = () => ({
-  m: "0123456789abcdef",
+  m: "0123456789abcdef0123456789abcdef",
   alg: "ed25519",
   pk: "A".repeat(43),
   ts: 1756500000000,

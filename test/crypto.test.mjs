@@ -144,7 +144,7 @@ test("generateIdentity: ed25519 in node, memberId binds to pk", async () => {
   const id = await generateIdentity();
   assert.equal(id.alg, "ed25519");
   assert.equal(id.pk.length, 32);
-  assert.match(id.memberId, /^[0-9a-f]{16}$/);
+  assert.match(id.memberId, /^[0-9a-f]{32}$/);
   assert.equal(id.memberId, await memberIdFromPub(id.pk));
   const other = await generateIdentity();
   assert.notEqual(id.memberId, other.memberId);

@@ -30,9 +30,11 @@ sharing, and invites all follow whichever circle is active.
 - Locations are AES-256-GCM encrypted with a key derived from that secret
   (HKDF-SHA-256). Names, avatars, and statuses ride inside the ciphertext too.
   Every plaintext is padded to exactly 512 bytes so message sizes carry nothing.
-- Each device signs its posts with its own Ed25519 key (P-256 fallback). The
-  relay pins the key on first write, so nobody can overwrite your slot, and a
-  strictly increasing timestamp rule kills replays.
+- Each device signs its posts with its own Ed25519 key (P-256 fallback), and
+  every receiving device checks that signature itself. The circle key is
+  shared, so it proves only that a member wrote something; the signature is
+  what says which one. The relay pins each key on first write, so nobody can
+  overwrite your slot, and a strictly increasing timestamp rule kills replays.
 - The relay is a small Cloudflare Worker with a D1 table of ciphertext rows.
   It knows channel ids, ciphertext sizes, timing, and IPs. It never learns
   where you are or who your circle is. Rows expire after 24 hours, swept
@@ -56,6 +58,12 @@ Dark-first UI. Draggable member sheet, live markers with eased motion, trails,
 SOS hold-to-fire, check-ins, coarse mode (your device rounds your position to
 about 1 km before encrypting), panic wipe, and a demo you can run without
 sharing anything: open starlingmap.app and hit Watch the demo.
+
+An SOS can also mint a help link. Your circle is a list you chose in advance,
+and the person who can actually reach you may not be on it, so the link opens
+your live position in any browser with no app and no account, for as long as
+the emergency lasts. It shows that one emergency: not your circle, not its
+other members, not any history. Checking in safe switches it off.
 
 Circles are app-only by design. The hosted website is a landing page plus that
 demo; it refuses to create or open circles, because a browser tab is the
@@ -82,14 +90,14 @@ says so instead of pretending otherwise.
 No build step, no dependencies to install. Needs Node 24 or newer.
 
 ```
-# all 191 unit tests (crypto, wire, relay, QR, UI logic, lock, circles, manifest)
+# all 199 unit tests (crypto, wire, relay, QR, UI logic, lock, circles, manifest)
 node --test test/*.test.mjs
 
 # local dev server (app + relay on one origin)
 node test/serve_local.mjs 8899
 
 # the two headless-Firefox end to end suites
-python3 test/e2e_marionette.py   # sharing: create, invite, join, SOS, stop
+python3 test/e2e_marionette.py   # sharing: create, invite, join, SOS, help link, stop
 python3 test/e2e_lock.py         # the app-lock lifecycle
 ```
 
@@ -98,7 +106,8 @@ is installed (`pip install qrcode`); without it those checks skip rather than
 fail, so a bare clone still runs green.
 
 The sharing e2e drives two headless Firefox profiles through create, invite,
-join, live sharing, SOS, and stop, then dumps the relay database and asserts no
+join, live sharing, SOS, and stop, opens a real help link in a third browser
+that holds no app state at all, then dumps the relay database and asserts no
 name and no coordinate appears anywhere in it.
 
 ## Deploy

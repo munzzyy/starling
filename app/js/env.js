@@ -66,3 +66,14 @@ export const getApiBase = () => {
   if (apiBase === null) setApiBase(null);
   return apiBase;
 };
+
+// Base for beacon (emergency help) links. The viewer page must poll the same
+// relay the beacon posts to, and every deployment's CSP pins connect-src to
+// its own origin, so the link names the relay's origin: the custom relay when
+// one is set (self-hosters serve app and relay from one origin), otherwise
+// the canonical origin in the wrapper or this page's origin on the web.
+export function helpUrlBase() {
+  const base = getApiBase();
+  if (base) return `${base}/help.html`;
+  return `${globalThis.location.origin}/help.html`;
+}
