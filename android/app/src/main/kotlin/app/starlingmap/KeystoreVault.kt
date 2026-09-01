@@ -50,7 +50,9 @@ object KeystoreVault {
         gen.generateKey()
     }.getOrNull()
 
-    private fun deleteKey() {
+    // Also called by the panic wipe: the system's clear-data path clears the
+    // Keystore namespace too, but does it best-effort in another process.
+    fun deleteKey() {
         runCatching { keystore().deleteEntry(ALIAS) }
     }
 

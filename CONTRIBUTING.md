@@ -8,7 +8,7 @@ keep it that way.
 No build step, no install for the app itself.
 
 ```
-node --test test/*.test.mjs      # the unit suite (153 tests)
+node --test test/*.test.mjs      # the full unit suite
 node test/serve_local.mjs 8899   # run the app + relay locally on one origin
 ```
 

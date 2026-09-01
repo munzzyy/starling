@@ -84,11 +84,12 @@ Pairing with a trigger app like Ripple happens through the visible
 Starling shows what it will do and asks nothing else. Once connected,
 receiving `ACTION_TRIGGER` from that same paired app wipes immediately, with
 no confirmation dialog, because the entire point of a panic trigger is that
-it has to work without a second decision under pressure. The wipe clears
-IndexedDB, localStorage, and WebView's own storage/cache, matching the
-in-app panic wipe path, and finishes the activity. The responder verifies
-the sender package against the connected trigger app; an unpaired or
-spoofed sender is ignored.
+it has to work without a second decision under pressure. The wipe deletes
+the Keystore wrap key and the share notification channel first, then hands
+the rest to the system's clear-data path, which removes all app data,
+WebView storage and cookies included, and kills the process. The responder
+verifies the sender package against the connected trigger app; an unpaired
+or spoofed sender is ignored.
 
 ## Orbot
 
@@ -98,11 +99,26 @@ Two independent paths, both supported:
   Starling's side. Turn it on for Starling in Orbot and its traffic routes
   through Tor like any other app's.
 - **In-app SOCKS toggle.** Settings has a proxy toggle that routes requests
-  through `socks://127.0.0.1:9050` using `androidx.webkit`'s
-  `ProxyController`, feature-detected at runtime so it silently does
-  nothing on WebView versions that lack `PROXY_OVERRIDE` support instead of
-  breaking. This path needs Orbot's **Power User Mode** turned on, since
-  Orbot only exposes its SOCKS port to other apps in that mode.
+  through `socks5://127.0.0.1:9050` using `androidx.webkit`'s
+  `ProxyController` (SOCKS5, so hostname resolution happens proxy-side and
+  DNS rides through Tor too), feature-detected at runtime so it silently
+  does nothing on WebView versions that lack `PROXY_OVERRIDE` support
+  instead of breaking. This path needs Orbot's **Power User Mode** turned
+  on, since Orbot only exposes its SOCKS port to other apps in that mode.
+  With the toggle on, location fixes come from GPS only: the network
+  provider works by sending nearby wifi and cell identifiers to an
+  off-device lookup service, which is the kind of side channel the toggle
+  exists to avoid.
+
+Honest limits of the toggle, so nobody has to discover them the hard way:
+it assumes Orbot's default SOCKS port 9050. If Orbot's port was changed,
+requests fail closed rather than leak, but sharing stops until the ports
+agree again. It covers the WebView only. A link that leaves the app (say a
+repo link in settings) opens in the system browser, which the toggle does
+not proxy. And nothing binds 127.0.0.1:9050 to Orbot specifically; another
+local app could squat the port, and while it would only ever see TLS to
+the relay carrying E2EE payloads, it would see that much. Per-app VPN mode
+has none of these caveats, which is why both paths are supported.
 
 ## Custom relay
 

@@ -75,7 +75,11 @@ gets ciphertext and metadata only:
 4. **Web platform ceiling.** Background sharing ends when the OS suspends the
    tab. Starling is honest about being live-when-open (plus a wake lock
    toggle), rather than pretending to be an always-on tracker.
-5. **App-lock passcode strength is the user's.** The at-rest encryption is only
+5. **No external audit.** The constructions are deliberately boring
+   (AES-GCM, HKDF, Ed25519, all through WebCrypto), the tests are real, and
+   this document tries to be honest, but nobody independent has reviewed any
+   of it. Until someone has, weigh every claim here accordingly.
+6. **App-lock passcode strength is the user's.** The at-rest encryption is only
    as strong as the passcode behind it; PBKDF2 raises the cost of each guess but
    a four-digit PIN is still a four-digit PIN. There is no passcode recovery by
    design: a forgotten passcode means erasing the device and rejoining from an

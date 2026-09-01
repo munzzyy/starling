@@ -31,8 +31,8 @@ class MainActivity : FragmentActivity() {
         const val ASSET_HOST = "appassets.androidplatform.net"
         const val START_URL = "https://$ASSET_HOST/index.html"
         const val APP_HOST = "starlingmap.app"
-        private const val PREFS = "starling"
-        private const val PREF_TOR = "tor"
+        const val PREFS = "starling"
+        const val PREF_TOR = "tor"
     }
 
     lateinit var webView: WebView
@@ -233,17 +233,23 @@ class MainActivity : FragmentActivity() {
     }
 
     // All WebView traffic through Orbot's SOCKS port, with no direct fallback:
-    // if Orbot is not listening, requests fail instead of leaking.
+    // if Orbot is not listening, requests fail instead of leaking. socks5://
+    // is explicit because it matters: Chromium resolves hostnames proxy-side
+    // for SOCKS5, so DNS rides through Tor too. The override only governs
+    // connections opened after it lands, so the listener reloads the page and
+    // strands whatever the old config had pooled.
     private fun applyTorPref() {
         if (!torSupported()) return
         val controller = ProxyController.getInstance()
+        val reload = Runnable { if (::webView.isInitialized) webView.reload() }
+        val executor = ContextCompat.getMainExecutor(this)
         if (torEnabled()) {
             val config = ProxyConfig.Builder()
-                .addProxyRule("socks://127.0.0.1:9050")
+                .addProxyRule("socks5://127.0.0.1:9050")
                 .build()
-            controller.setProxyOverride(config, { }, { })
+            controller.setProxyOverride(config, executor, reload)
         } else {
-            controller.clearProxyOverride({ }, { })
+            controller.clearProxyOverride(executor, reload)
         }
     }
 }

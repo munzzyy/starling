@@ -82,7 +82,7 @@ says so instead of pretending otherwise.
 No build step, no dependencies to install. Needs Node 24 or newer.
 
 ```
-# all 181 unit tests (crypto, wire, relay, QR, UI logic, lock, circles, manifest)
+# all 191 unit tests (crypto, wire, relay, QR, UI logic, lock, circles, manifest)
 node --test test/*.test.mjs
 
 # local dev server (app + relay on one origin)

@@ -24,7 +24,8 @@ import org.json.JSONObject
 class LocationService : Service(), LocationListener {
 
     companion object {
-        private const val CHANNEL = "share"
+        // Also read by the panic wipe, which deletes the channel.
+        const val CHANNEL = "share"
         private const val NOTIF_ID = 1
         private const val ACTION_STOP = "app.starlingmap.STOP_SHARE"
         private const val MIN_TIME_MS = 3000L
@@ -72,8 +73,17 @@ class LocationService : Service(), LocationListener {
     private fun startWatching() {
         if (watching) return
         val lm = getSystemService(LOCATION_SERVICE) as LocationManager
+        // The network provider resolves position by shipping nearby wifi and
+        // cell identifiers to an off-device lookup service. With Tor mode on,
+        // the user has asked for exactly not that, so fixes come from GPS
+        // alone even when that means slower or no indoor lock.
+        val torOn = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE)
+            .getBoolean(MainActivity.PREF_TOR, false)
+        val providers =
+            if (torOn) listOf(LocationManager.GPS_PROVIDER)
+            else listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
         var any = false
-        for (provider in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
+        for (provider in providers) {
             if (!lm.allProviders.contains(provider)) continue
             try {
                 lm.requestLocationUpdates(provider, MIN_TIME_MS, MIN_DIST_M, this, mainLooper)

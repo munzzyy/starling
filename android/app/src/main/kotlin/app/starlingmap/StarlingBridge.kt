@@ -59,22 +59,30 @@ class StarlingBridge(private val activity: MainActivity) {
         activity.runOnUiThread {
             val vault = KeystoreVault.b64decode(vaultB64)
             if (vault == null || vault.size != 32) {
+                vault?.fill(0)
                 reply(token, null)
                 return@runOnUiThread
             }
             val cipher = KeystoreVault.encryptCipher()
             if (cipher == null) {
+                vault.fill(0)
                 reply(token, null)
                 return@runOnUiThread
             }
-            prompt(token, cipher, R.string.bio_wrap_title) { authed ->
-                val out = runCatching {
-                    val ct = authed.doFinal(vault)
-                    JSONObject()
-                        .put("nonce", KeystoreVault.b64encode(authed.iv))
-                        .put("ct", KeystoreVault.b64encode(ct))
-                        .toString()
-                }.getOrNull()
+            // The zero runs on every exit from the prompt, dismissal and
+            // error included, not only on success. (The b64 String argument
+            // itself is immutable and beyond reach; this scrubs the copy this
+            // side controls.)
+            prompt(cipher, R.string.bio_wrap_title) { authed ->
+                val out = authed?.let {
+                    runCatching {
+                        val ct = it.doFinal(vault)
+                        JSONObject()
+                            .put("nonce", KeystoreVault.b64encode(it.iv))
+                            .put("ct", KeystoreVault.b64encode(ct))
+                            .toString()
+                    }.getOrNull()
+                }
                 vault.fill(0)
                 reply(token, out)
             }
@@ -97,22 +105,23 @@ class StarlingBridge(private val activity: MainActivity) {
                 reply(token, null)
                 return@runOnUiThread
             }
-            prompt(token, cipher, R.string.bio_unwrap_title) { authed ->
+            prompt(cipher, R.string.bio_unwrap_title) { authed ->
                 reply(
                     token,
-                    runCatching { KeystoreVault.b64encode(authed.doFinal(ct)) }.getOrNull(),
+                    authed?.let { runCatching { KeystoreVault.b64encode(it.doFinal(ct)) }.getOrNull() },
                 )
             }
         }
     }
 
     // onAuthenticationFailed (a non-matching finger) keeps the prompt up and
-    // stays silent; only a terminal error or a dismissal answers null.
+    // stays silent; only a terminal error or a dismissal ends it. done always
+    // runs exactly once, with null on those failure exits, so callers have a
+    // single place to scrub secrets and answer the page.
     private fun prompt(
-        token: String,
         cipher: javax.crypto.Cipher,
         titleRes: Int,
-        done: (javax.crypto.Cipher) -> Unit,
+        done: (javax.crypto.Cipher?) -> Unit,
     ) {
         val info = BiometricPrompt.PromptInfo.Builder()
             .setTitle(activity.getString(titleRes))
@@ -124,12 +133,11 @@ class StarlingBridge(private val activity: MainActivity) {
             ContextCompat.getMainExecutor(activity),
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    val c = result.cryptoObject?.cipher
-                    if (c != null) done(c) else reply(token, null)
+                    done(result.cryptoObject?.cipher)
                 }
 
                 override fun onAuthenticationError(code: Int, msg: CharSequence) {
-                    reply(token, null)
+                    done(null)
                 }
             },
         )
