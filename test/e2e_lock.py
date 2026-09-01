@@ -65,6 +65,42 @@ def main():
             raise E2EError("expected plaintext secret before lock")
         log("pre-lock: plaintext secret present (as expected)")
 
+        # A second circle, so the lock has an inactive array to seal too, then
+        # switch back so the rest of the test keeps its original channel. The
+        # first invite sheet must be fully gone before driving the pill, and
+        # overlays get escaped until the stack is actually empty because the
+        # invite sheet opens from inside the create handler.
+        def escape_all():
+            for _ in range(10):
+                if b.exec("return document.querySelector('.ov-wrap') === null"):
+                    return
+                b.escape()
+                time.sleep(0.4)
+            raise E2EError("overlays would not close")
+
+        escape_all()
+        b.click('[data-testid="circle-open"]')
+        wait_for(lambda: b.exec("return !!document.querySelector('[data-testid=\"circle-sheet\"]')"),
+                 timeout=10, desc="circle sheet")
+        b.click('[data-testid="circle-new"]')
+        wait_for(lambda: b.exec("return !!document.querySelector('[data-testid=\"circle-name\"]')"),
+                 timeout=10, desc="add-circle sheet")
+        b.exec("var el = document.querySelector('[data-testid=\"circle-name\"]');"
+               "el.value = 'Away'; el.dispatchEvent(new Event('input', {bubbles: true}));")
+        e.type_name_and_confirm(b, "Vault", "identity-save")
+        wait_for(lambda: b.state().get("circles") == 1, timeout=15, desc="second circle added")
+        escape_all()
+        b.click('[data-testid="circle-open"]')
+        wait_for(lambda: b.exec("return !!document.querySelector('[data-testid=\"circle-switch-0\"]')"),
+                 timeout=10, desc="switch row")
+        b.click('[data-testid="circle-switch-0"]')
+        wait_for(lambda: b.state().get("channel") == channel, timeout=15, desc="back on first channel")
+        if get_idb(b, "circles") != "present":
+            raise E2EError("expected plaintext circles array before lock")
+        if b.state().get("circles") != 1:
+            raise E2EError("expected one inactive circle before lock")
+        log("second circle stashed, back on the first")
+
         # Turn on app lock through settings.
         b.click('[data-testid="settings-open"]')
         wait_for(lambda: b.exec("return !!document.querySelector('[data-testid=\"settings-sheet\"]')"),
@@ -86,6 +122,12 @@ def main():
         # At rest now: sealed vaultSecret present, plaintext secret gone.
         if get_idb(b, "secret") != None:  # noqa: E711
             raise E2EError("plaintext secret must be deleted once lock is on")
+        if get_idb(b, "circles") != None:  # noqa: E711
+            raise E2EError("plaintext circles must be deleted once lock is on")
+        if get_idb(b, "vaultCircles") != "present":
+            raise E2EError("sealed vaultCircles missing with lock on")
+        if get_idb(b, "circleIdentities") != "present":
+            raise E2EError("circleIdentities missing with lock on")
         if get_idb(b, "vaultSecret") != "present":
             raise E2EError("sealed vaultSecret must be stored once lock is on")
         if get_idb(b, "lock") != "present":
@@ -145,6 +187,9 @@ def main():
         if b.state().get("channel") != channel:
             raise E2EError(f"unlocked into a different channel: {b.state().get('channel')} != {channel}")
         log("right passcode unlocked into the same circle")
+        if b.state().get("circles") != 1:
+            raise E2EError("inactive circle did not survive the lock round-trip")
+        log("inactive circle survived lock and unlock")
 
         # Console must be clean throughout.
         errs = b.errors()

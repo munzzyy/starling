@@ -23,6 +23,17 @@ import {
   zero,
 } from "./lock.js";
 import { isWrapped, native, shareUrlBase, normalizeRelay, setApiBase, shareCapable } from "./env.js";
+import {
+  writeCirclesAtRest,
+  readCirclesAtRest,
+  switchActive,
+  leaveActive,
+  reconcileCircles,
+  adoptPairedIdentity,
+  sameSecret,
+  enableLockTransition,
+  disableLockTransition,
+} from "./circles.js";
 import * as ui from "./ui.js";
 import { createMapView } from "./map.js";
 import { createPoller, createRoster, createSender, statusOf, sortMembers, STALE_MS } from "./net.js";
@@ -63,7 +74,26 @@ const state = {
   lock: null, // { enabled, autolockMs, pass, bio } when app lock is on
   vaultKey: null, // 32 bytes in memory only while unlocked
   relay: "", // custom relay URL; "" means the default
+  circles: [], // inactive circles, in memory only while unlocked
 };
+
+// The kv face circles.js writes through, and the lock context it needs to
+// decide sealed versus plaintext at rest.
+const kv = { get: dbGet, set: dbSet, del: dbDel };
+const lockCtx = () =>
+  state.lock?.enabled ? { enabled: true, vaultKey: state.vaultKey } : null;
+const persistCirclesAtRest = () => writeCirclesAtRest(kv, lockCtx(), state.circles);
+
+// The active circle as a storable record, for stashing before a switch.
+async function activeRecord() {
+  return {
+    name: state.circleName,
+    secret: state.secret,
+    identity: state.identity,
+    profile: state.profile,
+    lastTs: (await dbGet("lastSentTs")) || 0,
+  };
+}
 
 let roster = null;
 let poller = null;
@@ -117,6 +147,7 @@ window.__starlingState = () => {
     demo: !!state.demo,
     locked: !!state.locked,
     lockEnabled: !!state.lock?.enabled,
+    circles: state.circles.length,
     hasBio: !!state.lock?.bio,
     channel: state.channelId || null,
     members: sortMembers(members(), now).map((r) => ({
@@ -189,6 +220,7 @@ function ensureMapUI() {
     onShortTap: () => ui.toast("Press and hold to send SOS"),
   });
   byTestid("settings-open").addEventListener("click", openSettings);
+  byTestid("circle-open").addEventListener("click", openCircles);
   $("#fab-locate").addEventListener("click", locateMe);
   $("#banner-demo-exit").addEventListener("click", exitDemo);
   $("#nudge-invite").addEventListener("click", openInvite);
@@ -405,7 +437,13 @@ function setupNet() {
 }
 
 async function persistCircle() {
-  await writeSecretAtRest();
+  // Identity first, secret last. This is a NEW circle's first landing (create,
+  // join, rotate) and its identity exists nowhere else, so a crash between
+  // the two writes must resolve as "the change never happened": old secret
+  // with a fresh, never-used identity is a cosmetic stray, while the reverse
+  // (new secret, old identity) would announce an existing pseudonym on the
+  // new channel and link the two circles. Switch and leave keep the opposite
+  // order in circles.js writeActive, where the array holds the paired copy.
   await dbSet("identity", {
     alg: state.identity.alg,
     privateKey: state.identity.privateKey,
@@ -413,6 +451,7 @@ async function persistCircle() {
     memberId: state.identity.memberId,
   });
   await dbSet("lastSentTs", 0);
+  await writeSecretAtRest();
 }
 
 // The circle secret is the crown jewel. With app lock on it is written only
@@ -437,26 +476,58 @@ async function writeSecretAtRest() {
 let lockTimer = 0;
 let lockWired = false;
 
+// Lock transitions rewrite the same slots the circle mutations do, so they
+// take the same guard, and memory adopts the new lock state only AFTER the
+// at-rest transition commits: a thrown storage op must never leave the
+// session believing one thing while the disk says another, because the next
+// mutation would then persist in the wrong form and boot's stray purge would
+// finish the loss.
 async function enableLock(passcode) {
-  const K = newVaultKey();
-  const pass = await makePasscodeRecord(passcode, K);
-  state.vaultKey = K;
-  state.lock = { enabled: true, autolockMs: 60000, pass, bio: null };
-  await dbSet("vaultSecret", await sealUnderVault(K, state.secret));
-  await dbSet("lock", state.lock);
-  await dbDel("secret");
+  if (!takeCircleGuard()) return false;
+  try {
+    const K = newVaultKey();
+    const pass = await makePasscodeRecord(passcode, K);
+    const lockRecord = { enabled: true, autolockMs: 60000, pass, bio: null };
+    try {
+      // Ordering lives in circles.js so the crash-window tests can drive it:
+      // sealed forms durable before the lock record flips, plaintext deleted
+      // only after, and a throw unwinds back to the unlocked form.
+      await enableLockTransition(kv, {
+        vaultKey: K,
+        lockRecord,
+        secret: state.secret,
+        circles: state.circles,
+      });
+    } catch (e) {
+      zero(K);
+      throw e;
+    }
+    state.vaultKey = K;
+    state.lock = lockRecord;
+    return true;
+  } finally {
+    releaseCircleGuard();
+  }
 }
 
 async function disableLock(passcode) {
   const K = await openPasscodeRecord(state.lock.pass, passcode);
   if (!K) return false;
-  zero(state.vaultKey);
-  state.vaultKey = null;
-  state.lock = null;
-  await dbSet("secret", state.secret);
-  await dbDel("vaultSecret");
-  await dbDel("lock");
-  return true;
+  zero(K);
+  if (!takeCircleGuard()) return false;
+  try {
+    // Mirror image of enableLock: plaintext forms first, the lock record
+    // next, the stale sealed copies last. The transition resolves only when
+    // the lock record is genuinely gone from disk; until then memory keeps
+    // the vault key and stays locked-consistent.
+    await disableLockTransition(kv, { secret: state.secret, circles: state.circles });
+    zero(state.vaultKey);
+    state.vaultKey = null;
+    state.lock = null;
+    return true;
+  } finally {
+    releaseCircleGuard();
+  }
 }
 
 async function changePasscode(oldPc, newPc) {
@@ -495,6 +566,71 @@ async function unlockWith(recoverKey) {
   const K = await recoverKey();
   if (!K) return false;
   const sealed = await dbGet("vaultSecret");
+  if (!sealed) {
+    // The passcode is right but there is no sealed secret at all: a crash
+    // mid last-circle leave, or mid recovery, took the sealed slots and left
+    // the lock record behind. The plaintext slots are checked FIRST: the
+    // recovery sequence below writes them before deleting the lock record,
+    // so a crash in its last window leaves a fully restored plaintext circle
+    // that only needs the stale record cleared, never onboarding.
+    const [plainSecret, plainIdentity, plainCircles] = await Promise.all([
+      dbGet("secret"),
+      dbGet("identity"),
+      dbGet("circles"),
+    ]);
+    if (plainSecret && plainIdentity) {
+      zero(K);
+      state.locked = false;
+      state.lock = null;
+      state.vaultKey = null;
+      clearTimeout(lockTimer);
+      state.secret = plainSecret;
+      state.identity = plainIdentity;
+      state.circleName = (await dbGet("circleName")) || state.circleName;
+      const arr = Array.isArray(plainCircles) ? plainCircles : [];
+      state.circles = reconcileCircles({
+        activeSecret: plainSecret,
+        activeMemberId: plainIdentity.memberId,
+        circles: arr,
+      });
+      if (state.circles.length !== arr.length) await persistCirclesAtRest().catch(() => {});
+      await dbDel("lock");
+      await enterCircle();
+      return true;
+    }
+    // A sealed array that will not authenticate is quarantined exactly like
+    // the main path does, never silently deleted: in this shape it may be
+    // the only copy of every circle on the device.
+    const inactiveRead = await readCirclesAtRest(kv, { enabled: true, vaultKey: K });
+    if (inactiveRead === null) {
+      const blob = await dbGet("vaultCircles");
+      if (blob) await dbSet("vaultCirclesCorrupt", blob).catch(() => {});
+      ui.toast("Your other circles could not be read and were dropped.", "warn");
+    }
+    const inactive = inactiveRead || [];
+    zero(K);
+    state.locked = false;
+    state.lock = null;
+    state.vaultKey = null;
+    clearTimeout(lockTimer);
+    if (inactive.length) {
+      state.circles = inactive.slice(1);
+      applyActive(inactive[0]);
+      // Plaintext forms first, the lock record last: a crash in between
+      // lands back in this recovery, which now reads plaintext first.
+      await dbSet("circleName", state.circleName);
+      await persistCircle();
+      await persistCirclesAtRest();
+      await dbDel("lock");
+      await enterCircle();
+      return true;
+    }
+    await dbDel("vaultCircles");
+    await dbDel("circleIdentities");
+    await dbDel("lock");
+    showScreen("onboarding");
+    return true;
+  }
   const secret = await openUnderVault(K, sealed);
   if (!secret) {
     zero(K);
@@ -507,6 +643,45 @@ async function unlockWith(recoverKey) {
     zero(K);
     return false;
   }
+  // The inactive circles ride the same vault key. A blob that will not
+  // authenticate under a K that just opened the active secret is corrupt or
+  // tampered; dropping it beats refusing the unlock, and the user hears it.
+  // The unreadable blob itself is parked under a quarantine key first, so a
+  // transient fault stays recoverable instead of being overwritten by the
+  // next persist.
+  const inactive = await readCirclesAtRest(kv, { enabled: true, vaultKey: K });
+  if (inactive === null) {
+    const blob = await dbGet("vaultCircles");
+    if (blob) await dbSet("vaultCirclesCorrupt", blob).catch(() => {});
+    state.circles = [];
+    ui.toast("Your other circles could not be read and were dropped.", "warn");
+  } else {
+    // A torn writeActive can pair this secret with another circle's identity;
+    // the array still holds the properly paired record, so adopt it before
+    // anything announces the wrong pseudonym on this channel.
+    const paired = adoptPairedIdentity({
+      activeSecret: secret,
+      activeMemberId: state.identity.memberId,
+      circles: inactive,
+    });
+    if (paired) {
+      state.identity = paired.identity;
+      state.circleName = paired.name;
+      if (paired.profile) state.profile = paired.profile;
+      await dbSet("identity", paired.identity);
+      await dbSet("circleName", paired.name);
+      if (paired.profile) await dbSet("profile", paired.profile);
+    }
+    // A crash mid-switch while locked can leave the active circle duplicated
+    // in the sealed array, same as the unlocked boot path; reconcile it here
+    // with the same both-must-match rule.
+    state.circles = reconcileCircles({
+      activeSecret: secret,
+      activeMemberId: state.identity.memberId,
+      circles: inactive,
+    });
+    if (state.circles.length !== inactive.length) await persistCirclesAtRest();
+  }
   state.locked = false;
   clearTimeout(lockTimer);
   await enterCircle();
@@ -517,6 +692,13 @@ async function unlockWith(recoverKey) {
 // screen. After this the process holds no plaintext secret or vault key.
 function lockNow() {
   if (!state.lock?.enabled || state.locked) return;
+  // A circle mutation is mid-write: zeroing the vault key and the secrets it
+  // is sealing with would corrupt what lands on disk. Lock the moment the
+  // guard releases instead.
+  if (circleBusy) {
+    lockPending = true;
+    return;
+  }
   clearTimeout(lockTimer);
   if (state.sharing) {
     sendMsg("bye").catch(() => {});
@@ -529,6 +711,8 @@ function lockNow() {
   roster = null;
   zero(state.vaultKey);
   zero(state.secret);
+  for (const c of state.circles) zero(c.secret);
+  state.circles = [];
   state.vaultKey = null;
   state.secret = null;
   state.encKey = null;
@@ -640,59 +824,139 @@ async function saveProfile(p) {
 function promptCreate() {
   if (!shareCapable() || state.locked) return;
   ui.openIdentitySheet({
-    title: "Create your circle",
+    title: state.secret ? "New circle" : "Create your circle",
     intro: "How you appear to the people you invite. This never leaves your circle.",
     cta: "Create circle",
     profile: state.profile,
-    onSave: async (p) => {
-      await saveProfile(p);
-      const prevSecret = state.secret;
-      const prevIdentity = state.identity;
-      state.secret = newCircleSecret();
-      state.identity = await generateIdentity();
-      try {
-        await persistCircle();
-      } catch (e) {
-        // Undo the in-memory swap so a failed create does not leave the app
-        // claiming this device is already in a circle.
-        state.secret = prevSecret;
-        state.identity = prevIdentity;
-        throw e;
-      }
-      await enterCircle();
-      openInvite();
-    },
+    circleName: { value: state.secret ? "" : state.circleName },
+    onSave: (p) =>
+      withCircleGuard(async () => {
+        // Whether this ADDS a circle is decided now, not when the sheet
+        // opened: overlays stack, and a join that committed underneath this
+        // sheet must not be silently overwritten.
+        const addMode = !!state.secret;
+        if (state.demo) exitDemo();
+        // Snapshot the outgoing circle BEFORE the new profile is saved, so
+        // a per-circle pseudonym stays with its circle instead of bleeding
+        // into the one being left.
+        const outgoing = addMode ? await activeRecord() : null;
+        await saveProfile(p);
+        if (state.sharing) await awaitBye(await setSharing(false));
+        const prev = {
+          secret: state.secret,
+          identity: state.identity,
+          circleName: state.circleName,
+          circles: state.circles,
+        };
+        try {
+          if (addMode) {
+            // The current circle goes into the inactive array before anything
+            // touches the active slots, so no failure below can lose it.
+            state.circles = [...state.circles, outgoing];
+            await persistCirclesAtRest();
+          }
+          state.secret = newCircleSecret();
+          state.identity = await generateIdentity();
+          state.circleName = p.circleName || (addMode ? "New circle" : prev.circleName);
+          await dbSet("circleName", state.circleName);
+          await persistCircle();
+        } catch (e) {
+          // Undo the in-memory swap AND put the disk array back in step with
+          // it, so a later rotation cannot resurrect a stale entry the boot
+          // reconcile no longer recognizes.
+          state.secret = prev.secret;
+          state.identity = prev.identity;
+          state.circleName = prev.circleName;
+          state.circles = prev.circles;
+          await persistCirclesAtRest().catch(() => {});
+          throw e;
+        }
+        state.me = null;
+        focusedId = null;
+        prevStatus.clear();
+        sheetAutoOpened = false;
+        mapView?.clearAll();
+        if (state.locked) return;
+        await enterCircle();
+        openInvite();
+      }),
   });
 }
 
 function promptJoin(secret) {
   if (!shareCapable() || state.locked) return;
+  // The same invite twice is a switch, not a second copy of the circle.
+  if (state.secret && sameSecret(state.secret, secret)) {
+    ui.toast("You are already in this circle.");
+    return;
+  }
+  const known = state.circles.findIndex((c) => sameSecret(c.secret, secret));
+  if (known >= 0) {
+    // A tapped invite must do something visible even from inside the demo,
+    // so the demo ends before the switch instead of swallowing it.
+    if (state.demo) exitDemo();
+    switchCircle(known).catch(() => ui.toast("Could not switch. Try again.", "warn"));
+    return;
+  }
   ui.openJoinSheet({
     profile: state.profile,
     hasCircle: !!state.secret,
-    onJoin: async (p) => {
-      // Joining from inside the demo ends the demo first, so the real circle
-      // and its poller take over instead of the demo walkers.
-      if (state.demo) exitDemo();
-      await saveProfile(p);
-      if (state.sharing) await setSharing(false);
-      const prevSecret = state.secret;
-      const prevIdentity = state.identity;
-      state.secret = secret;
-      state.identity = await generateIdentity();
-      try {
-        await persistCircle();
-      } catch (e) {
-        state.secret = prevSecret;
-        state.identity = prevIdentity;
-        throw e;
-      }
-      state.me = null;
-      focusedId = null;
-      prevStatus.clear();
-      await enterCircle();
-      ui.toast("You joined the circle.");
-    },
+    circleName: { value: "" },
+    onJoin: (p) =>
+      withCircleGuard(async () => {
+        // Everything about the current state is re-read now, at commit time:
+        // sheets stack, and another circle may have been joined or switched
+        // underneath this one while it sat open.
+        if (state.secret && sameSecret(state.secret, secret)) {
+          ui.toast("You are already in this circle.");
+          return;
+        }
+        const nowKnown = state.circles.findIndex((c) => sameSecret(c.secret, secret));
+        if (nowKnown >= 0) {
+          if (state.demo) exitDemo();
+          await doSwitchCircle(nowKnown);
+          return;
+        }
+        const addMode = !!state.secret;
+        // Joining from inside the demo ends the demo first, so the real
+        // circle and its poller take over instead of the demo walkers.
+        if (state.demo) exitDemo();
+        const outgoing = addMode ? await activeRecord() : null;
+        await saveProfile(p);
+        if (state.sharing) await awaitBye(await setSharing(false));
+        const prev = {
+          secret: state.secret,
+          identity: state.identity,
+          circleName: state.circleName,
+          circles: state.circles,
+        };
+        try {
+          if (addMode) {
+            state.circles = [...state.circles, outgoing];
+            await persistCirclesAtRest();
+          }
+          state.secret = secret;
+          state.identity = await generateIdentity();
+          state.circleName = p.circleName || (addMode ? "New circle" : prev.circleName);
+          await dbSet("circleName", state.circleName);
+          await persistCircle();
+        } catch (e) {
+          state.secret = prev.secret;
+          state.identity = prev.identity;
+          state.circleName = prev.circleName;
+          state.circles = prev.circles;
+          await persistCirclesAtRest().catch(() => {});
+          throw e;
+        }
+        state.me = null;
+        focusedId = null;
+        prevStatus.clear();
+        sheetAutoOpened = false;
+        mapView?.clearAll();
+        if (state.locked) return;
+        await enterCircle();
+        ui.toast("You joined the circle.");
+      }),
   });
 }
 
@@ -731,7 +995,10 @@ function promptPasteInvite() {
   input.focus();
 }
 
-async function rotateCircle() {
+// Rotation rewrites the active slots, so it shares the circle guard.
+const rotateCircle = () => withCircleGuard(() => doRotateCircle());
+
+async function doRotateCircle() {
   const prev = {
     secret: state.secret,
     identity: state.identity,
@@ -774,6 +1041,178 @@ async function rotateCircle() {
   prevStatus.clear();
   setupNet();
   render();
+}
+
+// ------------------------------------------------------- multiple circles
+
+// One circle mutation at a time. Switch, leave, create, join, rotate, and
+// the two lock transitions all rewrite the same kv slots; two of them
+// interleaving is how secrets get lost, so a second call simply bails while
+// one is in flight. An autolock that fires mid-mutation is deferred to the
+// guard release instead of zeroing key material out from under an await.
+let circleBusy = false;
+let lockPending = false;
+
+function takeCircleGuard() {
+  if (circleBusy) {
+    ui.toast("Hold on, still finishing the last circle change.");
+    return false;
+  }
+  circleBusy = true;
+  return true;
+}
+
+function releaseCircleGuard() {
+  circleBusy = false;
+  if (lockPending) {
+    lockPending = false;
+    lockNow();
+  }
+}
+
+async function withCircleGuard(fn) {
+  if (!takeCircleGuard()) return false;
+  try {
+    return await fn();
+  } finally {
+    releaseCircleGuard();
+  }
+}
+
+// Give a queued departure "bye" a real chance to reach the old channel
+// before the sender is torn down, without letting a dead network hang the
+// UI: whichever finishes first wins.
+function awaitBye(bye, ms = 1500) {
+  if (!bye || typeof bye.then !== "function") return Promise.resolve();
+  return Promise.race([bye, new Promise((r) => setTimeout(r, ms))]);
+}
+
+// Tear down everything talking to the current channel, exactly as rotation
+// does; nothing may land on the old channel after a switch.
+function teardownNet() {
+  poller?.stop();
+  poller = null;
+  sender?.cancel();
+  sender = null;
+  roster = null;
+}
+
+function applyActive(c) {
+  state.secret = c.secret;
+  state.identity = c.identity;
+  if (c.profile) state.profile = c.profile;
+  state.circleName = c.name;
+  state.me = null;
+  lastSentPos = null;
+  focusedId = null;
+  prevStatus.clear();
+  sheetAutoOpened = false;
+  mapView?.clearAll();
+  $("#focus-card").hidden = true;
+}
+
+// The unguarded body, for callers already inside withCircleGuard. Returns
+// true on a completed switch so sheet code can tell success from a bail.
+async function doSwitchCircle(i) {
+  if (!shareCapable() || state.demo || state.locked || !state.secret) return false;
+  // Sharing never carries across circles: stop it, give the bye a moment to
+  // actually land on the old channel, and let the user turn sharing back on
+  // where they arrive.
+  if (state.sharing) await awaitBye(await setSharing(false));
+  const prev = {
+    secret: state.secret,
+    identity: state.identity,
+    circleName: state.circleName,
+    circles: state.circles,
+  };
+  teardownNet();
+  try {
+    const res = await switchActive(kv, lockCtx(), {
+      outgoing: await activeRecord(),
+      circles: state.circles,
+      toIndex: i,
+    });
+    state.circles = res.circles;
+    applyActive(res.active);
+  } catch (e) {
+    // Both secrets are on disk whatever happened; put memory back on the
+    // circle we were in and keep it live. Autolock is deferred while the
+    // guard is held, so state.locked cannot flip mid-switch; the check is
+    // belt and braces against any future path that locks synchronously.
+    state.secret = prev.secret;
+    state.identity = prev.identity;
+    state.circleName = prev.circleName;
+    state.circles = prev.circles;
+    if (!state.locked) await enterCircle();
+    throw e;
+  }
+  if (state.locked) return false;
+  await enterCircle();
+  ui.toast(`Switched to ${state.circleName}.`);
+  return true;
+}
+
+const switchCircle = (i) => withCircleGuard(() => doSwitchCircle(i));
+
+const leaveCircle = () =>
+  withCircleGuard(async () => {
+    if (!shareCapable() || state.demo || state.locked || !state.secret) return false;
+    if (state.sharing) await awaitBye(await setSharing(false));
+    teardownNet();
+    // Last circle: the lock record goes FIRST. If a crash lands between the
+    // deletions, boot sees an intentionally emptied device instead of a lock
+    // screen that no passcode can ever satisfy.
+    const last = state.circles.length === 0;
+    if (last && state.lock?.enabled) {
+      zero(state.vaultKey);
+      state.vaultKey = null;
+      state.lock = null;
+      await dbDel("lock");
+    }
+    let res;
+    try {
+      res = await leaveActive(kv, lockCtx(), { circles: state.circles, toIndex: 0 });
+    } catch (e) {
+      // Storage refused; the active circle is untouched on disk, so bring
+      // its network back instead of leaving a dead map behind the error.
+      await enterCircle();
+      throw e;
+    }
+    if (res.active) {
+      state.circles = res.circles;
+      applyActive(res.active);
+      await enterCircle();
+      ui.toast(`You left. Now in ${state.circleName}.`);
+      return true;
+    }
+    // Back where a fresh install starts.
+    state.secret = null;
+    state.identity = null;
+    state.channelId = null;
+    state.encKey = null;
+    state.circleName = "My circle";
+    state.circles = [];
+    state.me = null;
+    mapView?.clearAll();
+    showScreen("onboarding");
+    ui.toast("You left the circle.");
+    return true;
+  });
+
+function openCircles() {
+  if (!shareCapable()) return;
+  if (state.demo) {
+    ui.toast("Exit the demo first.");
+    return;
+  }
+  if (state.locked || !state.secret) return;
+  ui.openCircleSheet({
+    current: { name: state.circleName },
+    others: state.circles.map((c) => ({ name: c.name })),
+    onSwitch: switchCircle,
+    onCreate: promptCreate,
+    onJoin: promptPasteInvite,
+  });
 }
 
 // In the wrapper the page lives on an asset origin that means nothing off this
@@ -842,6 +1281,7 @@ async function openSettings() {
     onChange: onSettingChange,
     onInvite: openInvite,
     onPanic: panic,
+    onLeave: leaveCircle,
   });
 }
 
@@ -916,7 +1356,12 @@ async function setSharing(on) {
     stopGeo?.();
     stopGeo = null;
     lastSentPos = null;
-    sendMsg("bye").catch(() => {});
+    // Returned so circle switches can wait for the departure to actually
+    // reach the old channel before the sender is cancelled; every other
+    // caller ignores it and keeps the old fire-and-forget behavior.
+    const bye = sendMsg("bye").catch(() => {});
+    render();
+    return bye;
   }
   render();
 }
@@ -1212,8 +1657,9 @@ async function boot() {
   let secret = null;
   let identity = null;
   let lock = null;
+  let storedCircles = null;
   try {
-    const [sec, id, profile, settings, circleName, lk, relay] = await Promise.all([
+    const [sec, id, profile, settings, circleName, lk, relay, circs] = await Promise.all([
       dbGet("secret"),
       dbGet("identity"),
       dbGet("profile"),
@@ -1221,10 +1667,12 @@ async function boot() {
       dbGet("circleName"),
       dbGet("lock"),
       dbGet("relay"),
+      dbGet("circles"),
     ]);
     secret = sec;
     identity = id;
     lock = lk;
+    storedCircles = Array.isArray(circs) ? circs : null;
     if (profile) state.profile = profile;
     if (settings) state.settings = { ...state.settings, ...settings };
     if (circleName) state.circleName = circleName;
@@ -1242,7 +1690,7 @@ async function boot() {
     // existence); the card offers the eraser instead. An invite fragment
     // gets pointed at the app (the secret was already stripped from the
     // address bar above and never leaves the device).
-    if (lock?.enabled || (secret && identity)) {
+    if (lock?.enabled || (secret && identity) || storedCircles?.length) {
       $("#landing-legacy").hidden = false;
       byTestid("landing-erase").addEventListener("click", async () => {
         await wipeAll();
@@ -1254,17 +1702,75 @@ async function boot() {
     if (params.get("demo") === "1") startDemo();
   } else {
     try {
+      if (!lock?.enabled) {
+        // No lock record means any sealed copies are strays from an
+        // interrupted lock transition; the plaintext is authoritative.
+        await dbDel("vaultSecret");
+        await dbDel("vaultCircles");
+        await dbDel("circleIdentities");
+      }
       if (lock?.enabled) {
         // A locked circle starts locked on every launch. Nothing is decrypted
-        // until the passcode or a biometric recovers the vault key.
-        state.lock = lock;
-        state.locked = true;
-        ensureLockUI();
-        paintLockScreen();
-        showScreen("lock");
+        // until the passcode or a biometric recovers the vault key. Plaintext
+        // slots a crash mid-lock-enable left behind are purged ONLY when
+        // their sealed twin actually exists: before that point the plaintext
+        // is the only copy there is.
+        const [sealedSecret, sealedCircles] = await Promise.all([
+          dbGet("vaultSecret"),
+          dbGet("vaultCircles"),
+        ]);
+        if (sealedSecret) await dbDel("secret");
+        if (sealedCircles) await dbDel("circles");
+        if (!sealedSecret && !secret && !sealedCircles && !storedCircles?.length) {
+          // Nothing to protect in either form: a crash mid last-circle leave
+          // left a stale lock record. Clear it and start fresh instead of
+          // presenting a lock no passcode can satisfy.
+          await dbDel("lock");
+          showScreen("onboarding");
+        } else {
+          state.lock = lock;
+          state.locked = true;
+          ensureLockUI();
+          paintLockScreen();
+          showScreen("lock");
+        }
       } else if (secret && identity) {
         state.secret = secret;
         state.identity = identity;
+        if (storedCircles?.length) {
+          // A torn writeActive can pair this secret with another circle's
+          // identity; the array still holds the properly paired record, so
+          // adopt it before anything announces the wrong pseudonym.
+          const paired = adoptPairedIdentity({
+            activeSecret: secret,
+            activeMemberId: identity.memberId,
+            circles: storedCircles,
+          });
+          if (paired) {
+            state.identity = paired.identity;
+            state.circleName = paired.name;
+            if (paired.profile) state.profile = paired.profile;
+            await dbSet("identity", paired.identity);
+            await dbSet("circleName", paired.name);
+            if (paired.profile) await dbSet("profile", paired.profile);
+          }
+          // A crash mid-switch can leave the active circle duplicated in the
+          // inactive array; reconcile drops the copy.
+          state.circles = reconcileCircles({
+            activeSecret: secret,
+            activeMemberId: state.identity.memberId,
+            circles: storedCircles,
+          });
+          if (state.circles.length !== storedCircles.length) await persistCirclesAtRest();
+        }
+        await enterCircle();
+      } else if (storedCircles?.length) {
+        // A crash mid-leave can clear the active slots with circles still
+        // waiting; promote the first instead of pretending this is a fresh
+        // install.
+        const res = await leaveActive(kv, lockCtx(), { circles: storedCircles, toIndex: 0 });
+        state.circles = res.circles;
+        applyActive(res.active);
         await enterCircle();
       } else {
         showScreen("onboarding");

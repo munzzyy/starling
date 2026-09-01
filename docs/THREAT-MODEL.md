@@ -85,6 +85,25 @@ gets ciphertext and metadata only:
    WebCrypto-native choice; an Argon2id (memory-hard) upgrade is roadmap and
    would require shipping a vetted WASM build and a narrow CSP allowance for it.
 
+## Multiple circles
+
+Since 0.3.0 a device can hold several circles, one active at a time. Each
+circle has its own 32-byte secret, its own channel, and its own signing
+identity, created fresh on join; the relay sees no link between the channels
+a device belongs to. Polling and sharing happen only for the active circle.
+At rest, inactive circles' names, secrets, profiles, and timestamps live in
+one sealed blob under the same vault key as the active secret when the app
+lock is on; their signing keys are non-extractable CryptoKeys stored beside
+it, which means a locked device still reveals how many identities it holds
+(exactly as it always has for the active one) but no names, secrets, or
+channel ids. The ACTIVE circle's name and last-sent timestamp remain
+plaintext at rest under lock, exactly as they always have for the single
+circle; only inactive circles' names ride inside the sealed blob. Mid-switch
+crash safety is duplicate-not-lose: the array grows to hold both circles
+before the active slots change hands and shrinks only afterwards, lock
+transitions make the destination form durable before the lock flag flips,
+and boot and unlock reconciliation drop whatever duplicate a crash strands.
+
 ## The hosted web page does not open circles
 
 As of 0.2.x the page at starlingmap.app is a landing plus the demo. It hides

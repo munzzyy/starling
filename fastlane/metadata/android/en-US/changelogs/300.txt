@@ -1,0 +1,1 @@
+Multiple circles. Keep family, friends, and the trip separate: switch from the circle name at the top of the map, add circles by creating or joining, and leave one from settings. Each circle has its own secret, channel, and signing identity, so the relay cannot link them, and the app lock seals them all.

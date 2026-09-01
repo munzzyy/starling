@@ -3,8 +3,15 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
-## Unreleased
+## [0.3.0]
 
+- Multiple circles. Keep family, friends, and the trip as separate circles
+  and switch between them from the circle name at the top of the map. Each
+  circle has its own secret, its own channel, and its own signing identity,
+  so the relay cannot link them. Create and join now add a circle instead of
+  replacing the one you have, invites you already accepted just switch, and
+  settings grows a leave option with a typed confirm. With the app lock on,
+  every circle secret and name seals under the same vault key.
 - The hosted website is now a landing page and demo only: it refuses to
   create or open circles, shows invite links the way to the app, and offers
   an eraser for data stored by the old web app. Sharing is app-only; the

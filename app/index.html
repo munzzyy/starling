@@ -143,6 +143,8 @@
           device. The relay moves ciphertext it cannot read.</li>
         <li><strong>No accounts.</strong> No phone number, no email, no sign-up. A circle is an
           invite link, and whoever you trust with it.</li>
+        <li><strong>Circles, plural.</strong> One for family, one for the friends you split up
+          from at a fair. Separate keys, separate identities, one tap to switch.</li>
         <li><strong>Everything expires.</strong> The relay deletes every row after 24 hours and
           keeps no backups, so there is no history to leak.</li>
         <li><strong>Lock it, or torch it.</strong> An optional passcode and biometric lock encrypts
@@ -178,7 +180,10 @@
   <div class="top-chrome">
     <div class="pill" data-testid="circle-pill">
       <span class="status-dot dot-idle" id="status-dot" aria-hidden="true"></span>
-      <span class="pill-name" id="pill-name">My circle</span>
+      <button type="button" class="pill-open" data-testid="circle-open" aria-label="Switch circle">
+        <span class="pill-name" id="pill-name">My circle</span>
+        <svg class="pill-chevron" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
+      </button>
       <button type="button" class="pill-gear" data-testid="settings-open" aria-label="Settings">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Zm7.4-3.2c0 .5 0 .9-.1 1.4l2 1.6-1.9 3.3-2.4-1a7.5 7.5 0 0 1-2.4 1.4l-.4 2.6h-3.8l-.4-2.6a7.5 7.5 0 0 1-2.4-1.4l-2.4 1-1.9-3.3 2-1.6a8 8 0 0 1 0-2.8l-2-1.6 1.9-3.3 2.4 1a7.5 7.5 0 0 1 2.4-1.4l.4-2.6h3.8l.4 2.6a7.5 7.5 0 0 1 2.4 1.4l2.4-1 1.9 3.3-2 1.6c.1.5.1.9.1 1.4Z"/></svg>
       </button>

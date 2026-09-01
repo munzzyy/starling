@@ -1,18 +1,24 @@
 # starling
 
-Private location sharing for your circle. End to end encrypted, no accounts, no
-phone numbers, and a relay that stores nothing it could ever read.
+Private location sharing for friends and family. End to end encrypted, no
+accounts, no phone numbers, and a relay that stores nothing it could ever read.
 
 [![CI](https://github.com/munzzyy/starling/actions/workflows/ci.yml/badge.svg)](https://github.com/munzzyy/starling/actions/workflows/ci.yml)
 
 **Live:** [starlingmap.app](https://starlingmap.app) ·
-open it on your phone and add it to your home screen.
+grab the Android app there.
 
 Life360 works by shipping everyone's location to a company. Starling keeps the
 Life360 features people actually want (live map of your people, SOS, check-ins,
 battery, invite links) and drops the surveillance: positions are encrypted on
 your device with a key the server never sees, and the relay holds at most 24
 hours of ciphertext.
+
+Circles are plural. Keep one for family and one for the friends you split up
+from at a fair or a concert, and switch between them with a tap on the circle
+name. Each circle has its own secret, its own channel, and its own signing
+identity, so the relay cannot tell that two circles share a member. The map,
+sharing, and invites all follow whichever circle is active.
 
 ![The map with your circle on it](test/screenshots/hero-dark-map.png)
 
@@ -76,7 +82,7 @@ says so instead of pretending otherwise.
 No build step, no dependencies to install. Needs Node 24 or newer.
 
 ```
-# all 153 unit tests (crypto, wire, relay, QR, UI logic, lock, manifest)
+# all 181 unit tests (crypto, wire, relay, QR, UI logic, lock, circles, manifest)
 node --test test/*.test.mjs
 
 # local dev server (app + relay on one origin)
@@ -141,8 +147,9 @@ Being clear about the edges is part of the point.
 
 ## Android
 
-A native Android wrapper is in progress for Google Play and F-Droid (status:
-in progress, not yet published to either). It runs the same `app/` code
+A native Android app ships with every [release](https://github.com/munzzyy/starling/releases)
+and from [starlingmap.app](https://starlingmap.app); an F-Droid submission is
+in review and Google Play is in progress. It runs the same `app/` code
 inside a hand-written Kotlin WebView, and adds what the web platform cannot
 give it on its own: background sharing through a foreground service (with a
 persistent notification the whole time, so it is never silent about what it

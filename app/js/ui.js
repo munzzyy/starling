@@ -259,11 +259,32 @@ function identityFields(profile) {
   return { wrap, input, grid };
 }
 
-export function openIdentitySheet({ title, intro, cta, profile, onSave }) {
+// The optional circleName block gives create and join a local label field;
+// the label never leaves the device, it only names the circle in the switcher.
+function circleNameField(circleName) {
+  const field = el("label", "field");
+  field.append(el("span", "field-label", "Circle name"));
+  const input = el("input", "text-input");
+  input.type = "text";
+  input.maxLength = 24;
+  input.placeholder = circleName.placeholder || "Family, friends, the trip";
+  input.autocomplete = "off";
+  input.value = circleName.value || "";
+  input.dataset.testid = "circle-name";
+  field.append(input);
+  return { field, input };
+}
+
+export function openIdentitySheet({ title, intro, cta, profile, circleName, onSave }) {
   const ov = openOverlay({ title, testid: "identity-sheet" });
   if (intro) ov.body.append(el("p", "ov-note", intro));
   const { wrap, input, grid } = identityFields(profile);
   ov.body.append(wrap);
+  let cn = null;
+  if (circleName) {
+    cn = circleNameField(circleName);
+    ov.body.append(cn.field);
+  }
   const save = btn("btn btn-primary", cta || "Save");
   save.dataset.testid = "identity-save";
   const sync = () => (save.disabled = input.value.trim().length === 0);
@@ -276,7 +297,15 @@ export function openIdentitySheet({ title, intro, cta, profile, onSave }) {
     busy = true;
     save.disabled = true;
     try {
-      await onSave({ name, emoji: grid.value() });
+      const p = { name, emoji: grid.value() };
+      if (cn) p.circleName = cn.input.value.trim().slice(0, 24);
+      // false is the circle guard's busy-bail, already toasted; keep the
+      // sheet and the typed name instead of pretending the save happened.
+      if ((await onSave(p)) === false) {
+        busy = false;
+        save.disabled = false;
+        return;
+      }
       ov.close();
     } catch {
       busy = false;
@@ -289,17 +318,22 @@ export function openIdentitySheet({ title, intro, cta, profile, onSave }) {
   return ov;
 }
 
-export function openJoinSheet({ profile, hasCircle, onJoin }) {
+export function openJoinSheet({ profile, hasCircle, circleName, onJoin }) {
   const ov = openOverlay({ title: "Join a circle", testid: "join-sheet" });
   ov.body.append(el("p", "ov-note", "You have an invite to a circle. Set up how you will appear to the people in it."));
   if (hasCircle) {
     ov.body.append(
-      el("p", "ov-warn-note", "This device is already in a circle. Joining replaces it: you will leave your current circle."),
+      el("p", "ov-note", "Your current circle stays. This adds a new one, and you can switch between them from the circle name at the top of the map."),
     );
   }
   const { wrap, input, grid } = identityFields(profile);
   ov.body.append(wrap);
-  const join = btn("btn btn-primary", hasCircle ? "Replace and join" : "Join circle");
+  let cn = null;
+  if (circleName) {
+    cn = circleNameField(circleName);
+    ov.body.append(cn.field);
+  }
+  const join = btn("btn btn-primary", "Join circle");
   join.dataset.testid = "join-confirm";
   const sync = () => (join.disabled = input.value.trim().length === 0);
   input.addEventListener("input", sync);
@@ -311,7 +345,13 @@ export function openJoinSheet({ profile, hasCircle, onJoin }) {
     busy = true;
     join.disabled = true;
     try {
-      await onJoin({ name, emoji: grid.value() });
+      const p = { name, emoji: grid.value() };
+      if (cn) p.circleName = cn.input.value.trim().slice(0, 24);
+      if ((await onJoin(p)) === false) {
+        busy = false;
+        join.disabled = false;
+        return;
+      }
       ov.close();
     } catch {
       busy = false;
@@ -320,6 +360,67 @@ export function openJoinSheet({ profile, hasCircle, onJoin }) {
     }
   });
   ov.body.append(join);
+  return ov;
+}
+
+// ------------------------------------------------------------ circle sheet
+// The switcher behind the circle name pill: the active circle on top, the
+// rest tappable, and the two ways to add another. Inactive circles are not
+// polled, so the rows carry names only, no liveness claims.
+
+export function openCircleSheet({ current, others, onSwitch, onCreate, onJoin }) {
+  const ov = openOverlay({ title: "Your circles", testid: "circle-sheet" });
+  const list = el("div", "circle-list");
+  const row = (name, mark) => {
+    const r = btn("circle-row" + (mark ? " circle-row-current" : ""), "");
+    r.append(el("span", "circle-row-name", name));
+    if (mark) r.append(el("span", "circle-row-mark", "Current"));
+    return r;
+  };
+  const cur = row(current.name, true);
+  cur.disabled = true;
+  list.append(cur);
+  // One tap freezes the whole sheet: two switches racing each other is a
+  // storage hazard, not a UI nicety.
+  const freezable = [];
+  const freeze = (on) => freezable.forEach((b) => (b.disabled = on));
+  others.forEach((c, i) => {
+    const r = row(c.name, false);
+    r.dataset.testid = `circle-switch-${i}`;
+    r.addEventListener("click", async () => {
+      freeze(true);
+      try {
+        const ok = await onSwitch(i);
+        if (ok) {
+          ov.close();
+          return;
+        }
+        freeze(false);
+      } catch {
+        freeze(false);
+        toast("Could not switch. Try again.", "warn");
+      }
+    });
+    freezable.push(r);
+    list.append(r);
+  });
+  ov.body.append(list);
+  const add = el("div", "circle-add");
+  const create = btn("btn btn-secondary", "New circle");
+  create.dataset.testid = "circle-new";
+  create.addEventListener("click", () => {
+    ov.close();
+    onCreate();
+  });
+  const join = btn("btn btn-ghost", "Join with invite");
+  join.dataset.testid = "circle-join";
+  join.addEventListener("click", () => {
+    ov.close();
+    onJoin();
+  });
+  freezable.push(create, join);
+  add.append(create, join);
+  ov.body.append(add);
   return ov;
 }
 
@@ -391,7 +492,12 @@ export function openInviteSheet({ getLink, qrSvgFor, onRotate }) {
   confirmBtn.addEventListener("click", async () => {
     confirmBtn.disabled = true;
     try {
-      await onRotate();
+      // false is the guard's busy-bail, already toasted; keep the confirm
+      // box armed instead of claiming a rotation that never ran.
+      if ((await onRotate()) === false) {
+        confirmBtn.disabled = confirmInput.value.trim().toLowerCase() !== "rotate";
+        return;
+      }
       confirmInput.value = "";
       confirmBox.hidden = true;
       refresh();
@@ -531,7 +637,7 @@ export function openPasscodeSheet({ title, intro, cta, confirm = false, current 
   return ov;
 }
 
-export function openSettingsSheet({ values, demo, tor, lock, lockActions, onChange, onInvite, onPanic }) {
+export function openSettingsSheet({ values, demo, tor, lock, lockActions, onChange, onInvite, onPanic, onLeave }) {
   const ov = openOverlay({ title: "Settings", testid: "settings-sheet", className: "ov-settings" });
   const b = ov.body;
 
@@ -656,7 +762,7 @@ export function openSettingsSheet({ values, demo, tor, lock, lockActions, onChan
             confirm: true,
             onClose: revert,
             onSubmit: async (pc) => {
-              await lockActions.enable(pc);
+              if ((await lockActions.enable(pc)) === false) return false;
               toast("App lock is on.");
               ov.close();
               return true;
@@ -773,6 +879,47 @@ export function openSettingsSheet({ values, demo, tor, lock, lockActions, onChan
   // Danger
   const gDanger = group("Danger zone");
   gDanger.classList.add("danger-zone");
+  if (onLeave && !demo) {
+    const leaveBtn = btn("btn btn-danger-ghost", "Leave this circle");
+    leaveBtn.dataset.testid = "settings-leave";
+    const leaveBox = el("div", "rotate-confirm");
+    leaveBox.hidden = true;
+    leaveBox.append(
+      el("p", "ov-note", 'Leaving deletes this circle\'s secret and your identity in it from this device. The circle itself keeps existing for everyone else, and you can come back with a fresh invite. Type "leave" to confirm.'),
+    );
+    const leaveInput = el("input", "text-input");
+    leaveInput.type = "text";
+    leaveInput.placeholder = 'Type "leave"';
+    leaveInput.autocomplete = "off";
+    const leaveGo = btn("btn btn-danger", "Leave circle");
+    leaveGo.dataset.testid = "settings-leave-confirm";
+    leaveGo.disabled = true;
+    leaveInput.addEventListener("input", () => {
+      leaveGo.disabled = leaveInput.value.trim().toLowerCase() !== "leave";
+    });
+    leaveGo.addEventListener("click", async () => {
+      leaveGo.disabled = true;
+      try {
+        if ((await onLeave()) === false) {
+          leaveGo.disabled = false;
+          return;
+        }
+        ov.close();
+      } catch {
+        leaveGo.disabled = false;
+        toast("Could not leave. Try again.", "warn");
+      }
+    });
+    leaveBox.append(leaveInput, leaveGo);
+    leaveBtn.addEventListener("click", () => {
+      leaveBox.hidden = !leaveBox.hidden;
+      if (!leaveBox.hidden) {
+        leaveInput.focus();
+        leaveBox.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    });
+    gDanger.append(leaveBtn, leaveBox);
+  }
   const panicBtn = btn("btn btn-danger-ghost", "Panic wipe");
   panicBtn.dataset.testid = "settings-panic";
   const panicBox = el("div", "rotate-confirm");

@@ -7,8 +7,11 @@ cd "$(dirname "$0")/.."
 
 # This script is excluded from its own scan: its patterns necessarily contain
 # the very strings it searches for, which would otherwise self-flag.
-files=$(git ls-files -- '*.js' '*.mjs' '*.css' '*.html' '*.md' '*.py' '*.sh' '*.json' '*.toml' \
+# Untracked-but-not-ignored files are scanned too, so a fresh file fails the
+# local run the same way it would fail CI once staged.
+globs=('*.js' '*.mjs' '*.css' '*.html' '*.md' '*.py' '*.sh' '*.json' '*.toml'
   ':!:app/vendor/**' ':!:tools/check-clean.sh')
+files=$( (git ls-files -- "${globs[@]}"; git ls-files --others --exclude-standard -- "${globs[@]}") | sort -u )
 
 fail=0
 

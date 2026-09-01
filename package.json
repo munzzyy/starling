@@ -1,6 +1,6 @@
 {
   "name": "starling",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Private, end to end encrypted location sharing for your circle. No accounts, no tracking.",
   "type": "module",
   "private": true,

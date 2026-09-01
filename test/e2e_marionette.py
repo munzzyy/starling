@@ -450,6 +450,99 @@ def flow_b_join(b, invite_url, channel):
     log("B joined and sharing")
 
 
+def chan_member_ids(channel):
+    _, body = http_get(f"/api/v1/f/{channel}")
+    return {m.get("m") for m in json.loads(body).get("members", [])}
+
+
+def flow_multicircle(a, channel):
+    # A second circle from the pill switcher, then back. Sharing must not
+    # carry across, each channel only ever sees its own rows, and the relay
+    # must not be able to link the two circles through a shared member id.
+    me1 = (a.state().get("me") or {}).get("id")
+    chan1_before = chan_member_ids(channel)
+    a.click('[data-testid="circle-open"]')
+    wait_for(lambda: a.exec("return !!document.querySelector('[data-testid=\"circle-sheet\"]')"),
+             timeout=10, desc="A circle sheet")
+    a.click('[data-testid="circle-new"]')
+    wait_for(lambda: a.exec("return !!document.querySelector('[data-testid=\"circle-name\"]')"),
+             timeout=10, desc="A add-circle sheet")
+    a.exec("var el = document.querySelector('[data-testid=\"circle-name\"]');"
+           "el.value = 'Friends'; el.dispatchEvent(new Event('input', {bubbles: true}));")
+    type_name_and_confirm(a, "Avery", "identity-save")
+    wait_for(lambda: a.exec(
+        "var el = document.querySelector('[data-testid=\"invite-link\"]');"
+        "return el && el.textContent.indexOf('#j=') >= 0;"),
+        timeout=20, desc="A invite sheet for the new circle")
+    a.escape()
+    wait_overlay_gone(a)
+    st = a.state()
+    chan2 = st.get("channel")
+    if chan2 == channel or not re.fullmatch(r"[0-9a-f]{32}", chan2 or ""):
+        raise E2EError(f"second circle channel wrong: {chan2}")
+    pill = a.exec("return document.getElementById('pill-name').textContent")
+    if pill != "Friends":
+        raise E2EError(f"pill shows {pill!r}, not the new circle")
+    if st.get("sharing"):
+        raise E2EError("sharing carried into the new circle")
+
+    # One point on the new channel proves the sender rebuilt for it.
+    a.exec(f"window.__geoSet({TIMES_SQ[0]}, {TIMES_SQ[1]})")
+    a.click('[data-testid="share-toggle"]')
+    wait_for(lambda: a.state().get("sharing") is True, timeout=10, desc="A sharing on Friends")
+
+    def relay_has_point2():
+        _, body = http_get(f"/api/v1/f/{chan2}")
+        return any(m.get("points") for m in json.loads(body).get("members", []))
+    wait_for(relay_has_point2, timeout=20, desc="point on the Friends channel")
+
+    # Isolation, both directions. The Friends channel holds exactly one
+    # member whose id is NOT the id A uses on the first channel, and the
+    # first channel gained no member it did not already have (B keeps
+    # posting there under an id from the before set).
+    me2 = (a.state().get("me") or {}).get("id")
+    if not me1 or not me2 or me2 == me1:
+        raise E2EError(f"identity reused across circles: {me1!r} vs {me2!r}")
+    chan2_ids = chan_member_ids(chan2)
+    if chan2_ids != {me2}:
+        raise E2EError(f"Friends channel members {chan2_ids}, expected only {me2!r}")
+    chan1_during = chan_member_ids(channel)
+    if not chan1_during.issubset(chan1_before):
+        raise E2EError(f"first channel grew during the Friends share: {chan1_during - chan1_before}")
+    if me2 in chan1_during:
+        raise E2EError("the Friends identity leaked onto the first channel")
+
+    a.click('[data-testid="circle-open"]')
+    wait_for(lambda: a.exec("return !!document.querySelector('[data-testid=\"circle-switch-0\"]')"),
+             timeout=10, desc="A switch row")
+    a.click('[data-testid="circle-switch-0"]')
+    wait_for(lambda: a.state().get("channel") == channel, timeout=15,
+             desc="A back on the first channel")
+    if a.state().get("sharing"):
+        raise E2EError("sharing carried across the switch back")
+
+    # A share after the switch back lands on the first channel under the
+    # original identity, and the Friends channel stays exactly as it was.
+    def me1_point_count():
+        _, body = http_get(f"/api/v1/f/{channel}")
+        for m in json.loads(body).get("members", []):
+            if m.get("m") == me1:
+                return len(m.get("points") or [])
+        return 0
+    chan2_ids_before_back = chan_member_ids(chan2)
+    points_before_back = me1_point_count()
+    a.click('[data-testid="share-toggle"]')
+    wait_for(lambda: a.state().get("sharing") is True, timeout=10, desc="A sharing again on circle 1")
+    wait_for(lambda: me1_point_count() > points_before_back, timeout=20,
+             desc="a NEW post-switch point under the original id on channel 1")
+    if chan_member_ids(chan2) != chan2_ids_before_back:
+        raise E2EError("the Friends channel changed after switching away")
+    a.click('[data-testid="share-toggle"]')
+    wait_for(lambda: a.state().get("sharing") is False, timeout=10, desc="A sharing off again")
+    log("multi-circle: second channel live, isolation both ways, switch round-trip clean")
+    return chan2
+
+
 def cross_visibility(a, b):
     wait_for(lambda: near(member_named(a.state(), "Blair"), COLUMBUS),
              timeout=30, desc="A sees Blair at Columbus Circle", interval=1)
@@ -511,7 +604,7 @@ def move_checkin_sos_stop(a, b):
     log("B sees Avery's bye")
 
 
-def zero_knowledge_dump(channel):
+def zero_knowledge_dump(channels):
     _, body = http_get("/debug/dump")
     for needle in ["Avery", "Blair", "40.7", "73.9", "lat", "name"]:
         if needle in body:
@@ -538,7 +631,7 @@ def zero_knowledge_dump(channel):
             raise E2EError(f"bad channel in members row: {row['channel']}")
         if not re.fullmatch(r"[0-9a-f]{16}", row["member"]):
             raise E2EError(f"bad member id in members row: {row['member']}")
-        if row["channel"] != channel:
+        if row["channel"] not in channels:
             raise E2EError("unexpected foreign channel in dump")
     log(f"zero-knowledge dump clean: {len(members)} members, {len(points)} points, "
         f"all ciphertext {PAD_LEN + 16} bytes")
@@ -598,7 +691,8 @@ def main():
         cross_visibility(a, b)
         flagship_map_shots(a, b)
         move_checkin_sos_stop(a, b)
-        zero_knowledge_dump(channel)
+        chan2 = flow_multicircle(a, channel)
+        zero_knowledge_dump({channel, chan2})
         console_check([a, b])
         a.close()
         a = None

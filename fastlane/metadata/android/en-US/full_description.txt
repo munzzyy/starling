@@ -15,6 +15,9 @@ One action clears the app: local storage, cached data, everything. If you need t
 <b>App lock</b>
 Optional passcode lock encrypts your circle secret at rest (PBKDF2-SHA-256, 600k iterations). Where the device supports it, your fingerprint or face opens the vault through the Android Keystore, which never leaves the secure hardware on your phone.
 
+<b>Circles, plural</b>
+Keep one circle for family and another for the friends you split up from at a fair or a concert. Switch with a tap on the circle name. Every circle has its own key and its own identity, so even the relay cannot tell your groups apart.
+
 <b>SOS and check-ins</b>
 Hold to fire an SOS that your circle sees immediately. Check in with a status without leaving your location on all the time.
 

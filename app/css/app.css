@@ -632,6 +632,76 @@ a.land-download {
   text-overflow: ellipsis;
 }
 
+/* The name is a button now: it opens the circle switcher. */
+.pill-open {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pill-chevron {
+  flex: none;
+  opacity: 0.6;
+}
+
+/* ---------------------------------------------------------- circle sheet */
+
+.circle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.circle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg-2);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.circle-row-current {
+  border-color: rgba(45, 212, 191, 0.35);
+  cursor: default;
+}
+
+.circle-row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.circle-row-mark {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.circle-add {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
 .pill-gear {
   display: grid;
   place-items: center;
