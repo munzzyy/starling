@@ -3,6 +3,23 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [0.3.1]
+
+- Hardening pass on the Android wrapper after an external review round. The
+  panic wipe deletes the Keystore wrap key and the share notification
+  channel itself before handing the rest to the system wipe, instead of
+  trusting the system's own fire and forget keystore cleanup. Tor mode
+  spells out SOCKS5 so hostname lookups ride through the proxy, reloads the
+  page when the toggle flips so connections from the old setting get
+  stranded, and takes location fixes from GPS alone while it is on, since
+  the network provider works by shipping nearby wifi and cell identifiers
+  to an off-device lookup. The biometric prompt zeroes its copy of the
+  vault key on every exit, dismissal and error included.
+- The threat model now says plainly that nothing here has had an external
+  audit, and the Android notes list the Tor toggle's honest limits: the
+  default port assumption, links that leave for the system browser, and
+  localhost port squatting.
+
 ## [0.3.0]
 
 - Multiple circles. Keep family, friends, and the trip as separate circles

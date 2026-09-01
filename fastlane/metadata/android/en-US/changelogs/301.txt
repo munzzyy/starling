@@ -1,0 +1,1 @@
+Hardening pass: the panic wipe deletes the Keystore key and notification channel itself before the system wipe, Tor mode uses explicit SOCKS5, reloads when toggled, and goes GPS only while on. The biometric prompt zeroes its key copy on every exit. The threat model now states there has been no external audit.
