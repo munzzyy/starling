@@ -10,6 +10,19 @@ const CANONICAL = "https://starlingmap.app";
 export const isWrapped = () => !!globalThis.StarlingNative;
 export const native = () => globalThis.StarlingNative ?? null;
 
+// Circles live in the app. The hosted web page is a landing plus the demo:
+// a browser tab is the weakest place to hold a long-lived location secret
+// (extensions, shared machines, no OS keystore), so the web build refuses to
+// create or open circles. Local dev servers keep the full app so the test
+// suites and self-hosted development still work.
+const DEV_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
+
+export function shareCapable() {
+  if (isWrapped()) return true;
+  const host = globalThis.location?.hostname;
+  return typeof host === "string" && DEV_HOSTS.includes(host);
+}
+
 // Base for invite links: the canonical origin in the wrapper (asset origins
 // mean nothing outside this device), the page's own origin on the web.
 export function shareUrlBase() {

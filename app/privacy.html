@@ -45,6 +45,16 @@ travel inside that same ciphertext.</p>
 <p>The relay never sees a position, a name, or which people belong to a
 circle together. All ciphertext rows expire automatically after 24 hours,
 and there are no backups kept beyond that window by design.</p>
+<p>Circle members never see each other's IP addresses; everything moves
+through the relay. If you also want the relay not to see yours, route the
+Android app through Orbot: there is a toggle in settings, and Orbot's
+per-app VPN mode works with no setup at all.</p>
+<h2>The website does not handle circles</h2>
+<p>Location sharing happens in the Android app only. This website is a
+landing page and a demo; it will not create or open a circle, and the demo
+runs entirely on your device with invented data and no network requests.
+Sharing done here by older versions of the web app stays encrypted in your
+browser's storage until you erase it from the page.</p>
 
 <h2>Map tiles</h2>
 <p>When the street map basemap is on, the app fetches map tiles from

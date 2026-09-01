@@ -3,7 +3,8 @@
 // fake StarlingNative bridge on globalThis.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeRelay, setApiBase, apiUrl, getApiBase, shareUrlBase, isWrapped } from "../app/js/env.js";
+import { normalizeRelay, setApiBase, apiUrl, getApiBase, shareUrlBase, isWrapped, shareCapable } from "../app/js/env.js";
+const envExports = { shareCapable };
 
 function withBridge(bridge, fn) {
   globalThis.StarlingNative = bridge;
@@ -75,5 +76,27 @@ test("shareUrlBase names the canonical origin only in the wrapper", () => {
     assert.equal(shareUrlBase(), "https://example.test/app/");
   } finally {
     if (!hadLocation) delete globalThis.location;
+  }
+});
+
+test("shareCapable: wrapper always, dev hosts on the web, hosted origin never", () => {
+  const { shareCapable } = envExports;
+  const hadLocation = "location" in globalThis;
+  const prev = globalThis.location;
+  try {
+    globalThis.location = { hostname: "starlingmap.app" };
+    assert.equal(shareCapable(), false);
+    assert.equal(withBridge({}, () => shareCapable()), true);
+    for (const host of ["localhost", "127.0.0.1", "[::1]"]) {
+      globalThis.location = { hostname: host };
+      assert.equal(shareCapable(), true);
+    }
+    globalThis.location = { hostname: "evil.example" };
+    assert.equal(shareCapable(), false);
+    delete globalThis.location;
+    assert.equal(shareCapable(), false);
+  } finally {
+    if (hadLocation) globalThis.location = prev;
+    else delete globalThis.location;
   }
 });

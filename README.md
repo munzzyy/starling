@@ -46,10 +46,16 @@ disagree, that is a bug.
 
 ## What it looks like
 
-Dark-first UI, installable as a PWA. Draggable member sheet, live markers with
-eased motion, trails, SOS hold-to-fire, check-ins, coarse mode (your device
-rounds your position to about 1 km before encrypting), panic wipe, and a demo
-you can run without sharing anything: open the app and hit Watch the demo.
+Dark-first UI. Draggable member sheet, live markers with eased motion, trails,
+SOS hold-to-fire, check-ins, coarse mode (your device rounds your position to
+about 1 km before encrypting), panic wipe, and a demo you can run without
+sharing anything: open starlingmap.app and hit Watch the demo.
+
+Circles are app-only by design. The hosted website is a landing page plus that
+demo; it refuses to create or open circles, because a browser tab is the
+weakest place to keep a long-lived location secret (extensions, shared
+machines, no OS keystore). The full app still runs on localhost for
+development and testing.
 
 | Onboarding | The demo | Invite | App lock |
 |---|---|---|---|
@@ -100,9 +106,9 @@ deploys:
 bash relay/deploy.sh
 ```
 
-It is idempotent, so re-running it just ships the latest code. Serve it on any
-origin with HTTPS and install it from the browser menu. Geolocation needs a
-secure context, so plain HTTP will not work.
+It is idempotent, so re-running it just ships the latest code. The hosted page
+serves the landing and demo; sharing itself lives in the Android app.
+Geolocation needs a secure context, so plain HTTP will not work anywhere.
 
 ## QR codes
 
@@ -126,10 +132,12 @@ Being clear about the edges is part of the point.
   retention instead. A group ratchet is roadmap.
 - **An invite link is a bearer capability.** Anyone with the link is in the
   circle. Share it over something you trust, and rotate if it leaks.
-- **It is a web app.** If someone serves you poisoned JavaScript, that is fatal,
-  the same as for any web client of any encrypted service. The mitigations are a
-  strict CSP, no third party scripts, and a service worker that pins the shell;
-  the real fix is a store-distributed wrapper.
+- **The served page is still a web page.** If someone poisons the JavaScript at
+  the origin, that is fatal for whoever loads it, the same as for any web client
+  of any encrypted service. The mitigations are a strict CSP, no third party
+  scripts, and a service worker that pins the shell; the structural fix is that
+  circles only exist in the store-distributed app, which bundles its code and
+  never loads any from the network.
 
 ## Android
 

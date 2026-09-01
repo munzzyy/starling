@@ -22,7 +22,7 @@ import {
   bioAvailable,
   zero,
 } from "./lock.js";
-import { isWrapped, native, shareUrlBase, normalizeRelay, setApiBase } from "./env.js";
+import { isWrapped, native, shareUrlBase, normalizeRelay, setApiBase, shareCapable } from "./env.js";
 import * as ui from "./ui.js";
 import { createMapView } from "./map.js";
 import { createPoller, createRoster, createSender, statusOf, sortMembers, STALE_MS } from "./net.js";
@@ -366,6 +366,9 @@ function locateMe() {
 // ---------------------------------------------------------------- circle
 
 async function enterCircle() {
+  // Belt and braces: the boot gate already keeps the hosted page out of
+  // here, but a circle must never materialize where sharing is not allowed.
+  if (!shareCapable()) return;
   state.channelId = await deriveChannelId(state.secret);
   state.encKey = await deriveEncKey(state.secret);
   setupNet();
@@ -635,7 +638,7 @@ async function saveProfile(p) {
 }
 
 function promptCreate() {
-  if (state.locked) return;
+  if (!shareCapable() || state.locked) return;
   ui.openIdentitySheet({
     title: "Create your circle",
     intro: "How you appear to the people you invite. This never leaves your circle.",
@@ -663,7 +666,7 @@ function promptCreate() {
 }
 
 function promptJoin(secret) {
-  if (state.locked) return;
+  if (!shareCapable() || state.locked) return;
   ui.openJoinSheet({
     profile: state.profile,
     hasCircle: !!state.secret,
@@ -1144,6 +1147,11 @@ window.addEventListener("hashchange", () => {
   const invite = parseInviteFragment(location.hash);
   if (!invite) return;
   history.replaceState(null, "", location.pathname + location.search);
+  // Hosted web never joins; the landing card points the invite at the app.
+  if (!shareCapable()) {
+    $("#landing-invite").hidden = false;
+    return;
+  }
   // A locked circle must be unlocked before any join can touch its state.
   if (state.locked) return;
   promptJoin(invite);
@@ -1175,9 +1183,18 @@ async function boot() {
   const invite = parseInviteFragment(location.hash);
   if (invite) history.replaceState(null, "", location.pathname + location.search);
 
-  byTestid("onboarding-create").addEventListener("click", promptCreate);
-  byTestid("onboarding-join").addEventListener("click", promptPasteInvite);
   byTestid("onboarding-demo").addEventListener("click", startDemo);
+  if (shareCapable()) {
+    byTestid("onboarding-create").addEventListener("click", promptCreate);
+    byTestid("onboarding-join").addEventListener("click", promptPasteInvite);
+  } else {
+    // Hosted web: circles are app-only, so the create and join paths do not
+    // exist here at all. The app card leads, the demo trails it.
+    byTestid("onboarding-create").hidden = true;
+    byTestid("onboarding-join").hidden = true;
+    const wrap = $("#screen-onboarding .ob-wrap");
+    wrap.insertBefore($("#landing-app"), $("#screen-onboarding .ob-actions"));
+  }
 
   // Ask the OS not to evict our store under storage pressure. Wrapper only:
   // the WebView grants or denies silently, while desktop Firefox turns a bare
@@ -1219,35 +1236,53 @@ async function boot() {
   setApiBase(state.relay);
   applyTheme();
 
-  try {
-    if (lock?.enabled) {
-      // A locked circle starts locked on every launch. Nothing is decrypted
-      // until the passcode or a biometric recovers the vault key.
-      state.lock = lock;
-      state.locked = true;
-      ensureLockUI();
-      paintLockScreen();
-      showScreen("lock");
-    } else if (secret && identity) {
-      state.secret = secret;
-      state.identity = identity;
-      await enterCircle();
-    } else {
+  if (!shareCapable()) {
+    // Hosted web: landing and demo only. A circle stored by the old web app
+    // is never opened or decrypted here (its bytes are only tested for
+    // existence); the card offers the eraser instead. An invite fragment
+    // gets pointed at the app (the secret was already stripped from the
+    // address bar above and never leaves the device).
+    if (lock?.enabled || (secret && identity)) {
+      $("#landing-legacy").hidden = false;
+      byTestid("landing-erase").addEventListener("click", async () => {
+        await wipeAll();
+        location.reload();
+      });
+    }
+    if (invite) $("#landing-invite").hidden = false;
+    showScreen("onboarding");
+    if (params.get("demo") === "1") startDemo();
+  } else {
+    try {
+      if (lock?.enabled) {
+        // A locked circle starts locked on every launch. Nothing is decrypted
+        // until the passcode or a biometric recovers the vault key.
+        state.lock = lock;
+        state.locked = true;
+        ensureLockUI();
+        paintLockScreen();
+        showScreen("lock");
+      } else if (secret && identity) {
+        state.secret = secret;
+        state.identity = identity;
+        await enterCircle();
+      } else {
+        showScreen("onboarding");
+      }
+    } catch (e) {
+      window.__starlingErrors.push(`enter: ${String(e)}`);
       showScreen("onboarding");
     }
-  } catch (e) {
-    window.__starlingErrors.push(`enter: ${String(e)}`);
-    showScreen("onboarding");
+
+    // Demo and invite auto-actions only apply past the lock screen.
+    if (!state.locked) {
+      if (params.get("demo") === "1") startDemo();
+      else if (invite) promptJoin(invite);
+    }
   }
 
   if (persistenceBroken()) {
     ui.toast("This browser is blocking storage. Starling runs, but nothing is saved after you close it.", "warn");
-  }
-
-  // Demo and invite auto-actions only apply past the lock screen.
-  if (!state.locked) {
-    if (params.get("demo") === "1") startDemo();
-    else if (invite) promptJoin(invite);
   }
 
   if (params.get("sheet") === "full" && sheet) sheet.snapTo("full", false);
@@ -1262,6 +1297,18 @@ async function boot() {
     navigator.serviceWorker.register("/sw.js").catch((e) => {
       window.__starlingErrors.push(`sw: ${String(e)}`);
     });
+    // The cache-first shell means a returning visitor's first load after a
+    // deploy runs the previous build; reload once when the fresh worker takes
+    // over so security-motivated changes apply within seconds, not visits.
+    // Guarded on an existing controller so a first-ever install never loops.
+    if (navigator.serviceWorker.controller) {
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (reloaded) return;
+        reloaded = true;
+        location.reload();
+      });
+    }
   }
 }
 
@@ -1272,7 +1319,7 @@ boot().catch((e) => {
     state.screen = "onboarding";
     $("#screen-onboarding").hidden = false;
     $("#screen-map").hidden = true;
-    ui.toast("Starling hit a problem while starting. You can still create or join a circle.", "warn");
+    ui.toast("Starling hit a problem while starting.", "warn");
   } catch {
     // the error above is already recorded
   }

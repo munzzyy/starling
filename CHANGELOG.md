@@ -3,6 +3,15 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## Unreleased
+
+- The hosted website is now a landing page and demo only: it refuses to
+  create or open circles, shows invite links the way to the app, and offers
+  an eraser for data stored by the old web app. Sharing is app-only; the
+  full app still runs on localhost for development.
+- The landing and privacy policy now spell out the IP story: members never
+  see each other's IPs, and Orbot routing hides yours from the relay.
+
 ## [0.2.0]
 
 - Android app: a hand-written Kotlin WebView wrapper around the same `app/`

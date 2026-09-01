@@ -291,6 +291,13 @@ a.land-download {
   text-decoration: none;
 }
 
+/* Notice variant: the invite and legacy cards need to read as "look here". */
+.land-card.land-note {
+  border-color: rgba(45, 212, 191, 0.35);
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
 .land-card-sub,
 .land-card-note {
   margin: 0 0 14px;

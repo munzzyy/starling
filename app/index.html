@@ -10,9 +10,6 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https:; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="theme-color" content="#0a0d14">
 <meta name="description" content="Private, end to end encrypted location sharing for your circle. No accounts, no tracking. Free Android app and web app by Munzzyy.">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Starling">
 <link rel="canonical" href="https://starlingmap.app/">
 <meta property="og:type" content="website">
@@ -104,6 +101,22 @@
       <h1 class="ob-wordmark">starling</h1>
       <p class="ob-tagline">Your people, on your map. Nobody else.</p>
     </div>
+
+    <div class="land-card land-note" id="landing-invite" hidden>
+      <h2 class="land-card-title">You have an invite</h2>
+      <p class="land-card-sub">Invites open in the Android app, where your circle's secret lives
+        outside the browser. Install the app below, then tap your invite link again and it will
+        join there. The secret in your link never left this device.</p>
+    </div>
+
+    <div class="land-card land-note" id="landing-legacy" hidden>
+      <h2 class="land-card-title">This browser holds an old circle</h2>
+      <p class="land-card-sub">Circles now live in the Android app, and the website no longer
+        opens them. The data sits untouched in this browser's storage, encrypted at rest only if
+        you had set a passcode. If you are done with it, erase it.</p>
+      <button type="button" class="btn btn-secondary" data-testid="landing-erase">Erase this browser's Starling data</button>
+    </div>
+
     <div class="ob-actions">
       <button type="button" class="btn btn-primary" data-testid="onboarding-create">Create a circle</button>
       <button type="button" class="btn btn-secondary" data-testid="onboarding-join">I have an invite</button>
@@ -134,12 +147,15 @@
         <li><strong>Lock it, or torch it.</strong> An optional passcode and biometric lock encrypts
           your circle secret at rest. Panic wipe erases the lot instantly.</li>
         <li><strong>Off-grid mode.</strong> Switch the basemap off and the app makes zero requests
-          beyond the relay. Works with Orbot for Tor routing.</li>
+          beyond the relay. Circle members never see each other's IP addresses, and routing the
+          app through Orbot hides yours from the relay too.</li>
         <li><strong>Yours to verify.</strong> MIT licensed, reproducible Android builds, an open
           protocol, and a relay you can self-host.</li>
       </ul>
-      <p class="land-how">Create a circle, send the invite link to your people over something you
-        already trust, and watch each other arrive on the map. That is the whole product. Read the
+      <p class="land-how">Create a circle in the app, send the invite link to your people over
+        something you already trust, and watch each other arrive on the map. That is the whole
+        product. Sharing lives in the app on purpose: a browser tab is the weakest place to keep
+        a location secret, so this site only informs, demos, and hands you the download. Read the
         <a href="https://github.com/munzzyy/starling/blob/main/docs/THREAT-MODEL.md">threat model</a>
         for exactly what the relay can and cannot see.</p>
     </div>

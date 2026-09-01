@@ -85,6 +85,16 @@ gets ciphertext and metadata only:
    WebCrypto-native choice; an Argon2id (memory-hard) upgrade is roadmap and
    would require shipping a vetted WASM build and a narrow CSP allowance for it.
 
+## The hosted web page does not open circles
+
+As of 0.2.x the page at starlingmap.app is a landing plus the demo. It hides
+the create and join paths, never decrypts a stored circle, and points invite
+links at the app. Rationale: the web delivery channel is the weakest link in
+this design (the poisoned-JS row above), and the browser offers no
+OS-keystore-backed storage for a long-lived circle secret. Removing circles
+from the hosted surface removes its value as a target. The full app still
+runs on localhost for development, and the test suites exercise it there.
+
 ## Android app deltas
 
 The Android app is the same `app/` code inside a native WebView wrapper.

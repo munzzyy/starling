@@ -24,11 +24,11 @@ test("manifest has the required fields", () => {
   assert.equal(manifest.short_name, "Starling");
   assert.equal(
     manifest.description,
-    "Private location sharing for your circle. End-to-end encrypted, no accounts."
+    "Starling's landing page and live demo. Location sharing itself lives in the Starling Android app."
   );
   assert.equal(manifest.start_url, "/");
   assert.equal(manifest.scope, "/");
-  assert.equal(manifest.display, "standalone");
+  assert.equal(manifest.display, "browser");
   assert.equal(manifest.orientation, "portrait");
   assert.equal(manifest.background_color, "#0a0d14");
   assert.equal(manifest.theme_color, "#0a0d14");
