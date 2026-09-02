@@ -25,5 +25,23 @@ if [ -n "$attr" ]; then
   echo "AI attribution found in:"; printf '  %s\n' $attr; fail=1
 fi
 
+# Any file we serve whose name matches a generic ad/tracker filter rule is
+# blocked for every visitor running a default blocker. app/js/beacon.js walked
+# into EasyPrivacy's bare /beacon.js rule and took the whole app down, because
+# main.js imports it statically and sw.js precaches it. Snapshot of the rules
+# and how to refresh it: tools/adblock-generic-rules.txt.
+rules=tools/adblock-generic-rules.txt
+if [ -f "$rules" ]; then
+  hits=$(while read -r f; do
+           grep -qxF "/$(basename "$f")" "$rules" && echo "$f"
+         done < <(find app -type f -not -path 'app/vendor/*'))
+  if [ -n "$hits" ]; then
+    echo "served file matches a generic ad-blocker rule (rename it):"
+    printf '  %s\n' $hits; fail=1
+  fi
+else
+  echo "missing $rules, ad-blocker name check did NOT run"; fail=1
+fi
+
 if [ "$fail" -eq 0 ]; then echo "clean: no em/en dashes, no AI attribution"; fi
 exit $fail

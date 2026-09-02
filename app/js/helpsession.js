@@ -8,6 +8,13 @@
 // A beacon lives in memory for the duration of the SOS. If the app process
 // dies the beacon dies with it; the helper page shows the trail going stale
 // rather than a silent blank, and a new SOS mints new links.
+//
+// The file is called helpsession and the code inside says beacon on purpose.
+// EasyPrivacy ships a bare `/beacon.js` rule with no domain attached to it, so
+// any file at that name is blocked for everyone running uBlock Origin, AdGuard
+// or Brave on default lists. main.js imports this module statically and sw.js
+// precaches it, so the block killed the whole app and the service worker
+// install, not only the SOS feature. Do not rename it back.
 
 import {
   randomBytes,

@@ -13,7 +13,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { startBeacon } from "../app/js/beacon.js";
+import { startBeacon } from "../app/js/helpsession.js";
 import { onlyFrom } from "../app/js/helpview.js";
 import { createRoster, statusOf } from "../app/js/net.js";
 import {

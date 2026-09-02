@@ -126,7 +126,7 @@ import {
 import * as ui from "./ui.js";
 import { createMapView } from "./map.js";
 import { createPoller, createRoster, createSender, statusOf, sortMembers, STALE_MS } from "./net.js";
-import { startBeacon } from "./beacon.js";
+import { startBeacon } from "./helpsession.js";
 import { startWatch, batteryLevel } from "./geo.js";
 import { haversineMeters, coarsePos, hueFromMemberId, fmtRelTime } from "./fmt.js";
 import { createDemo, DEMO_CENTER } from "./demo.js";

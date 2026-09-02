@@ -16,7 +16,7 @@ import { fmtRelTime } from "./fmt.js";
 
 const $ = (s) => document.querySelector(s);
 
-// Same shape as beacon.js's ratchet stand-in, and for the same reason: a
+// Same shape as helpsession.js's ratchet stand-in, and for the same reason: a
 // beacon is one generation for one emergency, so there is nothing here for a
 // ratchet to buy. The epoch is still carried on every point (it is inside the
 // AAD and the signature), it just never changes which key answers for it.
