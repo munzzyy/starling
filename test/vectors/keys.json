@@ -1,0 +1,123 @@
+{
+  "note": "Content keys are per (epoch, sender): MK(e, m) = HKDF(CK_e, 'msg|' + m). No two members ever encrypt under the same key, so a nonce collision between senders is impossible rather than unlikely.",
+  "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "e0": 2980471,
+  "entries": [
+    {
+      "e": 2980471,
+      "member": "dc73c74c3f57c6ff0c2d9016c333507f",
+      "memberLabel": "A",
+      "ck": "3e807d0367f0c50adeb1ab8defe671706808d2f6812345b7e6632e7d56682992",
+      "key": "202cce423f0786ad243a7999b164b86d256625b8dbad5dd052a1602c02737575"
+    },
+    {
+      "e": 2980471,
+      "member": "cfeb6c3eedeab2f19faf80ee98930d20",
+      "memberLabel": "B",
+      "ck": "3e807d0367f0c50adeb1ab8defe671706808d2f6812345b7e6632e7d56682992",
+      "key": "4c71af95851a2916fed1e3514c0431db0eee3966456b58ce660bd730f1faa0be"
+    },
+    {
+      "e": 2980471,
+      "member": "cc64a120fd33c1a3abc16130f636c528",
+      "memberLabel": "C",
+      "ck": "3e807d0367f0c50adeb1ab8defe671706808d2f6812345b7e6632e7d56682992",
+      "key": "8ede8a67a5f384e217577029f79deb2483514da72d2a9dd0e47b51c774674cca"
+    },
+    {
+      "e": 2980472,
+      "member": "dc73c74c3f57c6ff0c2d9016c333507f",
+      "memberLabel": "A",
+      "ck": "19a1bd6bfb456703fe9c9baf24bf32c99b40b922926fc364c3989de9218e82c9",
+      "key": "b3054953e04f5ae19963a117799db6de0e709340599b7596049da493badf67d2"
+    },
+    {
+      "e": 2980472,
+      "member": "cfeb6c3eedeab2f19faf80ee98930d20",
+      "memberLabel": "B",
+      "ck": "19a1bd6bfb456703fe9c9baf24bf32c99b40b922926fc364c3989de9218e82c9",
+      "key": "9344577d5fc225151151dfd5bc75accd848745214c944f4e0b41ab714eb0d12e"
+    },
+    {
+      "e": 2980472,
+      "member": "cc64a120fd33c1a3abc16130f636c528",
+      "memberLabel": "C",
+      "ck": "19a1bd6bfb456703fe9c9baf24bf32c99b40b922926fc364c3989de9218e82c9",
+      "key": "77ee2fe6d2ada804365984bb1b7a2242ff1a760129b2041ffcd61c3970ef87d9"
+    },
+    {
+      "e": 2980473,
+      "member": "dc73c74c3f57c6ff0c2d9016c333507f",
+      "memberLabel": "A",
+      "ck": "9275018a88638e40ee781ee3a563b26d5b9d0496692c1f78d43f74b5338b28b6",
+      "key": "76d240187ff96dee8643b2eb857cd716a1b125a4b4af91307ec6321ded6103e9"
+    },
+    {
+      "e": 2980473,
+      "member": "cfeb6c3eedeab2f19faf80ee98930d20",
+      "memberLabel": "B",
+      "ck": "9275018a88638e40ee781ee3a563b26d5b9d0496692c1f78d43f74b5338b28b6",
+      "key": "4e671da75b18de709aa416e975e3c316399acc8355fed092a2668ad7a2c664f5"
+    },
+    {
+      "e": 2980473,
+      "member": "cc64a120fd33c1a3abc16130f636c528",
+      "memberLabel": "C",
+      "ck": "9275018a88638e40ee781ee3a563b26d5b9d0496692c1f78d43f74b5338b28b6",
+      "key": "7e51dc6858a48177c4c0dae4316164dbfeb38fb749e208f9dfa1f59fff99615e"
+    },
+    {
+      "e": 2980474,
+      "member": "dc73c74c3f57c6ff0c2d9016c333507f",
+      "memberLabel": "A",
+      "ck": "03c1b97f235d8e7514b3e9e0631f28b0edd5dc3f2dafb9ee4b780e61f69a8acc",
+      "key": "441760995b5d0e36a8bc1fb93416be1698b9482596ae3c4021c0c03feddb673b"
+    },
+    {
+      "e": 2980474,
+      "member": "cfeb6c3eedeab2f19faf80ee98930d20",
+      "memberLabel": "B",
+      "ck": "03c1b97f235d8e7514b3e9e0631f28b0edd5dc3f2dafb9ee4b780e61f69a8acc",
+      "key": "15caba78db048f12a74ea4def3bc44f3a1a252a81197d8a96bdb23317e7c7708"
+    },
+    {
+      "e": 2980474,
+      "member": "cc64a120fd33c1a3abc16130f636c528",
+      "memberLabel": "C",
+      "ck": "03c1b97f235d8e7514b3e9e0631f28b0edd5dc3f2dafb9ee4b780e61f69a8acc",
+      "key": "757067bba18655188a16a68ae957ba866120fbcbd085002096877704b9d8fe57"
+    }
+  ],
+  "nonce": {
+    "note": "12 bytes: 4 bytes of random reuse guard, then ts as a 64-bit big-endian integer. The guard is fixed to zero here so the layout is checkable; a real client draws it from the CSPRNG on every message.",
+    "ts": 1788282659714,
+    "guard": "00000000",
+    "nonce": "00000000000001a05df3e382"
+  },
+  "seal": {
+    "note": "One full AES-256-GCM seal under the nonce above. The plaintext is JSON padded to exactly PAD_LEN with trailing spaces, which JSON.parse ignores, so every message type is the same size on the wire.",
+    "channel": "00112233445566778899aabbccddeeff",
+    "member": "dc73c74c3f57c6ff0c2d9016c333507f",
+    "e": 2980472,
+    "ts": 1788282659714,
+    "key": "b3054953e04f5ae19963a117799db6de0e709340599b7596049da493badf67d2",
+    "nonce": "00000000000001a05df3e382",
+    "aad": "starling/v2|00112233445566778899aabbccddeeff|dc73c74c3f57c6ff0c2d9016c333507f|2980472|1788282659714",
+    "padLen": 512,
+    "plaintext": {
+      "v": 2,
+      "ts": 1788282659714,
+      "t": "loc",
+      "lat": 44.98,
+      "lon": -93.27,
+      "acc": 12,
+      "name": "Ana",
+      "emoji": "🦊",
+      "hue": 210,
+      "bat": 0.62,
+      "mode": "precise"
+    },
+    "paddedLen": 512,
+    "ciphertext": "5h4oiNQZUF28TdibrZjNen5P6XnVQ7tGSC_ghPiQ0_tkFc1VVr6wi1RIUI_XBDWwSZgE302nHYQ8cYmldCtKGqth-TD2XSfpALCBO336AUAqtvuLQszOfdenrR0Ic2V84CFnhFkn3pXeRu4r73eSWR6Ra7TK_NBj47qO7_lxADMzQBBjso-n4Vr8m2P557viQ6LzMZ_wE7EfBUiIPXcuRPdAsrR28gxDLBJ_e3DX773Y6I0kxubjyfeLITtE9adgbiE5uS8usb4dTtvpQHJ7XSvyTOed0gqZSw-YyvcLXUo7bQQfwcuuQcZhI5DjfZ-i5qSsn0rZpQOTMarO86gMVGQ8oL19rgXeMwRFbvLTuyQLF96NHTKPB_beQj83BVkhLKMKRLtiILO1BVMbxfjOoGHycfMMa6alYRgo6eohuvg8LIwxvsGINid1dSIeme8J4-cG4fsry89oEj4gxiRybjC73yXtX2FkS-UmXmRSSGD4NPtC6TXy2ZGHCmcIeS76YsxvZ9rgD06j_kQbc06KTb4JqLoXdcOo6rn6nax9jjIX1Ofsdojzm9OhMpLHp_twAsnXnFJQtQnZ7ACmUWSAQDrPVEYOAvMALUd2J9Ja2Oa9_NYKrIy11WcI653tB4JDkqUXlgcflxItfDDlJXGhBO158jUi9KYuKDB3DN1eSMGhTEE_KhnfSBYn_fCyDNYr"
+  }
+}

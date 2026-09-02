@@ -1,0 +1,46 @@
+{
+  "note": "One generation's chain from a fixed seed. CK_0 = HKDF(seed, chain); CK_{i+1} = HKDF(CK_i, step). The chain runs one way only: holding CK_{i+1} says nothing about CK_i, which is the whole of the forward secrecy claim. e is the absolute epoch index (floor(unixMillis / 600000)); e0 is where this generation began, and i is the number of steps from CK_0.",
+  "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "e0": 2980471,
+  "epochMs": 600000,
+  "anchor": "d448eeb615b7078dfb1bd9cda7a14f1ff8e85446e8851d19553437e545fade5f",
+  "channel": "f1c695a80bae6baf8bb34828bc177bc9",
+  "steps": [
+    {
+      "e": 2980471,
+      "i": 0,
+      "ck": "3e807d0367f0c50adeb1ab8defe671706808d2f6812345b7e6632e7d56682992"
+    },
+    {
+      "e": 2980472,
+      "i": 1,
+      "ck": "19a1bd6bfb456703fe9c9baf24bf32c99b40b922926fc364c3989de9218e82c9"
+    },
+    {
+      "e": 2980473,
+      "i": 2,
+      "ck": "9275018a88638e40ee781ee3a563b26d5b9d0496692c1f78d43f74b5338b28b6"
+    },
+    {
+      "e": 2980474,
+      "i": 3,
+      "ck": "03c1b97f235d8e7514b3e9e0631f28b0edd5dc3f2dafb9ee4b780e61f69a8acc"
+    },
+    {
+      "e": 2980475,
+      "i": 4,
+      "ck": "cc535591dcd4ff90e1dd45b973cc2cb1fdc6aa32089829cd009b970a1fe1cf32"
+    },
+    {
+      "e": 2980476,
+      "i": 5,
+      "ck": "6895917314c2785e34edf95e9f187a94b32d2c44d9faf46d47127b34a9ac1e3d"
+    }
+  ],
+  "jump": {
+    "note": "CK_1000 reached by 1000 single steps, the same value a catch-up must land on",
+    "e": 2981471,
+    "i": 1000,
+    "ck": "f5540d1ba03a2f0d32f3ae9d6f619af02da5760259ff6216b8888e080369bd14"
+  }
+}

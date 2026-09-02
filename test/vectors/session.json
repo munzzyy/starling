@@ -1,0 +1,437 @@
+{
+  "note": "One circle recorded end to end: two members, a third joining, a re-key onto a new channel, a removal, a late point that must still open, and a replay that must not be accepted. Replay the steps in order.",
+  "fixed": {
+    "randomStream": "getRandomValues is replaced for the whole run by SHA-256(\"starling/vectors/v2:\" + block), block counting from 0, so every nonce below is reproducible. A real client draws these from the CSPRNG.",
+    "keys": "the signing and agreement keys are frozen pkcs8 blobs in tools/gen-vectors.mjs",
+    "signatures": "Ed25519 throughout, because its signatures are deterministic. ECDSA P-256 signs the same message differently every time and cannot be pinned in a vector.",
+    "rekeyWraps": "the rekey and removal steps below each carry a `context` string, the same one rekeyContext() in app/js/rekey.js builds from the rotator id + g + e0 + me (the mix epoch) + rosterHash + sorted removal list, and it is nothing but a function of the fields already in the step; sealTo() folds it into the wrap's AAD so the wrap only opens under those exact claims. Nothing here is substituted for it.",
+    "seed0": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "ns1": "05101b26313c47525d68737e89949faab5c0cbd6e1ecf7020d18232e39444f5a",
+    "ns2": "0714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a",
+    "inviteSecret": "0104070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
+    "e0": 2980471,
+    "t0": 1788282600000,
+    "epochMs": 600000,
+    "historyEpochs": 6
+  },
+  "members": [
+    {
+      "label": "A",
+      "alg": "ed25519",
+      "pk": "36PB0K4lVKaN2b-Y5enOb3leZmkKm3gPAPs5mY-ROCU",
+      "epk": "BCf1caClyddzW3eL7PHALmGl6RM7F_5z0lFceUJl0VjwcvFRkm06ewRvBlCBFskxz8Altd95EVo8qxZxHEee3Nk",
+      "memberId": "dc73c74c3f57c6ff0c2d9016c333507f",
+      "safetyNumber": "79320 91948 00309 34269 25169 66015"
+    },
+    {
+      "label": "B",
+      "alg": "ed25519",
+      "pk": "EoYKAK83wkv2TQQccrgxBBKnFPzKQv4N2MfXBOA7Jhc",
+      "epk": "BK64m1dCpPCvvTckayNfd14qwKcXoSW3tD6EQMl2IOJbwBpmS5_QCs9LN2KTOvr899zQxZgLOekj-yaEQ63xEwI",
+      "memberId": "cfeb6c3eedeab2f19faf80ee98930d20",
+      "safetyNumber": "76947 54915 11073 47140 77853 90146"
+    },
+    {
+      "label": "C",
+      "alg": "ed25519",
+      "pk": "JAeo4Vy4e1oAicfyJtu2sFnSeIFmuq6AP0U3C9O0MZk",
+      "epk": "BLlMd0wFoXRw8s0RA854DVLeoDPbtd7e_2rg3TLUQ9ie3qzF3CAEL_Yz32ZF4j3jsHQCLaiVQ1qsiE9vGTrLwjU",
+      "memberId": "cc64a120fd33c1a3abc16130f636c528",
+      "safetyNumber": "08391 42076 35319 39353 90302 83391"
+    }
+  ],
+  "invite": {
+    "secret": "0104070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
+    "channel": "ec167a0c69b9cb78e6d9423990062684",
+    "key": "88d5a20193a7b17d1665e63ec5839e6ba6347585e9dd02d074ca42e834695882",
+    "inviter": "A",
+    "commitment": "CEqqfrDFmLjKH3aqfmLlXQ",
+    "fragment": "#j=AQQHCg0QExYZHB8iJSgrLjE0Nzo9QENGSUxPUlVYW14.CEqqfrDFmLjKH3aqfmLlXQ"
+  },
+  "generations": [
+    {
+      "g": 0,
+      "e0": 2980471,
+      "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "anchor": "d448eeb615b7078dfb1bd9cda7a14f1ff8e85446e8851d19553437e545fade5f",
+      "channel": "f1c695a80bae6baf8bb34828bc177bc9",
+      "ck0": "3e807d0367f0c50adeb1ab8defe671706808d2f6812345b7e6632e7d56682992",
+      "roster": [
+        "dc73c74c3f57c6ff0c2d9016c333507f",
+        "cfeb6c3eedeab2f19faf80ee98930d20"
+      ],
+      "rosterHash": "35ktIYXj1AMUQ-hHvJocpDUvCtFlI_ne9scBpuNHZpM"
+    },
+    {
+      "g": 1,
+      "e0": 2980472,
+      "seed": "093d849afcebcb725273c4d67ecfe04964ca2284ff0395983ce024952d615d1e",
+      "anchor": "30b1929b0f396f8a48ad70404d569814215971f2d974a061d970534dd42a0568",
+      "channel": "fc41f5d4ce4f7c09d8006c4b4bc4d367",
+      "ck0": "66198b04528eca76f1bc4b2b2474c7698af789439347b52259aca8432601b08e",
+      "roster": [
+        "dc73c74c3f57c6ff0c2d9016c333507f",
+        "cfeb6c3eedeab2f19faf80ee98930d20",
+        "cc64a120fd33c1a3abc16130f636c528"
+      ],
+      "rosterHash": "W9DL9QIok5IlC_F3JA_ZA5xu0J_3q0g1HVKcBpFa8DQ"
+    },
+    {
+      "g": 2,
+      "e0": 2980473,
+      "seed": "e2dec7aaead6a809960d32193085355350cd8394c4855431797d65f09717e0f5",
+      "anchor": "45f4a80de77f50391a27b2d63012b0c58503c54c15b4e540b801d97cd0b40b25",
+      "channel": "acce241586da719498596a049c4df1c4",
+      "ck0": "724f09a04bca768f9658b78f3e414358d0173a19ec4836fd8d2d0238584ee4b5",
+      "roster": [
+        "dc73c74c3f57c6ff0c2d9016c333507f",
+        "cc64a120fd33c1a3abc16130f636c528"
+      ],
+      "rosterHash": "9Tf3fQi4_eYzig_uwLUBJDJVRGLiBQkw7U5Zwd5hwkA"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "post",
+      "note": "an ordinary signed location post in the generation's first epoch",
+      "g": 0,
+      "channel": "f1c695a80bae6baf8bb34828bc177bc9",
+      "by": "A",
+      "e": 2980471,
+      "ts": 1788282601000,
+      "plaintext": {
+        "v": 2,
+        "ts": 1788282601000,
+        "t": "loc",
+        "lat": 44.98,
+        "lon": -93.27,
+        "acc": 12,
+        "name": "Ana"
+      },
+      "post": {
+        "m": "dc73c74c3f57c6ff0c2d9016c333507f",
+        "alg": "ed25519",
+        "pk": "36PB0K4lVKaN2b-Y5enOb3leZmkKm3gPAPs5mY-ROCU",
+        "epk": "BCf1caClyddzW3eL7PHALmGl6RM7F_5z0lFceUJl0VjwcvFRkm06ewRvBlCBFskxz8Altd95EVo8qxZxHEee3Nk",
+        "e": 2980471,
+        "ts": 1788282601000,
+        "n": "S0slAgAAAaBd8v4o",
+        "c": "3cwfYpiHJRJx-qfwKTP3bPluXgbqDUBLC4NyNEHAZ8j3ZumOZbXEbhiqpuGmS2uY1LD8k5POGbk4Kky2DFH4hr8FvjtvqpRm8Ahmc2ItH9sIXaYu-_66G-AYXYvAOB1O3w14Yhc-m48kdA3cW4WuVapfqog2ur9ECZEj8_qhm-LC8IoeuC0YXOTSdP3GNbIqhXMR3rsd6J_0cFt1SSAs7SGFZIiFx6muHQXnt6ppd2zMuEOpVVgmNS9dC_tOI0Ppum4W6kbFnPyH2j1IjyKzq2mtnVRG_5PKtDiyQRi0SWbbqaxDjsguvPdOa1r74GadDXQS9G_G_2v_JI_j4MJrkonJ7hN2hEjf351A32wc2O6VvVHpzchWrKEHSMkjWoomI6xY692mPSGHlfeUHV6UPijQkdXk_z3rOtPkQOy4BLO1PSi_hw5mtTEAHayuJ_6_cajihU9df31_kf6VAG76CY7aiAthfgtHq0wEeD3nGjJlTgEUtayBLXolDkqjH1Z3CvjkaXzswXQFSlwJ8zPEB_VZD8GhJAGsjDCC6OVowGq_yvfMdGAdV4wXYJAI5vpJXUnAsdcSu-THLSOoN_g_3xtftaGXD1mHBdQGqanDxUGMpvnQ3uuY8LtD78GLmrfFg0frSDq656Xv2rVVoyS9T8aXeMcBhRHgravXEfOo8EfKY2p_1LQkZI4VE2tFEZcx",
+        "sig": "1Pie9jjtopPtSsZZiLDtr6npTFvXUhJAa5Akc4ys0ZIiGtV6qNXgSSynSJFCuVCnXczAId3dguyuGJR4Zj3YCA"
+      },
+      "expect": "accept"
+    },
+    {
+      "kind": "post",
+      "note": "a second member, one epoch later, under a different content key",
+      "g": 0,
+      "channel": "f1c695a80bae6baf8bb34828bc177bc9",
+      "by": "B",
+      "e": 2980472,
+      "ts": 1788283202000,
+      "plaintext": {
+        "v": 2,
+        "ts": 1788283202000,
+        "t": "loc",
+        "lat": 44.98,
+        "lon": -93.27,
+        "acc": 12,
+        "name": "Bo"
+      },
+      "post": {
+        "m": "cfeb6c3eedeab2f19faf80ee98930d20",
+        "alg": "ed25519",
+        "pk": "EoYKAK83wkv2TQQccrgxBBKnFPzKQv4N2MfXBOA7Jhc",
+        "epk": "BK64m1dCpPCvvTckayNfd14qwKcXoSW3tD6EQMl2IOJbwBpmS5_QCs9LN2KTOvr899zQxZgLOekj-yaEQ63xEwI",
+        "e": 2980472,
+        "ts": 1788283202000,
+        "n": "KVDmTQAAAaBd_CnQ",
+        "c": "0EYDE9ZqrjtkAIUlUB4Y_IAD2hz0zUEektYARIkHC8S_vXbQo9vkqfvVgxebliaXMP1kWUyM4unTm9sAgategr67MxgEropoIPkoUFC6yAz7wdtqrjgf_wQT9xKi1ES_fGsM6OqI7eHPMnYao1IotCJu6etWt9wuLD219I4b0SazZE3ygHGSiKSUhi5iRtTm-1rVaahthgvYsIxHAY4GnMiNPFju9wNNKpyShGdUY8I_GLLC7uWONn31Casg6H-VAv6gPN5FM_qn1Zkb3124dATU7itgAHm0uBoa7j23u-xzlv0NUxmLyN2nNIPE4DvaaWDyZwGfcdX83CFx5CYwB9LjzTpa0YQc8j81oAZoXM1eukVDXMCmOKTT-l0K5jMlYrbAC0Vj9aCK7rQzNa9cVrYcyRBUtJq87hv8LMxi6GCBFS_kWhoHJDB7QPpzyUAT4gAUtChXwUqraCDMbyJ6oxnzFHWBVy5_fQBFJ-bTT2D_4ysEKL_ovKCGBUqz_lREX9c7CYZjGwwZ77Aycyj_jMeoAOAA6al_87LFmto46XCq2SMfVlexy9Frf57_AhoWNfW6E9vqWsjPazl7Llv_3UZMsskkRLLXE77K-lrKfI7AonXIEfqnkkKhxdn-_C7Bhnynk-bKVfLpupZ4tvHRS9eGSa2UgY2oi2SLCWNwNX6kHUY7vWI58fYHW7HblR0e",
+        "sig": "zlNGVG2LftKtjUL_4z2cw71TY_YS6Aoh4OCDeJSEQgkL2CgyW91pvduavqfqcpyLMdyLGKT0yUpbRJZ86st1Cw"
+      },
+      "expect": "accept"
+    },
+    {
+      "kind": "replay",
+      "note": "the exact bytes of the first post, delivered a second time. The signature still verifies and the ciphertext still opens, which is the point: replay is not caught by the cryptography, it is caught by the receiver's per-member (e, ts) high-water mark. A location replay puts someone where they no longer are.",
+      "of": 0,
+      "g": 0,
+      "channel": "f1c695a80bae6baf8bb34828bc177bc9",
+      "post": {
+        "m": "dc73c74c3f57c6ff0c2d9016c333507f",
+        "alg": "ed25519",
+        "pk": "36PB0K4lVKaN2b-Y5enOb3leZmkKm3gPAPs5mY-ROCU",
+        "epk": "BCf1caClyddzW3eL7PHALmGl6RM7F_5z0lFceUJl0VjwcvFRkm06ewRvBlCBFskxz8Altd95EVo8qxZxHEee3Nk",
+        "e": 2980471,
+        "ts": 1788282601000,
+        "n": "S0slAgAAAaBd8v4o",
+        "c": "3cwfYpiHJRJx-qfwKTP3bPluXgbqDUBLC4NyNEHAZ8j3ZumOZbXEbhiqpuGmS2uY1LD8k5POGbk4Kky2DFH4hr8FvjtvqpRm8Ahmc2ItH9sIXaYu-_66G-AYXYvAOB1O3w14Yhc-m48kdA3cW4WuVapfqog2ur9ECZEj8_qhm-LC8IoeuC0YXOTSdP3GNbIqhXMR3rsd6J_0cFt1SSAs7SGFZIiFx6muHQXnt6ppd2zMuEOpVVgmNS9dC_tOI0Ppum4W6kbFnPyH2j1IjyKzq2mtnVRG_5PKtDiyQRi0SWbbqaxDjsguvPdOa1r74GadDXQS9G_G_2v_JI_j4MJrkonJ7hN2hEjf351A32wc2O6VvVHpzchWrKEHSMkjWoomI6xY692mPSGHlfeUHV6UPijQkdXk_z3rOtPkQOy4BLO1PSi_hw5mtTEAHayuJ_6_cajihU9df31_kf6VAG76CY7aiAthfgtHq0wEeD3nGjJlTgEUtayBLXolDkqjH1Z3CvjkaXzswXQFSlwJ8zPEB_VZD8GhJAGsjDCC6OVowGq_yvfMdGAdV4wXYJAI5vpJXUnAsdcSu-THLSOoN_g_3xtftaGXD1mHBdQGqanDxUGMpvnQ3uuY8LtD78GLmrfFg0frSDq656Xv2rVVoyS9T8aXeMcBhRHgravXEfOo8EfKY2p_1LQkZI4VE2tFEZcx",
+        "sig": "1Pie9jjtopPtSsZZiLDtr6npTFvXUhJAa5Akc4ys0ZIiGtV6qNXgSSynSJFCuVCnXczAId3dguyuGJR4Zj3YCA"
+      },
+      "expect": "reject",
+      "reason": "replay"
+    },
+    {
+      "kind": "join-request",
+      "note": "C asks to be let in on the invite channel, sealed under the invite key and signed by the keypair it has just generated. Nothing happens until a human on the other side accepts C's safety number.",
+      "channel": "ec167a0c69b9cb78e6d9423990062684",
+      "by": "C",
+      "e": 2980472,
+      "ts": 1788283203000,
+      "plaintext": {
+        "v": 2,
+        "ts": 1788283203000,
+        "t": "join",
+        "pk": "JAeo4Vy4e1oAicfyJtu2sFnSeIFmuq6AP0U3C9O0MZk",
+        "epk": "BLlMd0wFoXRw8s0RA854DVLeoDPbtd7e_2rg3TLUQ9ie3qzF3CAEL_Yz32ZF4j3jsHQCLaiVQ1qsiE9vGTrLwjU",
+        "name": "Cass"
+      },
+      "post": {
+        "m": "cc64a120fd33c1a3abc16130f636c528",
+        "alg": "ed25519",
+        "pk": "JAeo4Vy4e1oAicfyJtu2sFnSeIFmuq6AP0U3C9O0MZk",
+        "epk": "BLlMd0wFoXRw8s0RA854DVLeoDPbtd7e_2rg3TLUQ9ie3qzF3CAEL_Yz32ZF4j3jsHQCLaiVQ1qsiE9vGTrLwjU",
+        "e": 2980472,
+        "ts": 1788283203000,
+        "n": "_pxMVQAAAaBd_C24",
+        "c": "p_YlXKRQa3Nx54W5J2ogf8OLMrOH776aMWZRt8q0Gl-9-bPvaa1U5wES0_6EdLlyPib8nhxe4x7mRhRNoB1sr0Gh2aVYt8cF77CBAgptlHMS5b2Q_OyZO554WW2eXoHpS9wT09D5P1R-KgwKnukNxvbl0Iji2iVtF93bhhMdnN9QIbbm5wif7oNZOKbJAzeGQiLM0RU4dM0F1FfiGvAGAapWnRfW9S5PnKpFQcvtevb39gdr0HM0_qrxODrttrZLQuun0ZQ9cklXHbvjJzAPFJAw6TB0BEuDWQh8hZe0J8XEx8-XBsyTOD6Cobrur-XkPDYFMoa9oIIFYpiYl4Q4o8FJjPxxFzvcc6V7T-coaxcNCkzgcayxqtos53iyTeBLnsvztQbXSAtpGtTYDKZB7OqmDXuBdBSg5czoP8OiebzDKzGiRbYHKiP4VdGpNo9MOnazWFyyEPW3elMP0h3yRffgNojsOYmwSFAF9RxnQ5TxwTVhS7H7udG9vJu5Pw75--Ph35OYNx9kHNYf9VfIOPenmCob9171WZKgMr27-ltLnlHUvRJ5tgAmd1wGdLngjl8b_iK-tkBjW1C_WzGG4PzyPIK7WnEbjX-XjBOgGBjRvCq7sqVjICwfF0ueld2_kkC1oM_ZyJl4iq4an2dL6yNX1DmDVC5O8iAM4geQ6e1quX8FOvADYgZNaN_t5orC",
+        "sig": "Ng0uVPj5S72fstpuvCJkXJ8FLePbCE7BsQQ18k2g8ET5IGtAslWs-J76kYm5-ovZ_4XJHOX-D97Xeql0Jin4Cg"
+      },
+      "safetyNumber": "08391 42076 35319 39353 90302 83391",
+      "expect": "accept"
+    },
+    {
+      "kind": "rekey",
+      "note": "A admits C by ending generation 0 and starting generation 1. NS is fresh entropy wrapped to each retained member over an ephemeral ECDH; seed_1 = HKDF(CK_e || NS, 'rekey'). Mixing CK_e in stops a relay forging a generation; mixing NS in stops anyone holding only CK_e from computing the next one. C gets a wrap too but cannot use it: C has no chain key, so the seed reaches C in the welcome instead. Each wrap's AAD also binds `context`, the rotator id + g + e0 + me (the mix epoch) + rosterHash + sorted removal list: a wrap only opens under the exact claims A sealed it for, so nobody who saw it pass on the relay can repost it under a different rotator or a different removal list.",
+      "by": "A",
+      "fromG": 0,
+      "toG": 1,
+      "fromChannel": "f1c695a80bae6baf8bb34828bc177bc9",
+      "mixEpoch": 2980472,
+      "me": 2980472,
+      "ckAtMixEpoch": "19a1bd6bfb456703fe9c9baf24bf32c99b40b922926fc364c3989de9218e82c9",
+      "ns": "05101b26313c47525d68737e89949faab5c0cbd6e1ecf7020d18232e39444f5a",
+      "seed": "093d849afcebcb725273c4d67ecfe04964ca2284ff0395983ce024952d615d1e",
+      "rosterHash": "W9DL9QIok5IlC_F3JA_ZA5xu0J_3q0g1HVKcBpFa8DQ",
+      "removed": [],
+      "context": "dc73c74c3f57c6ff0c2d9016c333507f|1|2980472|2980472|W9DL9QIok5IlC_F3JA_ZA5xu0J_3q0g1HVKcBpFa8DQ|",
+      "posts": [
+        {
+          "ephLabel": "eph1",
+          "to": "B",
+          "post": {
+            "m": "dc73c74c3f57c6ff0c2d9016c333507f",
+            "alg": "ed25519",
+            "pk": "36PB0K4lVKaN2b-Y5enOb3leZmkKm3gPAPs5mY-ROCU",
+            "epk": "BCf1caClyddzW3eL7PHALmGl6RM7F_5z0lFceUJl0VjwcvFRkm06ewRvBlCBFskxz8Altd95EVo8qxZxHEee3Nk",
+            "e": 2980472,
+            "ts": 1788283204000,
+            "n": "CgCNqQAAAaBd_DGg",
+            "c": "lZlvaD-9DRYApgu_fFDg0iskWgdVddlmX3JZOR_e8LJ4H-lwbdG1eZr0MYaN6lSvcgmq6QpSWUuTRy3g9fhtMUu1lcQLG0VjPRovJTVYl93k2FXIOG31CaIv8iBOwSDsrsF_8h6TVwsxv1RA-cTIJfGnFJkFW53AB_KZewgphXpodpHV6biP1JXlzqnqdpDAAFqL5-dxRRx4oT3P5fR7iiMLkY9DWBZcsLOtJbASBC8zpEx31MUQ6VbrlujVLey4CVWxLxsSMOODcizvuLJE0S5lFGZz4gtYLOpabJoDIYI5JQfDv2iCddf697QoYiEa5cWImWaUE0DzTZJ73LY2eWgg_wwhmEyRYFBf7cmrncCK_ZaD23ui-pRdIcHRz3iT43CSZ4S-Vb6_TpplCwyVRgeTTRPwVdE6MqEYHS5lSyRvwuoCwrSyk7Tjr9WkDpr9KTr2nq0Pt46rq1t6Wc7fH1basbq1bc_6QD0shyWPJZW3GWrfdEbsAlEYBsWSLkucYeLBplfPeIIFjIqmQ1KWlTKlo2k_4nUvYi1WX5bjHYbQaAQNcN1PXrrvfiQ5hdvncYmdRckyBTi7oVhaAjfL3-_PtImn2q8hhg-5QJZedpuJMMlybJbd5SXeDEzL5sIMMLe8vXma7c5MZ_zX3KEVc4RSzP5EXFJsE9G2A9dcH9Z6OJ6Ut-wwhxl7Rhy1IHXS",
+            "sig": "I-k5I3jJKs_JQ-r2fuXgRb4xc8KvrjzSy6RN4xBDCtQw0RZWQZldbxTliPudzKbGMIQE08AGNcHTxFus1yZrCQ"
+          },
+          "plaintext": {
+            "v": 2,
+            "ts": 1788283204000,
+            "t": "rekey",
+            "g": 1,
+            "e0": 2980472,
+            "me": 2980472,
+            "to": "cfeb6c3eedeab2f19faf80ee98930d20",
+            "eph": "BHdTFg9yt0g-fLbmCg-qJmle9rN-voppBy0-D84_r6YmeXXWEAqJFWyE-ahbiMj1S8_IGzSGgdKHkJULsJPSwCY",
+            "w": "iIWRKtVFtlq9yfL0QTIYaCEG9tJTh_7UzPqjK4hFLgc-zT6xv5iswDIiXhfzBOEXpuFaU6OwsQjTS1Yt",
+            "rm": [],
+            "rh": "W9DL9QIok5IlC_F3JA_ZA5xu0J_3q0g1HVKcBpFa8DQ"
+          }
+        },
+        {
+          "ephLabel": "eph2",
+          "to": "C",
+          "post": {
+            "m": "dc73c74c3f57c6ff0c2d9016c333507f",
+            "alg": "ed25519",
+            "pk": "36PB0K4lVKaN2b-Y5enOb3leZmkKm3gPAPs5mY-ROCU",
+            "epk": "BCf1caClyddzW3eL7PHALmGl6RM7F_5z0lFceUJl0VjwcvFRkm06ewRvBlCBFskxz8Altd95EVo8qxZxHEee3Nk",
+            "e": 2980472,
+            "ts": 1788283204001,
+            "n": "SeycIQAAAaBd_DGh",
+            "c": "ykc7dbeGnSIOiug-TEwS4SRjzzZgRKf3aUyEKawPDsTTp4To0vLqxBU3fUlraP1D38MvtSXYJqNFBd_u-MCuUjQxB1nvpIIQhTxdnY8jWNBp8ZLZZ3ujdzBX0HtIkGbk5BUYFSPNpx5YGZUy1YsvG23QvcHCrjpD62aFubz1YAVYsazcqwtUB1SruMnXKn9USaXXAAbf9q3zTU5sMw2mwTijGSQtpbAGYwTIYYMl-Qi4kmeYtgEF30zQRpk_pFiDQwZn5uPVfIcWSHCwTc2kWWV3m3TubgBeC3B9ndpEwXtRj7j0evDibNn2gMs8pIv5oCen7YIBy6XOOIG-UNUMQt13tvF6-bzC4JmObHQEJJujo7yYQYDmKjiVtDg5iV5JEx2S3PnfiAojjfzIe02wzbPLihMPTQefCdBDVky0KJDvNeGAdG3VxDWQ_Vv2cioXyk_7Ep4BZa0NElGduc09UfF4U1B73NNacnekdv1_GTL_n26icGKJS62bvVV8-puGbRG7CbAwykmydO_gMs6xyu__MsWG7YFQ4rLQCVnTVTGOzRYi9aDiaROMCsDmL4-EQNHHTCGu00AG73UZ8mfJd_4lFcOfSrbCw4U3kPFsNOLkmyCVJPL8tmotvZZg9EL6atYBo5JmC3Q_WEaER1ODxVbF71icjQfaJEQBuJRmfKNp5VA366ZQTBAhTqrXOqHv",
+            "sig": "q2eR97VORDrVBtf4qvodZwCpbpx_ZQWUmwwNHKHdmzfn-HxO5NU-KNxbUWXI_414UFAg5dZeZ7gxiRRNDzrgBw"
+          },
+          "plaintext": {
+            "v": 2,
+            "ts": 1788283204001,
+            "t": "rekey",
+            "g": 1,
+            "e0": 2980472,
+            "me": 2980472,
+            "to": "cc64a120fd33c1a3abc16130f636c528",
+            "eph": "BDZhMEZfTFIt_z8WRFVJFfGK1_K313KdGtPx9MPSJaexA91AEtj2Xy8vZA3UjTz_KtJTD-ItcB_i7RnGmsrTV4c",
+            "w": "r9wt2BNAz1ezq8xBk-54t2939VCAamN5L2T5nEGieGAGjtpkaXP2r1GREmxbd_WDep0qdPmMhACMK-hU",
+            "rm": [],
+            "rh": "W9DL9QIok5IlC_F3JA_ZA5xu0J_3q0g1HVKcBpFa8DQ"
+          }
+        }
+      ],
+      "expect": "accept"
+    },
+    {
+      "kind": "welcome",
+      "note": "The inviter posts generation 1's seed to the invite channel, sealed to C's agreement key and signed by the circle identity the invite link commits to, and then burns the invitation. C checks the sender against that commitment BEFORE using any of it: a welcome from anyone else is refused, which is what stops whoever else saw the link from owning the joining device. The wrap's AAD binds `context` the same way a re-key wrap does, here the inviter id + g + e0, so it opens only as the inviter's. `n` is how many member records follow, one per member other than C, each sealed under this same context; they are not recorded here. A short delivery is refused rather than joined: a joiner missing them can decrypt the circle and attribute no re-key at all. C joins a generation that did not exist a moment ago, so there is no backlog to read.",
+      "channel": "ec167a0c69b9cb78e6d9423990062684",
+      "by": "A",
+      "to": "C",
+      "g": 1,
+      "e0": 2980472,
+      "n": 2,
+      "context": "starling/v2/welcome|dc73c74c3f57c6ff0c2d9016c333507f|1|2980472",
+      "eph": "BBOSL6CYKdd1gmLQ8OoSZnSERXKVMbuYvfxBvhF5h-tUtXNZknvhv5yWoPF3SggUk_wTr4hmSdJFR-RXke4NoBw",
+      "w": "IlhUt2EldnZl8xIMn8KvGNrv9lGuexHxL9UOjfJsMwDuPon4jH0Se3Yngq24dvZ9u9JADD_l9mMvAb1F",
+      "seed": "093d849afcebcb725273c4d67ecfe04964ca2284ff0395983ce024952d615d1e",
+      "expect": "accept"
+    },
+    {
+      "kind": "post",
+      "note": "C's first point, on the new channel",
+      "g": 1,
+      "channel": "fc41f5d4ce4f7c09d8006c4b4bc4d367",
+      "by": "C",
+      "e": 2980472,
+      "ts": 1788283205000,
+      "plaintext": {
+        "v": 2,
+        "ts": 1788283205000,
+        "t": "loc",
+        "lat": 44.98,
+        "lon": -93.27,
+        "acc": 12,
+        "name": "Cass"
+      },
+      "post": {
+        "m": "cc64a120fd33c1a3abc16130f636c528",
+        "alg": "ed25519",
+        "pk": "JAeo4Vy4e1oAicfyJtu2sFnSeIFmuq6AP0U3C9O0MZk",
+        "epk": "BLlMd0wFoXRw8s0RA854DVLeoDPbtd7e_2rg3TLUQ9ie3qzF3CAEL_Yz32ZF4j3jsHQCLaiVQ1qsiE9vGTrLwjU",
+        "e": 2980472,
+        "ts": 1788283205000,
+        "n": "LYnL9QAAAaBd_DWI",
+        "c": "bXvIA8PpYk7587WX49pHi9vra8TtKPVS_oHGy668GJ-f07LbNPFAAtSi_JaWJUpLwdlLX19_79Nbj0-Gafdm5pDupDzUZ6bCVJAkQPGFLVA7sA6O5EuR5YIGsEoYLm6-J28Gsq2f8kDFWmU6YwTEPuGJlUDSpZmFqD04w1dWC-BeHuFw5aMsllh6Mik943GQAnlaiorIDxlSL5KT-GBJ8hu2B1txp-Sl3xHArp59ShglJEwWXgiATOdWMUDRTv7-9gyx1SKua2kGsQCsvEYPG3BfnwIOaI0t65S8ecc2GuipNGnXlVfIt6R5dmecR1HyV3arBq396I5HzYqMC-TWzAxOJMvRmBhhNOgMO7PSv3uqEhH11wYP2I9e8tmebg6ggKgUNFC0Ac09ccajlICjI8dBq46lv-phrrJ0DxSKvffE5kOlzp4Zj8gS1-nARgf-_LsRjSdOXRj25TuiVknAUsbskAL_1_-uj_RIKPIY10p050PhMRjxo2_r6j9cYTleHKsvBwfXLD5q0E5EiaZwH22sHECjs1GiWAwXtQD3VkZMotGg9-MtmB6JyI7tuvadp0sgzP-abgHmUlCwa9_19yz6pUQTykluMNYspOKL7tLAFoq9vvUtygw_6uG1ozWN7L1Lz_u2ZM5o0oBg1CAbhyb3wp7JoPMQioGy3HApcy255XsqtW6fBEnl-0vOeg3o",
+        "sig": "_FS_GBAILNc2KnrhU3UgthfYwAHbVdbhxe7GVi6aDh-uYlvGTuVL58j2PaDqTw45PXAna1uhiZaGQpnNniMWDg"
+      },
+      "expect": "accept"
+    },
+    {
+      "kind": "post",
+      "note": "out of order: B's point from epoch mix+1 reaches the receiver three epochs later, after the ratchet has already moved on. It still opens, because the key is chosen by the epoch carried on the wire and mix+1 is still inside the history window.",
+      "g": 1,
+      "channel": "fc41f5d4ce4f7c09d8006c4b4bc4d367",
+      "by": "B",
+      "e": 2980473,
+      "ts": 1788283806000,
+      "deliveredAtEpoch": 2980476,
+      "historyEpochs": 6,
+      "plaintext": {
+        "v": 2,
+        "ts": 1788283806000,
+        "t": "loc",
+        "lat": 44.9,
+        "lon": -93.2,
+        "acc": 12,
+        "name": "Bo"
+      },
+      "post": {
+        "m": "cfeb6c3eedeab2f19faf80ee98930d20",
+        "alg": "ed25519",
+        "pk": "EoYKAK83wkv2TQQccrgxBBKnFPzKQv4N2MfXBOA7Jhc",
+        "epk": "BK64m1dCpPCvvTckayNfd14qwKcXoSW3tD6EQMl2IOJbwBpmS5_QCs9LN2KTOvr899zQxZgLOekj-yaEQ63xEwI",
+        "e": 2980473,
+        "ts": 1788283806000,
+        "n": "K6VsqwAAAaBeBWEw",
+        "c": "NfIbwpeFf67EdLexCs-WHabYzQxO9I3NK2u3OHeCNp_7cz_PrLgcX3c4V0BsoAQV6BDSBS2wmkq7x3noS4HidRy4xit57UP9QBiPee7cnHBZQ1gMizWuMIVWJsehuIQXZy9Oc4SqMVPzTAyXasmZZxELnfJ2zBZQ2M0W20a-5YDe0FCpAajgvsoH5KLaUmtKzLGpJa0SHi-1PEToW4NP3gBCRoZrLd3k1lBcS6H6O9jublBD7FQTjwDvhfWylFke0sEXAEz9Qwt_bSOU6ZG_IzU6RXoRuziRps_OE-At0LoXtz3rDa7PoxZCIzOpeaClpNUvfziP_H3i8wsD6mqrADZFVmwAZe4AURfwKVqM-JJ9xPitFDtr0Nbyu4hDvrBdfPbCpWSnaY_-zvv2HqIhDZ5eq-4xsQEQhqaLmJWY8gTbXq9DNnHLXNxvD2b6c_wV3F0HreW26ohN2_ejkvWVFmi2RAJnCqlgnNjjWqr7cLsx9h7-JkIcTe42boZqnzyblGwI3kiGVKq2qsyOL0kVjzN1oGvR5YVauPiVLReBSKpF2aK_WkRLaaeOgIktmWUm9HQekd5AUniG3uyIITxbeOeknhVoghOgQyUHZh2sxCgTC2_RdkZE1k0AgLYLaOd3-jsrQHug1tRu8VQWWL1HAGFOXUHnDmDjV00E0y8mNGebFnPjKT5ezGtPxZ7RAL5B",
+        "sig": "8Rz7SDwR8mCZoCiWqLmIb0TlvLkjmUsSvmwrBGYmythptGdc8K5x1xNaB4ikU-OPSgME3r39SvGvKq7GBahxBA"
+      },
+      "expect": "accept"
+    },
+    {
+      "kind": "post",
+      "note": "the same point delivered after the window has closed. Nothing about it changed; the key it needs no longer exists on the receiving device. That is the forward secrecy working, not a failure.",
+      "g": 1,
+      "channel": "fc41f5d4ce4f7c09d8006c4b4bc4d367",
+      "by": "B",
+      "e": 2980473,
+      "ts": 1788283806000,
+      "deliveredAtEpoch": 2980493,
+      "historyEpochs": 6,
+      "post": {
+        "m": "cfeb6c3eedeab2f19faf80ee98930d20",
+        "alg": "ed25519",
+        "pk": "EoYKAK83wkv2TQQccrgxBBKnFPzKQv4N2MfXBOA7Jhc",
+        "epk": "BK64m1dCpPCvvTckayNfd14qwKcXoSW3tD6EQMl2IOJbwBpmS5_QCs9LN2KTOvr899zQxZgLOekj-yaEQ63xEwI",
+        "e": 2980473,
+        "ts": 1788283806000,
+        "n": "K6VsqwAAAaBeBWEw",
+        "c": "NfIbwpeFf67EdLexCs-WHabYzQxO9I3NK2u3OHeCNp_7cz_PrLgcX3c4V0BsoAQV6BDSBS2wmkq7x3noS4HidRy4xit57UP9QBiPee7cnHBZQ1gMizWuMIVWJsehuIQXZy9Oc4SqMVPzTAyXasmZZxELnfJ2zBZQ2M0W20a-5YDe0FCpAajgvsoH5KLaUmtKzLGpJa0SHi-1PEToW4NP3gBCRoZrLd3k1lBcS6H6O9jublBD7FQTjwDvhfWylFke0sEXAEz9Qwt_bSOU6ZG_IzU6RXoRuziRps_OE-At0LoXtz3rDa7PoxZCIzOpeaClpNUvfziP_H3i8wsD6mqrADZFVmwAZe4AURfwKVqM-JJ9xPitFDtr0Nbyu4hDvrBdfPbCpWSnaY_-zvv2HqIhDZ5eq-4xsQEQhqaLmJWY8gTbXq9DNnHLXNxvD2b6c_wV3F0HreW26ohN2_ejkvWVFmi2RAJnCqlgnNjjWqr7cLsx9h7-JkIcTe42boZqnzyblGwI3kiGVKq2qsyOL0kVjzN1oGvR5YVauPiVLReBSKpF2aK_WkRLaaeOgIktmWUm9HQekd5AUniG3uyIITxbeOeknhVoghOgQyUHZh2sxCgTC2_RdkZE1k0AgLYLaOd3-jsrQHug1tRu8VQWWL1HAGFOXUHnDmDjV00E0y8mNGebFnPjKT5ezGtPxZ7RAL5B",
+        "sig": "8Rz7SDwR8mCZoCiWqLmIb0TlvLkjmUsSvmwrBGYmythptGdc8K5x1xNaB4ikU-OPSgME3r39SvGvKq7GBahxBA"
+      },
+      "expect": "reject",
+      "reason": "epoch outside the retained history window"
+    },
+    {
+      "kind": "removal",
+      "note": "B is removed. There is no wrap addressed to B, so B never learns NS2, cannot compute seed_2, and cannot derive generation 2's channel id. B still holds the generation 1 chain key recorded here, and it is worth nothing: the removal is cryptographic, not advisory. B's own keys expire with the current epoch and the circle has moved. The wrap's context names `rm: [B]`; C or a relay altering that list to frame someone else would break the AAD and the wrap would not open.",
+      "by": "A",
+      "fromG": 1,
+      "toG": 2,
+      "fromChannel": "fc41f5d4ce4f7c09d8006c4b4bc4d367",
+      "mixEpoch": 2980473,
+      "me": 2980473,
+      "ckAtMixEpoch": "3a869a382310f253c9e6829e289b2d7f709436cb191bd90c8722a4e37a7b8cf4",
+      "ns": "0714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9a",
+      "seed": "e2dec7aaead6a809960d32193085355350cd8394c4855431797d65f09717e0f5",
+      "rosterHash": "9Tf3fQi4_eYzig_uwLUBJDJVRGLiBQkw7U5Zwd5hwkA",
+      "removed": [
+        "cfeb6c3eedeab2f19faf80ee98930d20"
+      ],
+      "context": "dc73c74c3f57c6ff0c2d9016c333507f|2|2980473|2980473|9Tf3fQi4_eYzig_uwLUBJDJVRGLiBQkw7U5Zwd5hwkA|cfeb6c3eedeab2f19faf80ee98930d20",
+      "posts": [
+        {
+          "ephLabel": "eph1",
+          "to": "C",
+          "post": {
+            "m": "dc73c74c3f57c6ff0c2d9016c333507f",
+            "alg": "ed25519",
+            "pk": "36PB0K4lVKaN2b-Y5enOb3leZmkKm3gPAPs5mY-ROCU",
+            "epk": "BCf1caClyddzW3eL7PHALmGl6RM7F_5z0lFceUJl0VjwcvFRkm06ewRvBlCBFskxz8Altd95EVo8qxZxHEee3Nk",
+            "e": 2980473,
+            "ts": 1788283807000,
+            "n": "xv1i3QAAAaBeBWUY",
+            "c": "68O8Et1oeUhDXBDRABFSi5s9QBtHFHRzcUz7p10uRVM8I7LLBhekOiu0Yk90RvxhA36rzBG1gPKafe5JQPzTgOGzYSZnozgD4_R4meP3PeLiZFdw3fURBYFnX76DBNPyoIoVJ3C-S7WuIWu40UFqIAlfK1SnSqAtM5pfoL2A9pZZNH8aHKcxACSH9rJn6bTcrQC7AanRQP5jvA03RXYy7YqoaFVKraKl7Z3N1BEw3KOYo0va_8vF1VxXXuegR0ShgEuG6vy3A1nvkubKg4_p2BC4NXPAJMhT2dG-e89TEPHryFGU4qhPzkoGNfkcPI7sh5stB02pNRSDCGxeJsl3oJ2N14FEtuJVrR6Ttl3osUaQGiUIc_Gv55y5wM7P-9DQoBM3dFcj8ttrz1JANe4NOtCMAxbwvZ-naxGcnTmQRyOVMh3jcd4Wee_EpKExB64IGcvV2fk4OMWf9pgTylr7ThASbLEMDIWcADEOib3X-mELxkXWu7_3z198ZyOQsqfPEtizV9sXEmy2wIkNU2LpQwslidIR9EaospQhXQAg5jUaDwu--SJGrddLgJhwRDG3M55OEzypUuFgku1h4AhBNEipsXOKvJuYZL8_JtIYmgYcw8XntQjdJLj5JkicAr8-rn-bt8QByUNk88pUCas96LBRYlUgg4ZNiOjSJMxQoOaCpmeBquDMYqvmnJObZ2xI",
+            "sig": "84jyFE5nFdeWcax7JIRuKLCmy0OJLtQkasnsxu-7kDt3qAgUcnG0IslP06Vt7DUk4NdkfL4apU85KozBLf6BBA"
+          },
+          "plaintext": {
+            "v": 2,
+            "ts": 1788283807000,
+            "t": "rekey",
+            "g": 2,
+            "e0": 2980473,
+            "me": 2980473,
+            "to": "cc64a120fd33c1a3abc16130f636c528",
+            "eph": "BHdTFg9yt0g-fLbmCg-qJmle9rN-voppBy0-D84_r6YmeXXWEAqJFWyE-ahbiMj1S8_IGzSGgdKHkJULsJPSwCY",
+            "w": "zYmA47S_68t6j86kIVPogtg-URdf58BpR3TbMDZz7c5NKjS0TrtRdDkZIDaIVHcrkVs93CkqhHbtnCLm",
+            "rm": [
+              "cfeb6c3eedeab2f19faf80ee98930d20"
+            ],
+            "rh": "9Tf3fQi4_eYzig_uwLUBJDJVRGLiBQkw7U5Zwd5hwkA"
+          }
+        }
+      ],
+      "holdout": {
+        "member": "B",
+        "holds": "3a869a382310f253c9e6829e289b2d7f709436cb191bd90c8722a4e37a7b8cf4",
+        "cannotDerive": "e2dec7aaead6a809960d32193085355350cd8394c4855431797d65f09717e0f5",
+        "cannotReach": "acce241586da719498596a049c4df1c4"
+      },
+      "expect": "accept"
+    }
+  ]
+}

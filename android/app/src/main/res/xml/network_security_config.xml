@@ -1,7 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- HTTPS only, everywhere, no exceptions. Custom relays are https by
      validation in the app, and this makes cleartext impossible at the
-     platform level too. -->
+     platform level too.
+
+     No certificate pin-set: a relay address is a user setting (see
+     docs/ANDROID.md, "Custom relay"), not a fixed domain we control, so
+     there is no single cert or CA to pin without either breaking
+     self-hosted relays or needing an update every time a relay operator
+     rotates certs. The system trust store plus cleartext-off is the right
+     tradeoff here; the payload is E2EE regardless of what the relay's TLS
+     terminates. -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />
 </network-security-config>

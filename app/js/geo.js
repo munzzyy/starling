@@ -77,6 +77,21 @@ export function startWatch(onFix, onError) {
   return () => navigator.geolocation.clearWatch(id);
 }
 
+// Best-effort read of geolocation permission state, for a UI that wants to
+// show why it is about to ask before spending the prompt. Safari does not
+// implement the Permissions API for geolocation (query() rejects there), so
+// the honest answer on iOS is always "unknown" and the caller falls back to
+// asking outright; every other engine gets a real answer for free.
+export async function geoPermissionState() {
+  try {
+    if (!navigator.permissions?.query) return "unknown";
+    const status = await navigator.permissions.query({ name: "geolocation" });
+    return status.state; // "granted" | "denied" | "prompt"
+  } catch {
+    return "unknown";
+  }
+}
+
 let batteryPromise;
 
 export async function batteryLevel() {

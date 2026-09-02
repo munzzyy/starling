@@ -1,0 +1,64 @@
+{
+  "note": "member_id = first 32 hex chars (128 bits) of SHA-256('starling/v2/member' || pk || epk). The safety number is the first 30 decimal digits of SHA-256('starling/v2/fp' || pk || epk), taken three digest bytes at a time as a 24-bit integer mod 100000, in six groups of five. Both commit to BOTH public keys, so pinning an id pins the signing key and the agreement key together.",
+  "memberLabel": "starling/v2/member",
+  "fpLabel": "starling/v2/fp",
+  "idBits": 128,
+  "cases": [
+    {
+      "label": "A",
+      "alg": "ed25519",
+      "pk": "36PB0K4lVKaN2b-Y5enOb3leZmkKm3gPAPs5mY-ROCU",
+      "epk": "BCf1caClyddzW3eL7PHALmGl6RM7F_5z0lFceUJl0VjwcvFRkm06ewRvBlCBFskxz8Altd95EVo8qxZxHEee3Nk",
+      "memberId": "dc73c74c3f57c6ff0c2d9016c333507f",
+      "safetyNumber": "79320 91948 00309 34269 25169 66015"
+    },
+    {
+      "label": "B",
+      "alg": "ed25519",
+      "pk": "EoYKAK83wkv2TQQccrgxBBKnFPzKQv4N2MfXBOA7Jhc",
+      "epk": "BK64m1dCpPCvvTckayNfd14qwKcXoSW3tD6EQMl2IOJbwBpmS5_QCs9LN2KTOvr899zQxZgLOekj-yaEQ63xEwI",
+      "memberId": "cfeb6c3eedeab2f19faf80ee98930d20",
+      "safetyNumber": "76947 54915 11073 47140 77853 90146"
+    },
+    {
+      "label": "C",
+      "alg": "ed25519",
+      "pk": "JAeo4Vy4e1oAicfyJtu2sFnSeIFmuq6AP0U3C9O0MZk",
+      "epk": "BLlMd0wFoXRw8s0RA854DVLeoDPbtd7e_2rg3TLUQ9ie3qzF3CAEL_Yz32ZF4j3jsHQCLaiVQ1qsiE9vGTrLwjU",
+      "memberId": "cc64a120fd33c1a3abc16130f636c528",
+      "safetyNumber": "08391 42076 35319 39353 90302 83391"
+    },
+    {
+      "label": "zeros",
+      "alg": "ed25519",
+      "pk": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "epk": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "memberId": "f00e016dc606b8e419d5424bf601e1d3",
+      "safetyNumber": "57225 92373 07354 08812 20552 08428"
+    },
+    {
+      "label": "ones",
+      "alg": "ed25519",
+      "pk": "__________________________________________8",
+      "epk": "______________________________________________________________________________________8",
+      "memberId": "2ffc31b0dc156a57e68f220ff5492214",
+      "safetyNumber": "25791 95616 65002 98925 22467 81532"
+    },
+    {
+      "label": "p256-signing-key",
+      "alg": "ed25519",
+      "pk": "AQoTHCUuN0BJUltkbXZ_iJGao6y1vsfQ2eLr9P0GDxg",
+      "epk": "AgcMERYbICUqLzQ5PkNITVJXXGFma3B1en-EiY6TmJ2ip6yxtrvAxcrP1Nne4-jt8vf8AQYLEBUaHyQpLjM4PUI",
+      "memberId": "3b033a1fcf872a312da68544f94e6b71",
+      "safetyNumber": "68557 06066 77232 66232 52073 35892"
+    },
+    {
+      "label": "p256-65-byte-pk",
+      "alg": "p256",
+      "pk": "BAcKDRATFhkcHyIlKCsuMTQ3Oj1AQ0ZJTE9SVVhbXmFkZ2ptcHN2eXx_goWIi46RlJeanaCjpqmsr7K1uLu-wcQ",
+      "epk": "CxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM_W3eTr8vkABw4VHCMqMTg_Rk1UW2JpcHd-hYyTmqGor7a9xMs",
+      "memberId": "beab421cf8437fef25ea2f402a7cb789",
+      "safetyNumber": "64109 89698 50418 21666 47256 70763"
+    }
+  ]
+}

@@ -28,7 +28,11 @@ test("manifest has the required fields", () => {
   );
   assert.equal(manifest.start_url, "/");
   assert.equal(manifest.scope, "/");
-  assert.equal(manifest.display, "browser");
+  // "standalone" is what makes Add to Home Screen open without Safari/Chrome
+  // chrome; iOS falls back to "browser" gracefully on versions that ignore
+  // the manifest, since index.html carries the same setting via
+  // apple-mobile-web-app-capable for those.
+  assert.equal(manifest.display, "standalone");
   assert.equal(manifest.orientation, "portrait");
   assert.equal(manifest.background_color, "#0a0d14");
   assert.equal(manifest.theme_color, "#0a0d14");
@@ -139,3 +143,29 @@ for (const p of PRECACHE) {
     });
   }
 }
+
+test("every module the app statically imports is in the precache", () => {
+  // The existing checks above assert that a frozen, hand-written list appears
+  // in sw.js. That direction cannot catch a NEW module: joinflow.js was added
+  // to main.js's import graph and left out of PRECACHE, and every test here
+  // stayed green while the hosted app stopped booting offline. cache.addAll
+  // still succeeds because nothing ever requests the missing file, so install
+  // does not fail loudly either.
+  //
+  // So walk the real graph instead of a list somebody has to remember to edit.
+  const root = new URL("../app/js/", import.meta.url);
+  const seen = new Set();
+  const queue = ["main.js"];
+  while (queue.length) {
+    const name = queue.shift();
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const src = readFileSync(new URL(name, root), "utf8");
+    for (const m of src.matchAll(/from "\.\/([\w.-]+\.js)"/g)) queue.push(m[1]);
+  }
+
+  const sw = readFileSync(new URL("../app/sw.js", import.meta.url), "utf8");
+  const missing = [...seen].filter((n) => !sw.includes(`"/js/${n}"`));
+  assert.deepEqual(missing, [], `these are imported but never precached: ${missing.join(", ")}`);
+  assert.ok(seen.size > 10, "the walk actually followed the graph rather than finding nothing");
+});

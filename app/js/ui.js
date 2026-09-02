@@ -320,7 +320,14 @@ export function openIdentitySheet({ title, intro, cta, profile, circleName, onSa
 
 export function openJoinSheet({ profile, hasCircle, circleName, onJoin }) {
   const ov = openOverlay({ title: "Join a circle", testid: "join-sheet" });
-  ov.body.append(el("p", "ov-note", "You have an invite to a circle. Set up how you will appear to the people in it."));
+  ov.body.append(
+    el("p", "ov-note", "You have an invite to a circle. Set up how you will appear to the people in it."),
+    el(
+      "p",
+      "ov-note",
+      "This sends a request. Somebody already in the circle has to check your safety number and accept it before you can see anyone, or they you.",
+    ),
+  );
   if (hasCircle) {
     ov.body.append(
       el("p", "ov-note", "Your current circle stays. This adds a new one, and you can switch between them from the circle name at the top of the map."),
@@ -333,7 +340,7 @@ export function openJoinSheet({ profile, hasCircle, circleName, onJoin }) {
     cn = circleNameField(circleName);
     ov.body.append(cn.field);
   }
-  const join = btn("btn btn-primary", "Join circle");
+  const join = btn("btn btn-primary", "Ask to join");
   join.dataset.testid = "join-confirm";
   const sync = () => (join.disabled = input.value.trim().length === 0);
   input.addEventListener("input", sync);
@@ -424,171 +431,704 @@ export function openCircleSheet({ current, others, onSwitch, onCreate, onJoin })
   return ov;
 }
 
-// --------------------------------------------------------- help link sheet
+// --------------------------------------------------------- safety numbers
 
-// Shown after an SOS. The link goes to whoever can actually help right now,
-// including people who will never install anything: it opens a page that
-// follows this one emergency and nothing else.
-export function openHelpSheet({ link, onEnd }) {
-  const ov = openOverlay({ title: "Get outside help", testid: "help-sheet", className: "ov-invite" });
+// A safety number exists to be read out loud to another person, so it is set
+// in a mono block with the six groups kept whole: a group that wraps halfway
+// is a group somebody misreads.
+export function safetyBlock(number, testid) {
+  const wrap = el("div", "safety");
+  if (testid) wrap.dataset.testid = testid;
+  setSafety(wrap, number);
+  return wrap;
+}
 
-  const linkRow = el("div", "link-row");
-  const linkText = el("code", "invite-link");
-  linkText.dataset.testid = "help-link";
-  linkText.textContent = link;
-  linkRow.append(linkText);
+// The numbers are derived asynchronously, so a row paints first and fills in.
+export function setSafety(wrap, number) {
+  wrap.replaceChildren();
+  const groups = String(number || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!groups.length) {
+    wrap.classList.add("safety-wait");
+    wrap.append(el("span", "safety-g", "-----"));
+    wrap.setAttribute("aria-label", "Safety number loading");
+    return wrap;
+  }
+  wrap.classList.remove("safety-wait");
+  // Real spaces between the groups, not just a CSS gap: this block is meant to
+  // be selected and pasted into the channel you are checking it over, and six
+  // groups run together is a number nobody can read back.
+  groups.forEach((g, i) => {
+    if (i) wrap.append(" ");
+    wrap.append(el("span", "safety-g", g));
+  });
+  wrap.setAttribute("aria-label", `Safety number ${groups.join(" ")}`);
+  return wrap;
+}
 
-  const share = btn("btn btn-primary", "Share link");
-  const copy = btn("btn btn-secondary btn-copy", "Copy link");
+// Countdowns for the two things that expire: an invitation and a help link.
+// Coarse on purpose. A ticking second hand on something you are about to hand
+// to somebody reads as pressure, and these are read under pressure already.
+export function fmtCountdown(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return "expired";
+  if (ms < 60000) return "under a minute";
+  const mins = Math.floor(ms / 60000);
+  if (mins < 60) return `${mins} min`;
+  return `${Math.floor(mins / 60)} h ${String(mins % 60).padStart(2, "0")} min`;
+}
 
-  share.addEventListener("click", async () => {
-    // The OS share sheet is the fast path under stress: it reaches the
-    // messaging apps someone already has open. Clipboard is the fallback.
-    if (navigator.share) {
-      try {
-        await navigator.share({ text: `Follow my location: ${link}` });
-        return;
-      } catch {
-        // cancelled or unavailable: fall through to copying
-      }
-    }
+// ---------------------------------------------------------- link handoff
+
+async function copyLink(link, msg) {
+  try {
+    await navigator.clipboard.writeText(link);
+    toast(msg);
+  } catch {
+    toast("Copy failed. Long-press the link instead.", "warn");
+  }
+}
+
+// The OS share sheet is the fast path under stress: it reaches the messaging
+// apps someone already has open. Clipboard is the fallback.
+async function shareLink(link, lead, msg) {
+  if (navigator.share) {
     try {
-      await navigator.clipboard.writeText(link);
-      toast("Help link copied");
+      await navigator.share({ text: `${lead} ${link}` });
+      return;
     } catch {
-      toast("Copy failed. Long-press the link instead.", "warn");
+      // cancelled or unavailable: fall through to copying
     }
+  }
+  await copyLink(link, msg);
+}
+
+// ---------------------------------------------------------------- alerts
+//
+// The states this app refuses to settle quietly: a member's keys changing,
+// somebody waiting to be let in, a clock that has made you invisible. main.js
+// decides what is true and writes the words; this keeps the cards stable
+// across renders so one never jumps out from under a thumb.
+
+export function updateAlerts(container, items) {
+  const existing = new Map();
+  for (const node of container.children) existing.set(node.dataset.alert, node);
+  for (const item of items) {
+    let node = existing.get(item.id);
+    if (node) {
+      existing.delete(item.id);
+    } else {
+      node = el("div", "notice");
+      node.dataset.alert = item.id;
+      node.dataset.testid = "alert";
+      // Set once, at build time: re-asserting it on every render would make a
+      // screen reader read a standing warning out again every five seconds.
+      if (item.kind !== "info") node.setAttribute("role", "alert");
+      node.append(el("p", "notice-title"), el("p", "notice-text"), el("div", "notice-actions"));
+    }
+    node.className = `notice notice-${item.kind || "warn"}`;
+    const title = node.querySelector(".notice-title");
+    const text = node.querySelector(".notice-text");
+    if (title.textContent !== item.title) title.textContent = item.title;
+    if (text.textContent !== item.text) text.textContent = item.text;
+    const acts = node.querySelector(".notice-actions");
+    const wanted = (item.actions || []).map((a) => a.label).join("|");
+    if (acts.dataset.labels !== wanted) {
+      acts.replaceChildren();
+      for (const a of item.actions || []) {
+        const b = btn(`btn btn-small ${a.variant || "btn-secondary"}`, a.label);
+        if (a.testid) b.dataset.testid = a.testid;
+        acts.append(b);
+      }
+      acts.dataset.labels = wanted;
+    }
+    acts.hidden = !(item.actions || []).length;
+    [...acts.children].forEach((b, i) => {
+      b.onclick = item.actions[i].onClick;
+    });
+    container.append(node);
+  }
+  for (const node of existing.values()) node.remove();
+}
+
+// ----------------------------------------------------------- members sheet
+//
+// Pinning a member the first time their keys check out is trust on first use
+// and nothing more. This screen is where that becomes a checked identity: the
+// safety numbers, big enough to read down a phone line, what this device
+// currently believes about each person, and the two decisions a human can
+// make. It is one tap from the map because it is the whole difference between
+// "the app says this is Ana" and "I know this is Ana".
+
+function memberRow(api, id, { onChanged }) {
+  const node = el("div", "mem-row");
+  node.dataset.testid = "member-row";
+  node.dataset.member = id;
+
+  const head = el("div", "mem-head");
+  const name = el("div", "mem-name");
+  name.dataset.testid = "member-row-name";
+  const pill = el("span", "verify-pill");
+  head.append(name, pill);
+
+  const safety = safetyBlock(null, "member-safety");
+
+  // A key change replaces the plain number with both numbers side by side,
+  // because the only useful question at that point is which of the two the
+  // member reads back to you.
+  const change = el("div", "key-change");
+  change.dataset.testid = "key-change";
+  const changeText = el("p", "ov-warn-note");
+  const pair = el("div", "safety-pair");
+  const wasBlock = safetyBlock(null, "safety-was");
+  const nowBlock = safetyBlock(null, "safety-now");
+  const wasCol = el("div", "safety-col");
+  wasCol.append(el("span", "safety-cap", "Was"), wasBlock);
+  const nowCol = el("div", "safety-col");
+  nowCol.append(el("span", "safety-cap", "Now"), nowBlock);
+  pair.append(wasCol, nowCol);
+  const acceptBtn = btn("btn btn-secondary btn-small", "Accept the new keys");
+  acceptBtn.dataset.testid = "key-accept";
+  change.append(changeText, pair, acceptBtn);
+
+  const hint = el("p", "field-note");
+
+  const actions = el("div", "mem-actions");
+  const verifyBtn = btn("btn btn-secondary btn-small", "Mark verified");
+  verifyBtn.dataset.testid = "member-verify";
+  const removeBtn = btn("btn btn-danger-ghost btn-small", "Remove");
+  removeBtn.dataset.testid = "member-remove";
+  actions.append(verifyBtn, removeBtn);
+
+  const confirm = el("div", "confirm-box");
+  confirm.hidden = true;
+  const confirmText = el("p", "ov-note");
+  const confirmGo = btn("btn btn-danger btn-small", "Remove them");
+  confirmGo.dataset.testid = "member-remove-confirm";
+  confirm.append(confirmText, confirmGo);
+
+  node.append(head, safety, change, hint, actions, confirm);
+
+  let cur = { name: "Member", verified: false };
+
+  verifyBtn.addEventListener("click", async () => {
+    verifyBtn.disabled = true;
+    try {
+      await api.markVerified(id, !cur.verified);
+    } finally {
+      verifyBtn.disabled = false;
+    }
+    onChanged();
   });
 
-  copy.addEventListener("click", async () => {
+  removeBtn.addEventListener("click", () => {
+    confirm.hidden = !confirm.hidden;
+    if (!confirm.hidden) confirm.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  });
+
+  confirmGo.addEventListener("click", async () => {
+    confirmGo.disabled = true;
+    const who = cur.name;
     try {
-      await navigator.clipboard.writeText(link);
-      toast("Help link copied");
+      // null is a re-key that did not happen; false is the circle guard's
+      // busy-bail, which has already said so.
+      const out = await api.removeMember(id);
+      if (out) toast(`${who} is out. Everyone else has new keys.`);
+      else if (out === null) toast("Could not remove them. Nothing changed.", "warn");
     } catch {
-      toast("Copy failed. Long-press the link instead.", "warn");
+      toast("Could not remove them. Nothing changed.", "warn");
     }
+    confirmGo.disabled = false;
+    confirm.hidden = true;
+    onChanged();
+  });
+
+  acceptBtn.addEventListener("click", async () => {
+    acceptBtn.disabled = true;
+    const who = cur.name;
+    try {
+      if (await api.acceptKeyChange(id)) toast(`${who} is now pinned to the new keys.`);
+    } finally {
+      acceptBtn.disabled = false;
+    }
+    onChanged();
+  });
+
+  function update({ name: who, verified, safety: number, change: ch }) {
+    cur = { name: who, verified: !!verified };
+    name.textContent = who;
+    // Marking somebody verified while their keys are in question would be
+    // verifying the wrong thing, so that action is not offered until the
+    // change is answered.
+    pill.textContent = ch ? "Keys changed" : verified ? "Verified" : "Not verified";
+    pill.className = `verify-pill ${ch ? "vp-alert" : verified ? "vp-on" : "vp-off"}`;
+    verifyBtn.hidden = !!ch;
+    verifyBtn.textContent = verified ? "Mark not verified" : "Mark verified";
+    confirmText.textContent = `Everyone else gets new keys. ${who} can read nothing this circle sends from now on, and is not told. What they already saw, they keep.`;
+    if (ch) {
+      node.classList.add("mem-changed");
+      change.hidden = false;
+      safety.hidden = true;
+      changeText.textContent = `${who} is answering with different keys. That is a reinstall, or somebody else in their place, and this phone cannot tell which. Their location stays off your map until you accept.`;
+      setSafety(wasBlock, ch.oldSafety);
+      setSafety(nowBlock, ch.newSafety);
+      hint.textContent = `Ask ${who} to read out the number on their screen. If it is the new one, accept it. If it is the old one, or they did not reinstall, remove them.`;
+    } else {
+      node.classList.remove("mem-changed");
+      change.hidden = true;
+      safety.hidden = false;
+      setSafety(safety, number);
+      hint.textContent = verified
+        ? `You have checked this number with ${who}.`
+        : `Read this out to ${who} on a call or in person. The same digits on both screens means nobody is in between.`;
+    }
+  }
+
+  return { node, update };
+}
+
+export function openMembersSheet({ api, onClose }) {
+  const ov = openOverlay({
+    title: "People and keys",
+    testid: "members-sheet",
+    className: "ov-members",
+    onClose,
+  });
+  ov.body.append(
+    el(
+      "p",
+      "ov-note",
+      "Starling trusts whoever first answers with keys that match their member id. Reading these numbers out to each other is what turns that into knowing who is on your map.",
+    ),
+  );
+
+  const you = el("section", "mem-you");
+  const youName = el("div", "mem-name");
+  const youSafety = safetyBlock(null, "own-safety");
+  you.append(
+    el("span", "safety-cap", "Your number"),
+    youName,
+    youSafety,
+    el("p", "field-note", "This is the number your circle should hear from you."),
+  );
+
+  const list = el("div", "mem-list");
+  const empty = el("p", "ov-note", "Nobody else is in this circle yet. Invite someone from the map.");
+  empty.hidden = true;
+  ov.body.append(you, list, empty);
+
+  const rows = new Map();
+  const numbers = new Map();
+  const pending = new Set();
+
+  // Safety numbers do not change while the keys behind them do not, so each is
+  // derived once and kept. A member whose keys DID change is drawn from the
+  // key-change record instead, which carries both numbers already.
+  function need(id) {
+    if (numbers.has(id) || pending.has(id)) return;
+    pending.add(id);
+    api
+      .safetyNumberFor(id)
+      .then((n) => {
+        pending.delete(id);
+        if (!n) return;
+        numbers.set(id, n);
+        refresh();
+      })
+      .catch(() => pending.delete(id));
+  }
+
+  function refresh() {
+    const meId = api.state.identity?.memberId;
+    youName.textContent = api.state.profile?.name || "You";
+    if (meId) {
+      need(meId);
+      setSafety(youSafety, numbers.get(meId));
+    }
+    const changes = new Map(api.keyChanges().map((c) => [c.memberId, c]));
+    const live = new Map(api.members().map((r) => [r.id, r]));
+    const people = api.pinnedList();
+    empty.hidden = people.length > 0;
+    const seen = new Set();
+    for (const rec of people) {
+      const id = rec.memberId;
+      seen.add(id);
+      let row = rows.get(id);
+      if (!row) {
+        row = memberRow(api, id, { onChanged: refresh });
+        rows.set(id, row);
+      }
+      const ch = changes.get(id) || null;
+      if (!ch) need(id);
+      row.update({
+        name: live.get(id)?.name || rec.name || "Member",
+        verified: rec.verified,
+        safety: numbers.get(id) || null,
+        change: ch,
+      });
+      list.append(row.node);
+    }
+    for (const [id, row] of rows) {
+      if (seen.has(id)) continue;
+      row.node.remove();
+      rows.delete(id);
+    }
+  }
+
+  refresh();
+  return { close: ov.close, refresh };
+}
+
+// --------------------------------------------------------- help link sheet
+
+// Shown after an SOS. These links go to whoever can actually help right now,
+// including people who will never install anything. Each one is its own
+// channel with its own key, so one can be cut off without the others noticing,
+// and none of them can see the circle.
+
+function viewerRow(v, { onRevoke, onChanged }) {
+  const node = el("div", "viewer-row");
+  node.dataset.testid = "viewer-row";
+  node.dataset.viewer = v.id;
+  const head = el("div", "viewer-head");
+  const label = el("span", "viewer-label");
+  const when = el("span", "viewer-when");
+  head.append(label, when);
+  const linkRow = el("div", "link-row");
+  const linkText = el("code", "invite-link");
+  linkText.dataset.testid = "viewer-link";
+  linkRow.append(linkText);
+  const actions = el("div", "mem-actions");
+  const share = btn("btn btn-secondary btn-small", "Send");
+  const copy = btn("btn btn-secondary btn-small", "Copy");
+  const revoke = btn("btn btn-danger-ghost btn-small", "Revoke");
+  revoke.dataset.testid = "viewer-revoke";
+  actions.append(share, copy, revoke);
+  node.append(head, linkRow, actions);
+
+  let link = "";
+  share.addEventListener("click", () => shareLink(link, "Follow my location:", "Help link copied"));
+  copy.addEventListener("click", () => copyLink(link, "Help link copied"));
+  revoke.addEventListener("click", async () => {
+    revoke.disabled = true;
+    try {
+      await onRevoke(v.id);
+      toast("That link is dead. The others still work.");
+    } finally {
+      revoke.disabled = false;
+    }
+    onChanged();
+  });
+
+  function update(next) {
+    link = next.link || "";
+    label.textContent = next.label || "Help link";
+    node.classList.toggle("viewer-dead", !!next.revoked);
+    if (next.revoked) {
+      when.textContent = "Revoked";
+      linkRow.hidden = true;
+      actions.hidden = true;
+    } else {
+      const left = fmtCountdown(next.expiresAt - Date.now());
+      when.textContent = next.failing ? "Not reaching the relay" : `Expires in ${left}`;
+      when.classList.toggle("viewer-failing", !!next.failing);
+      linkText.textContent = link;
+      linkRow.hidden = !link;
+      actions.hidden = false;
+    }
+  }
+
+  return { node, update };
+}
+
+export function openHelpSheet({ api, onAdd, onRevoke, onEnd, onClose }) {
+  const ov = openOverlay({
+    title: "Get outside help",
+    testid: "help-sheet",
+    className: "ov-invite",
+    onClose,
   });
 
   ov.body.append(
-    el("p", "ov-note", "Anyone you send this to can watch your live location on any phone or computer, with no app and no account. It shows this emergency only, never your circle."),
-    linkRow,
-    share,
-    copy,
+    el(
+      "p",
+      "ov-note",
+      "Anyone you send one of these to can watch your live location on any phone or computer, with no app and no account. A link shows this emergency only, never your circle, and never the other links.",
+    ),
+  );
+
+  const list = el("div", "viewer-list");
+  list.dataset.testid = "viewer-list";
+  ov.body.append(list);
+
+  const addField = el("label", "field");
+  addField.append(el("span", "field-label", "Another link, for one more person"));
+  const addInput = el("input", "text-input");
+  addInput.type = "text";
+  addInput.maxLength = 40;
+  addInput.placeholder = "Who is it for?";
+  addInput.autocomplete = "off";
+  addInput.dataset.testid = "viewer-label";
+  addField.append(addInput);
+  const addBtn = btn("btn btn-secondary", "Make another link");
+  addBtn.dataset.testid = "viewer-add";
+  addBtn.addEventListener("click", async () => {
+    addBtn.disabled = true;
+    try {
+      const made = await onAdd(addInput.value.trim().slice(0, 40) || "Help link");
+      if (made) {
+        addInput.value = "";
+        toast("New link ready to send.");
+      } else {
+        toast("Could not make another link.", "warn");
+      }
+    } catch {
+      toast("Could not make another link.", "warn");
+    }
+    addBtn.disabled = false;
+    refresh();
+  });
+  ov.body.append(
+    addField,
+    addBtn,
+    el("p", "field-note", "The label is for you. It is never sent anywhere."),
   );
 
   const danger = el("div", "danger-zone");
   danger.append(el("h3", "danger-title", "When you are safe"));
   const endBtn = btn("btn btn-danger-ghost", "Stop sharing with helpers");
+  endBtn.dataset.testid = "help-end";
   endBtn.addEventListener("click", async () => {
     endBtn.disabled = true;
     await onEnd();
-    toast("Help link switched off");
+    toast("Help links switched off");
     ov.close();
   });
   danger.append(
-    el("p", "ov-note", "The link stops updating and shows that the session ended. A new SOS creates a new link."),
+    el("p", "ov-note", "Every link stops updating and shows that the session ended. A new SOS makes new links."),
     endBtn,
   );
   ov.body.append(danger);
-  return ov;
+
+  const rows = new Map();
+
+  function refresh() {
+    const viewers = api.beaconViewers();
+    const seen = new Set();
+    for (const v of viewers) {
+      seen.add(v.id);
+      let row = rows.get(v.id);
+      if (!row) {
+        row = viewerRow(v, { onRevoke, onChanged: refresh });
+        rows.set(v.id, row);
+      }
+      row.update(v);
+      list.append(row.node);
+    }
+    for (const [id, row] of rows) {
+      if (seen.has(id)) continue;
+      row.node.remove();
+      rows.delete(id);
+    }
+  }
+
+  refresh();
+  return { close: ov.close, refresh };
 }
 
 // ------------------------------------------------------------ invite sheet
+//
+// An invitation is a one-time credential now, not a copy of the circle key, so
+// this sheet has three states: the link, the wait, and the review. The review
+// is the one that matters. Accepting is what hands somebody every position the
+// circle sends from that moment, so it asks for a number checked out of band
+// first, and says what the answer buys.
 
-export function openInviteSheet({ getLink, qrSvgFor, onRotate }) {
-  const ov = openOverlay({ title: "Invite people", testid: "invite-sheet", className: "ov-invite" });
+function reviewBlock(api, req, { onChanged, onAccepted }) {
+  const box = el("div", "review");
+  box.dataset.testid = "join-review";
+  box.dataset.member = req.memberId;
+  const who = req.name || "Someone";
+  box.append(el("h3", "review-title", `${who} wants to join`));
+  box.append(el("p", "ov-note", `They chose the name ${who}. Anyone can type any name, so the number below is the only part that proves who they are.`));
+  box.append(safetyBlock(req.safety, "join-safety"));
+  box.append(
+    el(
+      "p",
+      "ov-note",
+      `Reach ${who} some way you already trust, a call or in person, and have them read the number on their screen. Every digit has to match.`,
+    ),
+  );
+  box.append(
+    el(
+      "p",
+      "ov-note",
+      "Accepting gives the whole circle new keys and lets them see everyone's location from then on. They cannot read anything sent before.",
+    ),
+  );
+  const actions = el("div", "mem-actions");
+  const accept = btn("btn btn-primary btn-small", "Numbers match, let them in");
+  accept.dataset.testid = "join-accept";
+  const reject = btn("btn btn-danger-ghost btn-small", "Reject");
+  reject.dataset.testid = "join-reject";
+  actions.append(accept, reject);
+  box.append(actions);
+
+  accept.addEventListener("click", async () => {
+    accept.disabled = true;
+    reject.disabled = true;
+    try {
+      // false covers both the busy guard and an expired invitation, and both
+      // have already said so out loud.
+      // Accepting burns the invitation, so there is nothing left on this sheet
+      // but a dead link. Get out of the way and show them the map; the accept
+      // itself already says what happened.
+      if (await api.acceptJoin(req)) {
+        onAccepted();
+        return;
+      }
+    } catch {
+      toast("Could not let them in. Try again.", "warn");
+    }
+    accept.disabled = false;
+    reject.disabled = false;
+    onChanged();
+  });
+  reject.addEventListener("click", () => {
+    api.rejectJoin(req);
+    toast("Turned down. Your link still works for whoever it was meant for.");
+    onChanged();
+  });
+  return box;
+}
+
+export function openInviteSheet({ api, getLink, qrSvgFor, onClose }) {
+  const ov = openOverlay({
+    title: "Invite someone",
+    testid: "invite-sheet",
+    className: "ov-invite",
+    onClose,
+  });
+
+  const reviews = el("div", "review-list");
+  reviews.dataset.testid = "join-reviews";
 
   const qrCard = el("div", "qr-card");
   qrCard.dataset.testid = "invite-qr";
   const linkRow = el("div", "link-row");
   const linkText = el("code", "invite-link");
   linkText.dataset.testid = "invite-link";
-  const copy = btn("btn btn-secondary btn-copy", "Copy link");
   linkRow.append(linkText);
+  const share = btn("btn btn-primary", "Send the link");
+  const copy = btn("btn btn-secondary btn-copy", "Copy link");
+  const expiry = el("p", "field-note");
+  expiry.dataset.testid = "invite-expiry";
+  const waiting = el("p", "ov-note");
+  waiting.dataset.testid = "invite-waiting";
 
-  function refresh() {
-    const link = getLink();
-    // qrSvg output is generated geometry from our own encoder, not user data.
-    qrCard.innerHTML = qrSvgFor(link);
-    const svg = qrCard.querySelector("svg");
-    svg?.setAttribute("role", "img");
-    svg?.setAttribute("aria-label", "Invite QR code");
-    linkText.textContent = link;
-  }
-  refresh();
-
-  copy.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(getLink());
-      toast("Invite link copied");
-    } catch {
-      toast("Copy failed. Long-press the link instead.", "warn");
-    }
-  });
+  share.addEventListener("click", () => shareLink(getLink(), "Join my circle on Starling:", "Invite link copied"));
+  copy.addEventListener("click", () => copyLink(getLink(), "Invite link copied"));
 
   ov.body.append(
+    reviews,
     qrCard,
     linkRow,
+    share,
     copy,
-    el("p", "ov-note", "Anyone with this link joins your circle. Share it somewhere you already trust, like Signal."),
+    el(
+      "p",
+      "ov-note",
+      "Send it through something you already trust, like Signal. Whoever opens it can ask to join; they are not in until you check their number and accept.",
+    ),
+    expiry,
+    waiting,
   );
 
   const danger = el("div", "danger-zone");
-  danger.append(el("h3", "danger-title", "Danger zone"));
-  const rotateBtn = btn("btn btn-danger-ghost", "Rotate circle");
-  const confirmBox = el("div", "rotate-confirm");
-  confirmBox.hidden = true;
-  confirmBox.append(
-    el("p", "ov-note", 'Rotating creates a fresh secret and a fresh invite link. Everyone, including you, is moved off the old channel and must re-join with the new link. Type "rotate" to confirm.'),
-  );
-  const confirmInput = el("input", "text-input");
-  confirmInput.type = "text";
-  confirmInput.placeholder = 'Type "rotate"';
-  confirmInput.autocomplete = "off";
-  const confirmBtn = btn("btn btn-danger", "Rotate now");
-  confirmBtn.disabled = true;
-  confirmInput.addEventListener("input", () => {
-    confirmBtn.disabled = confirmInput.value.trim().toLowerCase() !== "rotate";
-  });
-  confirmBox.append(confirmInput, confirmBtn);
-  rotateBtn.addEventListener("click", () => {
-    confirmBox.hidden = !confirmBox.hidden;
-    if (!confirmBox.hidden) {
-      confirmInput.focus();
-      confirmBox.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    }
-  });
-  confirmBtn.addEventListener("click", async () => {
-    confirmBtn.disabled = true;
+  danger.append(el("h3", "danger-title", "Sent it to the wrong person?"));
+  const killBtn = btn("btn btn-danger-ghost", "Cancel this link");
+  killBtn.dataset.testid = "invite-cancel";
+  killBtn.addEventListener("click", async () => {
+    killBtn.disabled = true;
     try {
-      // false is the guard's busy-bail, already toasted; keep the confirm
-      // box armed instead of claiming a rotation that never ran.
-      if ((await onRotate()) === false) {
-        confirmBtn.disabled = confirmInput.value.trim().toLowerCase() !== "rotate";
-        return;
-      }
-      confirmInput.value = "";
-      confirmBox.hidden = true;
-      refresh();
-      toast("Circle rotated. Share the new link.");
+      await api.burnInvite();
+      toast("Link cancelled. It cannot be used now.");
+      ov.close();
     } catch {
-      confirmBtn.disabled = confirmInput.value.trim().toLowerCase() !== "rotate";
-      toast("Rotation failed. Try again.", "warn");
+      killBtn.disabled = false;
+      toast("Could not cancel the link. Try again.", "warn");
     }
   });
-  danger.append(rotateBtn, confirmBox);
+  danger.append(
+    el("p", "ov-note", "The link stops working immediately, and any request already waiting on it is dropped. Open Invite again for a fresh one."),
+    killBtn,
+  );
   ov.body.append(danger);
-  return ov;
+
+  let shownLink = null;
+  const blocks = new Map();
+
+  function refresh() {
+    const requests = api.joinRequests();
+    const seen = new Set();
+    for (const req of requests) {
+      seen.add(req.memberId);
+      if (blocks.has(req.memberId)) {
+        reviews.append(blocks.get(req.memberId));
+        continue;
+      }
+      const box = reviewBlock(api, req, { onChanged: refresh, onAccepted: () => ov.close() });
+      blocks.set(req.memberId, box);
+      reviews.append(box);
+    }
+    for (const [id, box] of blocks) {
+      if (seen.has(id)) continue;
+      box.remove();
+      blocks.delete(id);
+    }
+
+    const link = getLink();
+    if (link && link !== shownLink) {
+      shownLink = link;
+      // qrSvg output is generated geometry from our own encoder, not user data.
+      qrCard.innerHTML = qrSvgFor(link);
+      const svg = qrCard.querySelector("svg");
+      svg?.setAttribute("role", "img");
+      svg?.setAttribute("aria-label", "Invite QR code");
+      linkText.textContent = link;
+    }
+    const inv = api.invite();
+    const left = inv ? inv.expiresAt - Date.now() : 0;
+    expiry.textContent = inv
+      ? `One use only, and it expires in ${fmtCountdown(left)}. Accepting somebody uses it up.`
+      : "This link is gone. Close this and tap Invite again for a new one.";
+    waiting.textContent = requests.length
+      ? "Somebody is waiting on you above. The link still works until you accept."
+      : "Nobody has used this link yet. When somebody does, their request shows up here.";
+    const dead = !inv || left <= 0;
+    for (const node of [linkRow, share, copy]) node.hidden = dead;
+    // Somebody is waiting on a decision. Holding a QR code up to a second
+    // person while the first is unanswered is how the wrong one gets in.
+    qrCard.hidden = dead || requests.length > 0;
+  }
+
+  refresh();
+  return { close: ov.close, refresh };
 }
 
 // ---------------------------------------------------------- settings sheet
 
-function segControl({ label, note, options, value, onChange }) {
+// noteFor(value) is for the settings whose note IS the setting: the history
+// window means nothing as a duration, and everything as "this is what you can
+// read, and this is what a seized phone gives up".
+function segControl({ label, note, noteFor, options, value, onChange }) {
   const field = el("div", "field");
   field.append(el("span", "field-label", label));
   const seg = el("div", "seg");
   seg.setAttribute("role", "radiogroup");
   seg.setAttribute("aria-label", label);
+  const noteEl = note || noteFor ? el("p", "field-note", note || noteFor(value)) : null;
   const cells = [];
   for (const opt of options) {
     const b = btn("seg-cell", opt.label);
@@ -599,16 +1139,24 @@ function segControl({ label, note, options, value, onChange }) {
         cell.classList.toggle("sel", v === opt.value);
         cell.setAttribute("aria-checked", String(v === opt.value));
       }
+      if (noteFor && noteEl) noteEl.textContent = noteFor(opt.value);
       onChange(opt.value);
     });
     seg.append(b);
   }
-  for (const [v, cell] of cells) {
-    cell.classList.toggle("sel", v === value);
-    cell.setAttribute("aria-checked", String(v === value));
-  }
+  // Also the way a setting that some OTHER control changed gets repainted: a
+  // segment that disagrees with the app is a small lie about a security
+  // setting, which is the kind this app cannot afford.
+  field.setValue = (v) => {
+    for (const [val, cell] of cells) {
+      cell.classList.toggle("sel", val === v);
+      cell.setAttribute("aria-checked", String(val === v));
+    }
+    if (noteFor && noteEl) noteEl.textContent = noteFor(v);
+  };
+  field.setValue(value);
   field.append(seg);
-  if (note) field.append(el("p", "field-note", note));
+  if (noteEl) field.append(noteEl);
   return field;
 }
 
@@ -631,6 +1179,10 @@ function switchRow({ label, note, value, onChange }) {
     paint();
     onChange(on);
   });
+  row.setValue = (v) => {
+    on = !!v;
+    paint();
+  };
   row.append(text, sw);
   return row;
 }
@@ -706,8 +1258,8 @@ export function openPasscodeSheet({ title, intro, cta, confirm = false, current 
   return ov;
 }
 
-export function openSettingsSheet({ values, demo, tor, lock, lockActions, onChange, onInvite, onPanic, onLeave }) {
-  const ov = openOverlay({ title: "Settings", testid: "settings-sheet", className: "ov-settings" });
+export function openSettingsSheet({ api, values, demo, tor, lock, lockActions, onChange, onMembers, onInvite, onPanic, onLeave, onClose }) {
+  const ov = openOverlay({ title: "Settings", testid: "settings-sheet", className: "ov-settings", onClose });
   const b = ov.body;
 
   const group = (title) => {
@@ -734,6 +1286,90 @@ export function openSettingsSheet({ values, demo, tor, lock, lockActions, onChan
   if (demo) {
     inviteBtn.disabled = true;
     gCircle.append(el("p", "field-note", "Exit the demo to invite your people."));
+  }
+
+  // Keys and history. Both settings here are the trade v2 exists to let a
+  // person make, so they sit next to the actions that change keys instead of
+  // in a list of preferences where they read as housekeeping.
+  let historyField = null;
+  let steadyRow = null;
+  if (!demo) {
+    const gKeys = group("Keys and history");
+    const peopleBtn = btn("btn btn-secondary", "People and keys");
+    peopleBtn.dataset.testid = "members-open-settings";
+    peopleBtn.addEventListener("click", () => {
+      ov.close();
+      onMembers();
+    });
+    gKeys.append(
+      peopleBtn,
+      el("p", "field-note", "Everyone in this circle, their safety numbers, and who you have checked."),
+    );
+
+    const rekeyBtn = btn("btn btn-secondary", "New keys now");
+    rekeyBtn.dataset.testid = "rekey-open";
+    const rekeyBox = el("div", "confirm-box");
+    rekeyBox.hidden = true;
+    rekeyBox.append(
+      el(
+        "p",
+        "ov-note",
+        "Everyone in the circle gets a fresh key and the old one stops working, so anybody holding a copy of the old one goes dark. Do this if a phone in the circle was taken, unlocked, or handed over. Nobody is removed and nothing on your map disappears.",
+      ),
+    );
+    const rekeyGo = btn("btn btn-primary", "Make new keys");
+    rekeyGo.dataset.testid = "rekey-confirm";
+    rekeyGo.addEventListener("click", async () => {
+      rekeyGo.disabled = true;
+      try {
+        // false is a busy guard or a re-key that could not reach anyone, both
+        // of which have already said so; claiming success here would be a lie
+        // about the one thing this button exists to do.
+        if (await api.rekeyCircle()) {
+          toast("Your circle has new keys.");
+          rekeyBox.hidden = true;
+        }
+      } catch {
+        toast("Could not make new keys. Try again.", "warn");
+      }
+      rekeyGo.disabled = false;
+    });
+    rekeyBox.append(rekeyGo);
+    rekeyBtn.addEventListener("click", () => {
+      rekeyBox.hidden = !rekeyBox.hidden;
+      if (!rekeyBox.hidden) rekeyBox.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+    gKeys.append(rekeyBtn, rekeyBox);
+
+    const choices = api.historyChoices;
+    const historyNote = (id) => {
+      const c = choices.find((x) => x.id === id) || choices[0];
+      return c.epochs <= 1
+        ? `You can see the last ${c.label} of your circle. A phone taken from you gives up almost nothing.`
+        : `You can see the last ${c.label} of your circle. A phone taken from you gives up that same ${c.label}, and nothing older.`;
+    };
+    historyField = segControl({
+      label: "How far back you can see",
+      noteFor: historyNote,
+      options: choices.map((c) => ({ value: c.id, label: c.label })),
+      value: values.settings.history,
+      onChange: (v) => onChange("history", v),
+    });
+    steadyRow = switchRow({
+      label: "Steady sending",
+      note: "Send on the timer even when you have not moved. The relay cannot read a position either way, but a burst of updates while you walk and silence while you sit is a movement trail made of timing alone. This hides that, and costs a little battery.",
+      value: values.settings.steady,
+      onChange: (v) => onChange("steady", v),
+    });
+    gKeys.append(
+      historyField,
+      el(
+        "p",
+        "field-note",
+        "Keys older than this window are destroyed on this device and cannot be brought back, by you or by anyone holding the phone.",
+      ),
+      steadyRow,
+    );
   }
 
   // You
@@ -951,7 +1587,7 @@ export function openSettingsSheet({ values, demo, tor, lock, lockActions, onChan
   if (onLeave && !demo) {
     const leaveBtn = btn("btn btn-danger-ghost", "Leave this circle");
     leaveBtn.dataset.testid = "settings-leave";
-    const leaveBox = el("div", "rotate-confirm");
+    const leaveBox = el("div", "confirm-box");
     leaveBox.hidden = true;
     leaveBox.append(
       el("p", "ov-note", 'Leaving deletes this circle\'s secret and your identity in it from this device. The circle itself keeps existing for everyone else, and you can come back with a fresh invite. Type "leave" to confirm.'),
@@ -991,7 +1627,7 @@ export function openSettingsSheet({ values, demo, tor, lock, lockActions, onChan
   }
   const panicBtn = btn("btn btn-danger-ghost", "Panic wipe");
   panicBtn.dataset.testid = "settings-panic";
-  const panicBox = el("div", "rotate-confirm");
+  const panicBox = el("div", "confirm-box");
   panicBox.hidden = true;
   panicBox.append(
     el("p", "ov-note", "Erases the circle secret, your identity, and all Starling data from this device, then reloads. One residual: street-map tiles your browser cached may remain in its own cache. The Off-grid basemap never loads any. There is no undo. Hold the button to confirm."),
@@ -1013,7 +1649,15 @@ export function openSettingsSheet({ values, demo, tor, lock, lockActions, onChan
     el("p", "ov-note", "The relay that passes your updates along stores only encrypted data it cannot read, and deletes it after 24 hours. The protocol is open, so anyone can check these claims against the code."),
   );
 
-  return ov;
+  // The high-risk history window switches steady sending on by itself, so the
+  // two controls have to be able to hear about each other.
+  return {
+    close: ov.close,
+    refresh: () => {
+      historyField?.setValue(api.state.settings.history);
+      steadyRow?.setValue(api.state.settings.steady);
+    },
+  };
 }
 
 // ------------------------------------------------------------ bottom sheet

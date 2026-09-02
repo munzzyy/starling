@@ -10,6 +10,14 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https:; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="theme-color" content="#0a0d14">
 <meta name="description" content="Private, end to end encrypted location sharing for your circle. No accounts, no tracking. Free Android app and web app by Munzzyy.">
+<!-- iOS reads the web manifest's display mode on recent versions but has
+     relied on these two meta tags for full-screen, no-Safari-chrome launch
+     since Add to Home Screen existed; keeping both is what makes install
+     behave the same on an iOS that ignores the manifest as on one that
+     doesn't. black-translucent draws under the status bar, which is why the
+     map screen already pads for env(safe-area-inset-top) in tokens.css. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Starling">
 <link rel="canonical" href="https://starlingmap.app/">
 <meta property="og:type" content="website">
@@ -43,6 +51,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="modulepreload" href="js/env.js">
+<link rel="modulepreload" href="js/platform.js">
 <link rel="modulepreload" href="js/wire.js">
 <link rel="modulepreload" href="js/fmt.js">
 <link rel="modulepreload" href="js/crypto.js">
@@ -115,6 +124,23 @@
         opens them. The data sits untouched in this browser's storage, encrypted at rest only if
         you had set a passcode. If you are done with it, erase it.</p>
       <button type="button" class="btn btn-secondary" data-testid="landing-erase">Erase this browser's Starling data</button>
+    </div>
+
+    <div class="land-card land-note" id="join-waiting" data-testid="join-waiting" hidden>
+      <h2 class="land-card-title">Waiting to be let in</h2>
+      <p class="land-card-sub" id="join-waiting-text">Your request is sitting on the relay. Somebody already in the circle has to
+        accept it before you can see anyone. They do not have to be online right now.</p>
+      <span class="safety-cap">Your number</span>
+      <div class="safety" id="join-waiting-safety" data-testid="join-waiting-safety"></div>
+      <p class="land-card-note">Read these digits out to whoever invited you. The same number shows next to your
+        request on their phone, and that is how they know it is you asking.</p>
+      <button type="button" class="btn btn-secondary" id="join-waiting-cancel" data-testid="join-cancel">Cancel the request</button>
+    </div>
+
+    <div class="land-card land-note" id="install-card" data-testid="install-card" hidden>
+      <h2 class="land-card-title">Add Starling to your home screen</h2>
+      <p class="land-card-sub" id="install-text"></p>
+      <button type="button" class="btn btn-secondary" id="install-go" data-testid="install-go" hidden>Install Starling</button>
     </div>
 
     <div class="ob-actions">
@@ -193,6 +219,10 @@
         <span>Demo flight - nothing is real</span>
         <button type="button" class="banner-btn" id="banner-demo-exit">Exit</button>
       </div>
+      <div class="banner banner-keys" id="banner-keys" data-testid="keys-banner" hidden>
+        <span id="banner-keys-text">A member's keys changed</span>
+        <button type="button" class="banner-btn" id="banner-keys-open">Check</button>
+      </div>
       <div class="banner banner-warn" id="banner-offline" hidden>
         <span class="banner-dot" aria-hidden="true"></span><span>Reconnecting...</span>
       </div>
@@ -231,6 +261,7 @@
       <div class="ava-strip" id="ava-strip" aria-hidden="true"></div>
     </div>
     <div class="sheet-body" id="sheet-body">
+      <div id="alerts"></div>
       <div class="notice notice-warn" id="geo-warn" hidden>
         <p class="notice-title">Location is blocked</p>
         <p class="notice-text">Your browser is blocking location for this site. Allow location in your browser's site settings, then tap Start sharing again.</p>
@@ -244,6 +275,13 @@
         <p class="nudge-title">Just you here so far</p>
         <p class="nudge-text">Starling only gets good when your people are on the map. Send them your invite link.</p>
         <button type="button" class="btn btn-primary btn-small" id="nudge-invite">Invite your people</button>
+      </div>
+      <div class="sheet-tools">
+        <button type="button" class="tool-btn" id="members-open" data-testid="members-open">
+          <span class="tool-label">People and keys</span>
+          <span class="tool-sub" id="members-tool-sub">Check who you are sharing with</span>
+          <span class="tool-badge" id="members-badge" hidden></span>
+        </button>
       </div>
       <div id="member-list"></div>
       <p class="sheet-foot">End-to-end encrypted. The relay sees ciphertext only.</p>

@@ -99,7 +99,8 @@ body.hv {
   color: color-mix(in srgb, var(--text) 75%, transparent);
 }
 
-#hv-ended {
+#hv-ended,
+#hv-expired {
   top: auto;
   bottom: max(64px, env(safe-area-inset-bottom));
   transform: translateX(-50%);

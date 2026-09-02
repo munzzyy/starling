@@ -1,15 +1,17 @@
 {
   "name": "starling",
-  "version": "0.3.0",
+  "version": "0.5.0",
   "description": "Private, end to end encrypted location sharing for your circle. No accounts, no tracking.",
   "type": "module",
   "private": true,
   "license": "MIT",
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "e2e": "python3 test/e2e_marionette.py",
+    "e2e": "python3 test/e2e_marionette.py && python3 test/e2e_v2_ui.py",
     "e2e:lock": "python3 test/e2e_lock.py",
     "check": "bash tools/check-clean.sh",
+    "vectors": "node tools/gen-vectors.mjs",
+    "hashes": "node tools/asset-hashes.mjs",
     "deploy": "bash relay/deploy.sh"
   },
   "engines": {

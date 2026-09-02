@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.view.WindowManager
 import android.webkit.GeolocationPermissions
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -68,6 +69,14 @@ class MainActivity : FragmentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // The screen holds a live map of the circle and, in the app switcher,
+        // the OS otherwise thumbnails whatever was on screen. Not a setting:
+        // someone at risk who needs this app is exactly the person who cannot
+        // afford a shoulder-surfed or screen-recorded location, so it is on
+        // for everybody, unconditionally.
+        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+
         applyTorPref()
 
         webView = WebView(this)
@@ -84,6 +93,13 @@ class MainActivity : FragmentActivity() {
             allowFileAccess = false
             allowContentAccess = false
             setSupportMultipleWindows(false)
+            // Belt and suspenders on top of allowFileAccess = false: these
+            // default to false already at this targetSdk, but a page that can
+            // never reach file:// has no business asking for cross-origin
+            // reads from one either, and explicit here means a future
+            // targetSdk bump cannot quietly change the default under us.
+            allowFileAccessFromFileURLs = false
+            allowUniversalAccessFromFileURLs = false
         }
         // Keep the renderer running while the share service holds us alive in
         // the background; otherwise JS timers stop with the screen.

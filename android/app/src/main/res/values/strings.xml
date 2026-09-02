@@ -2,8 +2,8 @@
 <resources>
     <string name="app_name">Starling</string>
     <string name="notif_channel">Location sharing</string>
-    <string name="notif_title">Sharing your location</string>
-    <string name="notif_text">Your circle sees your encrypted position. Tap Stop to end it.</string>
+    <string name="notif_title">Location sharing active</string>
+    <string name="notif_text">Tap Stop to end it.</string>
     <string name="notif_stop">Stop</string>
     <string name="bio_wrap_title">Confirm to set up biometric unlock</string>
     <string name="bio_unwrap_title">Unlock Starling</string>

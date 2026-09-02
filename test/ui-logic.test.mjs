@@ -1,4 +1,4 @@
-// Unit tests for the pure UI logic in app/js/fmt.js.
+// Unit tests for the pure UI logic in app/js/fmt.js and app/js/ui.js.
 import test from "node:test";
 import assert from "node:assert/strict";
 
@@ -9,6 +9,7 @@ import {
   coarsePos,
   hueFromMemberId,
 } from "../app/js/fmt.js";
+import { fmtCountdown } from "../app/js/ui.js";
 
 test("haversineMeters: zero distance is exactly 0", () => {
   assert.equal(haversineMeters(40.7794, -73.9632, 40.7794, -73.9632), 0);
@@ -106,4 +107,23 @@ test("hueFromMemberId: nearby ids spread apart", () => {
   const a = hueFromMemberId("a3b1c2d3e4f5a6b7");
   const b = hueFromMemberId("a3b1c3d3e4f5a6b7");
   assert.notEqual(a, b);
+});
+
+test("fmtCountdown: exact strings", () => {
+  assert.equal(fmtCountdown(59_999), "under a minute");
+  assert.equal(fmtCountdown(60_000), "1 min");
+  assert.equal(fmtCountdown(42 * 60_000), "42 min");
+  assert.equal(fmtCountdown(59 * 60_000 + 59_000), "59 min");
+  assert.equal(fmtCountdown(60 * 60_000), "1 h 00 min");
+  assert.equal(fmtCountdown(6 * 60 * 60_000 - 1000), "5 h 59 min");
+  assert.equal(fmtCountdown(24 * 60 * 60_000), "24 h 00 min");
+});
+
+test("fmtCountdown: an expired thing says so instead of counting up", () => {
+  assert.equal(fmtCountdown(0), "expired");
+  assert.equal(fmtCountdown(-1), "expired");
+  assert.equal(fmtCountdown(-60 * 60_000), "expired");
+  assert.equal(fmtCountdown(NaN), "expired");
+  assert.equal(fmtCountdown(Infinity), "expired");
+  assert.equal(fmtCountdown(undefined), "expired");
 });

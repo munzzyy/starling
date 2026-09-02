@@ -3,6 +3,48 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [0.5.0]
+
+Protocol v2. This is a hard break: **a v1 client cannot talk to a v2 relay.**
+Once the relay is redeployed with this release, `/api/v1/*` answers `410
+Gone` instead of syncing an old client into an empty channel, because v1 and
+v2 derive different channel ids from the same circle secret, so there is no
+member on the other end regardless of what the relay does. Every circle that
+existed before has to be re-created from a fresh invite after the relay
+upgrade. If you are updating, expect this: it is the first thing you will
+hit, not a bug report waiting to happen.
+
+- **Forward secrecy.** Content keys now advance every 10 minutes and the
+  previous key is destroyed on the device that advanced past it. How much
+  trail stays readable is a setting: 10 minutes, 1 hour, 6 hours, or 24
+  hours, worded as the trade it is rather than hidden behind a toggle.
+- **Post-compromise security and cryptographic member removal**, both via
+  re-keying with fresh ECDH entropy. A re-key moves the whole circle to a
+  new channel with a new chain; a removed member receives no wrap, derives
+  no new keys, and cannot follow. Any member may trigger a re-key, and every
+  one is attributed in the UI to whoever signed it.
+- **One-time invites.** A v1 invite link carried the circle's own key
+  material, so anyone who ever saw the link held every past and future key.
+  A v2 invite bootstraps a pairwise handshake instead: the link carries a
+  commitment to the inviter's identity, the welcome is signed by the
+  inviter's real circle identity, and a human compares a safety number
+  before any circle key material changes hands. The invite is burned the
+  moment that happens. If the welcome cannot be delivered the admission is
+  undone rather than left standing, so a circle is never holding a member it
+  has no way to reach, and the link stays live so the accept can be tried
+  again.
+- **Beacon links are now per-viewer, revocable, and actually expire.** Each
+  person an SOS reaches gets an independent secret and channel; revoking one
+  viewer ends only that channel. Expiry is enforced on both the beacon and
+  the viewer page independently, not just displayed.
+- **407 unit tests**, including a new `test/vectors/` directory: machine-readable
+  HKDF, chain-advance, and session vectors an independent implementation can
+  replay, checked in and exercised by `npm test` on every run rather than
+  trusted to stay correct by inspection.
+- Member ids, safety numbers, and every derivation in this release use the
+  `starling/v2` domain-separation prefix throughout; nothing is shared with
+  v1's key schedule.
+
 ## [0.4.1]
 
 - Help links point at `/help`, which is where the site actually serves that

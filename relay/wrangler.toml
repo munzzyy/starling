@@ -13,8 +13,29 @@ directory = "../app"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*", "/.well-known/*"]
 
+# Rate limits, per Worker isolate, over a sliding 60 second window. Both are
+# sized so a full circle sharing normally never meets them; they exist to keep
+# a sprayer's junk out of the database, not to shape honest traffic.
+#
+# RATE_POST_MIN: writes per channel per minute. A sharing member posts every
+#   15 s, and a channel holds at most 16 members (MEMBER_CAP), so a full circle
+#   at the steady cadence costs 64 writes a minute. 256 is that floor times
+#   four, leaving room for re-key bursts (one wrap per member, all at once) and
+#   for movement posting, which sends again after 25 m of travel and so runs
+#   well above the fixed cadence in a vehicle. A circle that is entirely on the
+#   move can still reach 256; raise this if yours does.
+#
+# RATE_GET_MIN: requests per client address per minute, counting reads AND
+#   writes. A member polls every 10 s and posts every 15 s, so 10 requests a
+#   minute each. A whole circle behind one NAT, one VPN exit or one Tor
+#   circuit therefore spends about 160 of this budget, which is the case to
+#   size for. Raise it if several circles share an address.
+#
+# Both are read on every request, so `wrangler deploy` picks up a change with
+# no code edit. A value that is not a positive integer falls back to the
+# default compiled into relay/src/index.js.
 [vars]
-RATE_POST_MIN = "60"
+RATE_POST_MIN = "256"
 RATE_GET_MIN = "240"
 
 [[d1_databases]]

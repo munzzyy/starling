@@ -1810,7 +1810,9 @@ div.danger-zone {
   border: 1px solid rgba(244, 63, 94, 0.35);
 }
 
-.rotate-confirm {
+/* The reveal a destructive action opens: what it costs, then the button that
+   does it. */
+.confirm-box {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1865,6 +1867,353 @@ div.danger-zone {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* -------------------------------------------------------- safety numbers */
+
+/* Sized to be read down a phone line: mono, wide tracking, groups that never
+   split across a line break. */
+/* Three groups to a line, two lines, always: a number that reflows with the
+   viewport is one two people read back to each other differently. */
+.safety {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  justify-content: start;
+  gap: 2px 14px;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 17px;
+  line-height: 1.4;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  -webkit-user-select: all;
+  user-select: all;
+}
+
+.safety-g {
+  white-space: nowrap;
+}
+
+.safety-wait {
+  color: var(--ink-3);
+}
+
+.safety-cap {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* Old and new, together, because the only question worth asking is which of
+   the two the member reads back to you. */
+.safety-pair {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.safety-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.safety-pair .safety {
+  grid-template-columns: repeat(2, auto);
+  font-size: 14px;
+  gap: 2px 10px;
+}
+
+.safety-col:first-child .safety {
+  color: var(--ink-2);
+}
+
+.safety-col:last-child .safety {
+  border-color: rgba(251, 191, 36, 0.45);
+}
+
+@media (min-width: 430px) {
+  .safety-pair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* --------------------------------------------------------------- alerts */
+
+#alerts:empty {
+  display: none;
+}
+
+.notice-info {
+  border-color: var(--line);
+}
+
+.notice-info .notice-title {
+  color: var(--ink);
+}
+
+.notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.notice-actions:empty {
+  display: none;
+}
+
+/* One tap from the map to the screen that turns trust on first use into a
+   checked identity. Buried in settings it would never be opened. */
+.sheet-tools {
+  margin-bottom: 8px;
+}
+
+.tool-btn {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+.tool-label {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.tool-sub {
+  grid-column: 1;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.tool-badge {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  min-width: 22px;
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.banner-keys {
+  border-color: rgba(244, 63, 94, 0.5);
+  color: var(--sos);
+}
+
+.banner-keys .banner-btn {
+  color: var(--sos);
+}
+
+/* --------------------------------------------------------- members sheet */
+
+.mem-you,
+.mem-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--r-md);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+}
+
+.mem-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mem-row.mem-changed {
+  border-color: rgba(244, 63, 94, 0.45);
+  background: color-mix(in srgb, var(--sos) 6%, var(--bg-2));
+}
+
+.mem-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mem-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.verify-pill {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: var(--r-full);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.vp-on {
+  background: color-mix(in srgb, var(--live) 16%, transparent);
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  color: var(--live);
+}
+
+.vp-off {
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  color: var(--ink-3);
+}
+
+.vp-alert {
+  background: color-mix(in srgb, var(--sos) 16%, transparent);
+  border: 1px solid rgba(244, 63, 94, 0.5);
+  color: var(--sos);
+}
+
+.mem-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mem-actions .btn {
+  flex: 1 1 auto;
+}
+
+.key-change {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ------------------------------------------------------------ join review */
+
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.review-list:empty {
+  display: none;
+}
+
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--r-md);
+  background: var(--bg-2);
+  border: 1px solid rgba(45, 212, 191, 0.4);
+}
+
+.review-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* ----------------------------------------------------------- help viewers */
+
+.viewer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.viewer-list:empty {
+  display: none;
+}
+
+.viewer-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+}
+
+.viewer-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.viewer-label {
+  font-size: 14px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer-when {
+  flex: none;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.viewer-when.viewer-failing {
+  color: var(--warn);
+}
+
+.viewer-dead {
+  opacity: 0.55;
+}
+
+/* ------------------------------------------------------------- dead ends */
+
+/* The two states with no way back from inside the app: storage this build
+   cannot read, and a relay that has retired this protocol. */
+#screen-notice {
+  overflow-y: auto;
+  background:
+    radial-gradient(600px 300px at 50% 0%, rgba(251, 191, 36, 0.10), transparent 70%),
+    var(--bg);
+}
+
+/* A dead end is not a brand moment: the title is a sentence, in plain ink,
+   not the gradient wordmark. */
+#screen-notice .ob-wordmark {
+  font-size: 28px;
+  letter-spacing: -0.02em;
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: var(--ink);
+}
+
+#screen-notice .ob-tagline {
+  max-width: 34ch;
+}
+
+#screen-notice .ob-actions {
+  padding-bottom: 32px;
 }
 
 /* --------------------------------------------------------- reduced motion */

@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """End to end test: two real headless Firefox browsers against the real relay.
 
-Drives the full scenario over Marionette: create a circle, invite, join from a
-second browser, cross-visibility, check-in, SOS, stop, then proves the relay
-stored nothing but ciphertext and takes the flagship screenshots.
+Drives the full scenario over Marionette: create a circle, invite, B asks to
+join, A reviews the safety number and accepts (v2 invitations are a one-time
+request, not a copy of the circle key), cross-visibility, check-in, SOS,
+stop, then proves the relay stored nothing but ciphertext and takes the
+flagship screenshots. test/e2e_v2_ui.py reuses this harness for the v2
+review/settings/rekey/beacon-viewer UI this file only touches in passing.
 
 Run from the repo root:  python3 test/e2e_marionette.py
-Ports: 8920 (http), 2840/2841 (marionette). Everything started here is killed
-before exit.
+Ports: 8920 (http), 2840/2841/2842 (marionette). Everything started here is
+killed before exit.
 """
 import base64
 import hashlib
@@ -346,7 +349,7 @@ def start_server():
     proc = subprocess.Popen(["node", os.path.join(ROOT, "test", "serve_local.mjs"),
                              str(HTTP_PORT)],
                             cwd=ROOT, env=env, stdout=logfile, stderr=logfile)
-    wait_for(lambda: http_get("/api/v1/health")[0] == 200, timeout=20,
+    wait_for(lambda: http_get("/api/v2/health")[0] == 200, timeout=20,
              desc="relay health", interval=0.3)
     log(f"server up on {BASE}")
     return proc, logfile
@@ -417,7 +420,7 @@ def flow_a_create(a):
              timeout=10, desc="A own fix")
 
     def relay_has_point():
-        _, body = http_get(f"/api/v1/f/{channel}")
+        _, body = http_get(f"/api/v2/f/{channel}")
         feed = json.loads(body)
         return any(m.get("points") for m in feed.get("members", []))
     wait_for(relay_has_point, timeout=20, desc="A point on relay")
@@ -431,7 +434,11 @@ def flow_a_create(a):
     return invite_url, channel
 
 
-def flow_b_join(b, invite_url, channel):
+def flow_b_join(b, invite_url):
+    """B asks to join. v2 invitations are not a copy of the circle key: A has
+    to read back B's safety number and accept before B is pinned to anyone,
+    so this only gets as far as the waiting card. flow_a_review_accept and
+    flow_b_admitted carry the rest."""
     b.navigate(invite_url)
     wait_for(lambda: b.state() is not None, timeout=20, desc="B app boot")
     url_now = wait_for(lambda: "#j=" not in b.url() and b.url(), timeout=10,
@@ -442,19 +449,68 @@ def flow_b_join(b, invite_url, channel):
     wait_for(lambda: b.exec("return !!document.querySelector('[data-testid=\"join-sheet\"]')"),
              timeout=15, desc="B join sheet")
     type_name_and_confirm(b, "Blair", "join-confirm")
-    wait_for(lambda: b.state().get("screen") == "map", timeout=20, desc="B on map")
-    st = b.state()
-    if st.get("channel") != channel:
-        raise E2EError(f"B channel {st.get('channel')} != A channel {channel}")
+    wait_for(lambda: b.exec("var e=document.querySelector('[data-testid=\"join-waiting\"]');"
+                            "return !!e && !e.hidden;"),
+             timeout=20, desc="B join-waiting card")
+    b_safety = wait_for(lambda: b.exec(
+        "var e=document.querySelector('[data-testid=\"join-waiting-safety\"]');"
+        "return e && /\\d{5}/.test(e.textContent) ? e.textContent.trim() : null;"),
+        timeout=15, desc="B safety number while waiting")
+    if b.state().get("channel") is not None:
+        raise E2EError("B has a channel before A accepted the request")
+    log(f"B asked to join, reads out: {b_safety}")
+    return b_safety
+
+
+def flow_a_review_accept(a, b_safety):
+    """A reviews the pending request, checks the safety number matches what
+    B is reading out, and accepts. Accepting re-keys the whole circle."""
+    gen_before = a.state().get("g")
+    wait_for(lambda: (a.state().get("joinRequests") or 0) > 0, timeout=60,
+             desc="A sees the join request", nudge=a.nudge_poll)
+    a.click('[data-testid="alert-review"]')
+    wait_for(lambda: a.exec("return !!document.querySelector('[data-testid=\"join-review\"]')"),
+             timeout=15, desc="A review block")
+    a_safety = a.exec(
+        "var e=document.querySelector('[data-testid=\"join-safety\"]'); return e ? e.textContent.trim() : null;")
+    if a_safety != b_safety:
+        raise E2EError(f"A's review shows {a_safety!r}, B is reading out {b_safety!r}: numbers do not match")
+    log(f"A confirmed B's safety number matches byte for byte: {a_safety}")
+    a.click('[data-testid="join-accept"]')
+    wait_for(lambda: a.state().get("pinned") == 1, timeout=40, desc="A pinned B")
+    new_gen = a.state().get("g")
+    if gen_before is not None and new_gen is not None and new_gen <= gen_before:
+        raise E2EError(f"accepting did not re-key the circle: g {gen_before} -> {new_gen}")
+    if a.state().get("invite") is not False:
+        raise E2EError("the invitation was not burned after acceptance")
+    log(f"A accepted; circle re-keyed g {gen_before} -> {new_gen}")
+
+
+def flow_b_admitted(a, b):
+    """B is pinned once the welcome lands. Admitting is a re-key, and a
+    re-key moves the whole circle to a freshly derived channel id (the
+    wraps for it go out on the channel that is about to be abandoned, per
+    doRekey) so the relay can never correlate one generation's traffic with
+    the next; the pre-join channel A shared solo on is dead from here on.
+    Returns the new channel both devices land on."""
+    wait_for(lambda: b.state().get("pinned") == 1, timeout=60, desc="B admitted",
+             nudge=b.nudge_poll)
+    new_channel = a.state().get("channel")
+    if not re.fullmatch(r"[0-9a-f]{32}", new_channel or ""):
+        raise E2EError(f"bad post-accept channel: {new_channel}")
+    if b.state().get("channel") != new_channel:
+        raise E2EError(f"B channel {b.state().get('channel')} != A's post-accept channel {new_channel}")
+    log(f"B admitted to the circle, both on the rekeyed channel {new_channel[:8]}...")
 
     b.exec(f"window.__geoSet({COLUMBUS[0]}, {COLUMBUS[1]})")
     b.click('[data-testid="share-toggle"]')
     wait_for(lambda: b.state().get("sharing") is True, timeout=10, desc="B sharing on")
     log("B joined and sharing")
+    return new_channel
 
 
 def chan_member_ids(channel):
-    _, body = http_get(f"/api/v1/f/{channel}")
+    _, body = http_get(f"/api/v2/f/{channel}")
     return {m.get("m") for m in json.loads(body).get("members", [])}
 
 
@@ -495,7 +551,7 @@ def flow_multicircle(a, channel):
     wait_for(lambda: a.state().get("sharing") is True, timeout=10, desc="A sharing on Friends")
 
     def relay_has_point2():
-        _, body = http_get(f"/api/v1/f/{chan2}")
+        _, body = http_get(f"/api/v2/f/{chan2}")
         return any(m.get("points") for m in json.loads(body).get("members", []))
     wait_for(relay_has_point2, timeout=20, desc="point on the Friends channel")
 
@@ -527,7 +583,7 @@ def flow_multicircle(a, channel):
     # A share after the switch back lands on the first channel under the
     # original identity, and the Friends channel stays exactly as it was.
     def me1_point_count():
-        _, body = http_get(f"/api/v1/f/{channel}")
+        _, body = http_get(f"/api/v2/f/{channel}")
         for m in json.loads(body).get("members", []):
             if m.get("m") == me1:
                 return len(m.get("points") or [])
@@ -619,6 +675,20 @@ def hkdf_sha256(secret, info, length):
     return out[:length]
 
 
+def invite_channel_from_url(invite_url):
+    """#j=<b64u invite secret>.<b64u inviter commitment>: the commitment
+    binds the link to the inviter's identity so a stolen link cannot win the
+    race against the real joiner (see inviterCommitment in
+    app/js/crypto.js), but only the secret feeds the channel derivation
+    (deriveInviteChannelId), on a rendezvous channel separate from the
+    circle channel so the join request and welcome cannot be linked to
+    anything else the relay sees. That channel gets its own throwaway
+    member row and is legitimately in the dump."""
+    secret_b64, _, _commitment_b64 = invite_url.split("#j=")[1].partition(".")
+    secret = b64u_decode(secret_b64)
+    return hkdf_sha256(secret, "starling/v2/invite-channel", 16).hex()
+
+
 def flow_help_beacon(b):
     """B fires an SOS, then a third browser with no app state and no circle
     secret opens the help link and sees the live position."""
@@ -626,19 +696,41 @@ def flow_help_beacon(b):
     b.click('[data-testid="sos-button"]')
     wait_for(lambda: b.state().get("sosActive") is True, timeout=20, desc="B SOS armed")
 
-    link = wait_for(lambda: b.exec(
+    # Opening the SOS help sheet mints a first viewer link automatically
+    # (labeled "Help link"); e2e_v2_ui.py covers adding and revoking more.
+    # sos-help stays visible for as long as sosActive is true (it is not
+    # tucked inside an overlay the way most triggers are), so this clicks it
+    # exactly once: a wait_for that re-clicks on every poll would reopen the
+    # sheet and mint another viewer each time it fired before the first one
+    # rendered.
+    wait_for(lambda: b.exec(
         "var el = document.querySelector('[data-testid=\"sos-help\"]');"
-        "if (!el || el.hidden) return null; el.click();"
-        "var l = document.querySelector('[data-testid=\"help-link\"]');"
-        "return l ? l.textContent : null;"),
+        "return !!el && !el.hidden;"), timeout=30, desc="sos-help visible")
+    b.click('[data-testid="sos-help"]')
+    link = wait_for(lambda: b.exec(
+        "var l = document.querySelector('[data-testid=\"viewer-link\"]');"
+        "return l && l.textContent.indexOf('#b=') > 0 ? l.textContent : null;"),
         timeout=30, desc="help link offered", interval=1)
     if "#b=" not in link:
         raise E2EError(f"help link is not a beacon link: {link!r}")
-    secret_b64 = link.split("#b=")[1]
+    # #b=<secret>.<expiresAt>.<owner member id>: the expiry and the commitment
+    # to the beacon's signing identity ride in the fragment next to the secret,
+    # not folded into it (see beaconFragment in app/js/crypto.js). The owner id
+    # is what stops anyone else who was forwarded this link from posting into
+    # the channel and being believed.
+    frag = link.split("#b=")[1]
+    parts = frag.split(".")
+    if len(parts) != 3:
+        raise E2EError(f"beacon fragment has {len(parts)} fields, want 3: {frag!r}")
+    secret_b64, expires_raw, owner = parts
     secret = b64u_decode(secret_b64)
     if len(secret) != 32:
         raise E2EError(f"beacon secret is {len(secret)} bytes, want 32")
-    help_channel = hkdf_sha256(secret, "starling/v1/help-channel-id", 16).hex()
+    if not expires_raw.isdigit() or int(expires_raw) <= int(time.time() * 1000):
+        raise E2EError(f"beacon link expiry looks wrong: {expires_raw!r}")
+    if len(owner) != 32 or any(ch not in "0123456789abcdef" for ch in owner):
+        raise E2EError(f"beacon link carries no sender commitment: {owner!r}")
+    help_channel = hkdf_sha256(secret, "starling/v2/help-channel-id", 16).hex()
     log(f"help link minted: {link.split('#')[0]}#b=<secret>")
     b.escape()
 
@@ -713,7 +805,7 @@ def zero_knowledge_dump(channels):
         clen = len(b64u_decode(p["c"]))
         if clen != PAD_LEN + 16:
             raise E2EError(f"ciphertext length {clen}, want {PAD_LEN + 16}")
-    want_cols = {"channel", "member", "alg", "pk", "last_ts", "srv"}
+    want_cols = {"channel", "member", "alg", "pk", "epk", "last_ts", "srv"}
     for row in members:
         if set(row.keys()) != want_cols:
             raise E2EError(f"members table columns {sorted(row.keys())}, want {sorted(want_cols)}")
@@ -775,15 +867,18 @@ def main():
     try:
         server, logfile = start_server()
         a = Browser("A", PORT_A)
-        invite_url, channel = flow_a_create(a)
+        invite_url, pre_join_channel = flow_a_create(a)
         b = Browser("B", PORT_B)
-        flow_b_join(b, invite_url, channel)
+        b_safety = flow_b_join(b, invite_url)
+        flow_a_review_accept(a, b_safety)
+        channel = flow_b_admitted(a, b)
         cross_visibility(a, b)
         flagship_map_shots(a, b)
         move_checkin_sos_stop(a, b)
+        invite_chan = invite_channel_from_url(invite_url)
         help_chan = flow_help_beacon(b)
         chan2 = flow_multicircle(a, channel)
-        zero_knowledge_dump({channel, chan2, help_chan})
+        zero_knowledge_dump({pre_join_channel, invite_chan, channel, chan2, help_chan})
         console_check([a, b])
         a.close()
         a = None

@@ -12,13 +12,43 @@ export const native = () => globalThis.StarlingNative ?? null;
 
 // Circles live in the app. The hosted web page is a landing plus the demo:
 // a browser tab is the weakest place to hold a long-lived location secret
-// (extensions, shared machines, no OS keystore), so the web build refuses to
-// create or open circles. Local dev servers keep the full app so the test
-// suites and self-hosted development still work.
+// (extensions, shared machines, no OS keystore, and served code can be
+// re-targeted at one visitor in a way a signed, reproducible APK cannot), so
+// the web build refuses to create or open circles. Local dev servers keep the
+// full app so the test suites and self-hosted development still work.
 const DEV_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
+
+// THE gate, and the only one. Everything above this line is context; this is
+// the single switch that decides whether a browser tab may hold a circle
+// secret at all. It stays false for starlingmap.app.
+//
+// A self-hoster who accepts the browser-tab tradeoff above, most often to
+// reach iOS, which has no Starling app and never silently gets background
+// location the way the Android wrapper does (see platform.js), flips this
+// constant to true in their own deployment and rebuilds. Nothing else in the
+// app reads the hostname or the wrapper flag to make this decision; flipping
+// it is the whole change, and it is a decision for whoever runs that
+// deployment, not for the hosted site.
+const WEB_SHARE_ENABLED = false;
+
+// Test hooks are a debugging convenience and an attack surface, and the second
+// matters more here. The strict CSP makes injected script hard, but "hard" is
+// not the bar for a handle that hands out live state or calls the unlock path,
+// so they exist only where the tests that need them run: a loopback dev
+// server. Never on the hosted site, and never inside the shipped Android app,
+// which serves the same bundle from its own asset origin.
+//
+// This does NOT cover __starlingFix or __starlingBio. Those are not debug
+// hooks, they are the callbacks the native side invokes to deliver a location
+// fix and a biometric result, and the app does not work without them.
+export function debugHooks() {
+  const host = globalThis.location?.hostname;
+  return typeof host === "string" && DEV_HOSTS.includes(host);
+}
 
 export function shareCapable() {
   if (isWrapped()) return true;
+  if (WEB_SHARE_ENABLED) return true;
   const host = globalThis.location?.hostname;
   return typeof host === "string" && DEV_HOSTS.includes(host);
 }

@@ -1,8 +1,8 @@
 // Starling relay: a zero-knowledge drop box for ciphertext location posts.
-// It stores (channel, member, ts, nonce, ciphertext) rows, verifies signatures
-// against keys pinned on first write, and expires everything after TTL_MS.
-// It never sees plaintext, names, or any key that decrypts anything, and it
-// must never log request data.
+// It stores (channel, member, epoch, ts, nonce, ciphertext) rows, verifies
+// signatures against keys pinned on first write, and expires everything
+// after TTL_MS. It never sees plaintext, names, or any key that decrypts
+// anything, and it must never log request data.
 
 import {
   MAX_BODY,
@@ -11,11 +11,12 @@ import {
   TTL_MS,
   FUTURE_SKEW_MS,
   b64uDecode,
-  memberIdFromPub,
+  memberIdFromKeys,
   isChannelId,
   sigBase,
   verifySig,
   checkPostShape,
+  epochPlausible,
 } from "../../app/js/wire.js";
 
 const HEADERS = {
@@ -33,6 +34,12 @@ function json(status, obj) {
 
 const err = (status, msg) => json(status, { error: msg });
 
+// A v1 client hitting this fails loudly rather than syncing into a channel
+// nobody else is on: v1's channel derivation and v2's are different secrets,
+// so there is no member on the other end regardless of what the relay does.
+const V1_RETIRED = { error: "protocol v1 retired", upgrade: "https://starlingmap.app" };
+const retired = () => json(410, V1_RETIRED);
+
 function envInt(v, dflt) {
   const n = Number(v);
   return Number.isSafeInteger(n) && n > 0 ? n : dflt;
@@ -43,6 +50,33 @@ function envInt(v, dflt) {
 // key, so scanning many channels or IPs cannot grow it without bound.
 const RATE_WINDOW_MS = 60_000;
 const RATE_KEYS_MAX = 4096;
+
+// The per-channel POST budget has to sit above what a full circle costs when
+// nothing is wrong, or the limiter's first victim is the circle itself.
+//
+// A sharing member posts on a fixed 15 s cadence, so 4 posts a minute each,
+// and a channel holds at most MEMBER_CAP of them: 64 posts a minute of pure
+// steady traffic. The old default of 60 was under that floor, which meant a
+// full circle rate-limited itself and the relay answered honest members with
+// 429 while they believed they were visible.
+//
+// The default is that floor times four. The headroom is not decoration: a
+// re-key adds one wrap per member in a single burst, a "bye" and an SOS ride
+// the same path, and with movement posting on (the default) a member sends
+// again whenever they have moved 25 m, which in a vehicle is far more often
+// than every 15 s. Sixteen people all moving fast can still reach this, and a
+// self-hoster whose circle does that should raise RATE_POST_MIN; the value is
+// a var for exactly that reason. See relay/wrangler.toml.
+const POSTS_PER_MEMBER_MIN = 4;
+const RATE_POST_HEADROOM = 4;
+const DEFAULT_RATE_POST_MIN = MEMBER_CAP * POSTS_PER_MEMBER_MIN * RATE_POST_HEADROOM;
+
+// Per address, shared by reads and writes. A whole circle behind one NAT, one
+// VPN exit or one Tor circuit is the population this app is built for, and it
+// costs MEMBER_CAP * (4 posts + 6 polls) = 160 requests a minute, which this
+// clears. Self-hosters with more than one circle behind a single address raise
+// it.
+const DEFAULT_RATE_IP_MIN = 240;
 
 // One map per namespace. Sharing a single map let cheap keys evict expensive
 // ones: channel ids are attacker-chosen and unlimited, so spraying random
@@ -65,8 +99,8 @@ function rateLimited(ns, key, limit, now) {
 
 // Deterministic TTL sweep, run on every feed request.
 const sweepStmts = (env, now) => [
-  env.DB.prepare("DELETE FROM points_v2 WHERE srv < ?").bind(now - TTL_MS),
-  env.DB.prepare("DELETE FROM members_v2 WHERE srv < ?").bind(now - TTL_MS),
+  env.DB.prepare("DELETE FROM points_v3 WHERE srv < ?").bind(now - TTL_MS),
+  env.DB.prepare("DELETE FROM members_v3 WHERE srv < ?").bind(now - TTL_MS),
 ];
 
 // Origins allowed to write. The Android wrapper serves the same app from
@@ -114,6 +148,25 @@ async function handlePost(request, env, channel, url) {
   const origin = request.headers.get("origin");
   if (!originAllowed(origin, env, url)) return err(403, "forbidden");
 
+  // Rate limits first, ahead of every database read and the signature check.
+  //
+  // These are the only checks that cost nothing: two in-memory array walks,
+  // no I/O, no crypto. Running them last, as this did, meant a request that
+  // was going to be refused anyway had already spent two D1 round trips and
+  // an Ed25519 verification getting there, so the limiter bounded what
+  // reached storage and not what reached the CPU. Any 32 hex characters name
+  // a channel, so an attacker picking a fresh channel per request never met
+  // the per-channel limit at all and the per-address budget was the only
+  // thing standing between a spray and unbounded work. Cheapest first.
+  const now = Date.now();
+  const ip = request.headers.get("cf-connecting-ip") || "";
+  if (
+    rateLimited("i", ip, envInt(env.RATE_GET_MIN, DEFAULT_RATE_IP_MIN), now) ||
+    rateLimited("c", channel, envInt(env.RATE_POST_MIN, DEFAULT_RATE_POST_MIN), now)
+  ) {
+    return err(429, "rate limited");
+  }
+
   const text = await request.text();
   if (new TextEncoder().encode(text).length > MAX_BODY) return err(413, "too large");
 
@@ -126,28 +179,41 @@ async function handlePost(request, env, channel, url) {
   const body = checkPostShape(parsed);
   if (!body) return err(400, "bad request");
 
-  let pkBytes;
+  let pkBytes, epkBytes;
   try {
     pkBytes = b64uDecode(body.pk);
+    epkBytes = b64uDecode(body.epk);
   } catch {
     return err(400, "bad request");
   }
-  if ((await memberIdFromPub(pkBytes)) !== body.m) return err(403, "forbidden");
+  // The member id commits to both keys, so recomputing it here and requiring
+  // it to equal the posted m is what stops a relay, or anyone else, from
+  // pairing a signing key with an agreement key of their choosing.
+  if ((await memberIdFromKeys(pkBytes, epkBytes)) !== body.m) return err(403, "forbidden");
 
-  const now = Date.now();
   if (body.ts > now + FUTURE_SKEW_MS) return err(400, "bad request");
+  // Bounds-check only: the relay's clock is untrusted and this exists to keep
+  // junk out of storage, not to decide which key a receiver uses.
+  //
+  // It gets its own error string rather than a generic 400 because of what it
+  // means to the person holding the phone. A device whose clock is wrong by
+  // more than the skew tolerance cannot be seen by its circle at all, and the
+  // one thing worse than that happening is it happening silently while someone
+  // is relying on being visible. The client turns this into "your clock is
+  // wrong", not "network error".
+  if (!epochPlausible(body.e, now)) return err(400, "clock");
 
   const pinned = await env.DB
-    .prepare("SELECT alg, pk, last_ts FROM members_v2 WHERE channel = ? AND member = ?")
+    .prepare("SELECT alg, pk, epk, last_ts FROM members_v3 WHERE channel = ? AND member = ?")
     .bind(channel, body.m)
     .first();
   if (pinned) {
-    if (pinned.alg !== body.alg || pinned.pk !== body.pk) return err(403, "forbidden");
+    if (pinned.alg !== body.alg || pinned.pk !== body.pk || pinned.epk !== body.epk) return err(403, "forbidden");
     if (body.ts <= pinned.last_ts) return err(409, "conflict");
   } else {
     // Early reject for the sequential case; the batch below enforces the cap
     // atomically, so this read is a fast path, not the guard.
-    const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM members_v2 WHERE channel = ?").bind(channel).first();
+    const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM members_v3 WHERE channel = ?").bind(channel).first();
     if (row.n >= MEMBER_CAP) return err(403, "forbidden");
   }
 
@@ -157,16 +223,8 @@ async function handlePost(request, env, channel, url) {
   } catch {
     return err(403, "forbidden");
   }
-  const base = sigBase(channel, body.m, body.ts, body.n, body.c);
+  const base = sigBase(channel, body.m, body.e, body.ts, body.n, body.c);
   if (!(await verifySig(body.alg, pkBytes, sigBytes, base))) return err(403, "forbidden");
-
-  const ip = request.headers.get("cf-connecting-ip") || "";
-  if (
-    rateLimited("c", channel, envInt(env.RATE_POST_MIN, 60), now) ||
-    rateLimited("i", ip, envInt(env.RATE_GET_MIN, 240), now)
-  ) {
-    return err(429, "rate limited");
-  }
 
   // The member cap is enforced inside this batch, not by the COUNT read
   // above: a new member row lands only while the channel holds fewer than
@@ -180,29 +238,29 @@ async function handlePost(request, env, channel, url) {
     results = await env.DB.batch([
       env.DB
         .prepare(
-          "INSERT INTO members_v2 (channel, member, alg, pk, last_ts, srv) " +
-            "SELECT ?, ?, ?, ?, ?, ? " +
-            "WHERE EXISTS (SELECT 1 FROM members_v2 WHERE channel = ? AND member = ?) " +
-            "OR (SELECT COUNT(*) FROM members_v2 WHERE channel = ?) < ? " +
+          "INSERT INTO members_v3 (channel, member, alg, pk, epk, last_ts, srv) " +
+            "SELECT ?, ?, ?, ?, ?, ?, ? " +
+            "WHERE EXISTS (SELECT 1 FROM members_v3 WHERE channel = ? AND member = ?) " +
+            "OR (SELECT COUNT(*) FROM members_v3 WHERE channel = ?) < ? " +
             // last_ts only ever moves forward. Two concurrent posts from one
             // member can both pass the read-side replay check above, and if
             // the older one lands second a blind assignment would walk the
             // pin backwards and re-open the window it exists to close.
             "ON CONFLICT (channel, member) DO UPDATE SET " +
-            "last_ts = MAX(members_v2.last_ts, excluded.last_ts), srv = excluded.srv",
+            "last_ts = MAX(members_v3.last_ts, excluded.last_ts), srv = excluded.srv",
         )
-        .bind(channel, body.m, body.alg, body.pk, body.ts, now, channel, body.m, channel, MEMBER_CAP),
+        .bind(channel, body.m, body.alg, body.pk, body.epk, body.ts, now, channel, body.m, channel, MEMBER_CAP),
       env.DB
         .prepare(
-          "INSERT INTO points_v2 (channel, member, ts, srv, n, c, sig) " +
-            "SELECT ?, ?, ?, ?, ?, ?, ? " +
-            "WHERE EXISTS (SELECT 1 FROM members_v2 WHERE channel = ? AND member = ?)",
+          "INSERT INTO points_v3 (channel, member, e, ts, srv, n, c, sig) " +
+            "SELECT ?, ?, ?, ?, ?, ?, ?, ? " +
+            "WHERE EXISTS (SELECT 1 FROM members_v3 WHERE channel = ? AND member = ?)",
         )
-        .bind(channel, body.m, body.ts, now, body.n, body.c, body.sig, channel, body.m),
+        .bind(channel, body.m, body.e, body.ts, now, body.n, body.c, body.sig, channel, body.m),
       env.DB
         .prepare(
-          "DELETE FROM points_v2 WHERE channel = ? AND member = ? AND ts NOT IN " +
-            "(SELECT ts FROM points_v2 WHERE channel = ? AND member = ? ORDER BY ts DESC LIMIT ?)",
+          "DELETE FROM points_v3 WHERE channel = ? AND member = ? AND ts NOT IN " +
+            "(SELECT ts FROM points_v3 WHERE channel = ? AND member = ? ORDER BY ts DESC LIMIT ?)",
         )
         .bind(channel, body.m, channel, body.m, TRAIL_CAP),
       ...sweepStmts(env, now),
@@ -217,7 +275,7 @@ async function handlePost(request, env, channel, url) {
 
 async function handleGet(request, env, channel, url) {
   const ip = request.headers.get("cf-connecting-ip") || "";
-  if (rateLimited("i", ip, envInt(env.RATE_GET_MIN, 240), Date.now())) return err(429, "rate limited");
+  if (rateLimited("i", ip, envInt(env.RATE_GET_MIN, DEFAULT_RATE_IP_MIN), Date.now())) return err(429, "rate limited");
 
   // The feed cursor is the relay's own receive time (srv), never the
   // client-claimed ts, so one member's skewed clock can never filter another
@@ -235,20 +293,23 @@ async function handleGet(request, env, channel, url) {
   await env.DB.batch(sweepStmts(env, now));
 
   const members = (
-    await env.DB.prepare("SELECT member, alg, pk FROM members_v2 WHERE channel = ? ORDER BY member").bind(channel).all()
+    await env.DB
+      .prepare("SELECT member, alg, pk, epk FROM members_v3 WHERE channel = ? ORDER BY member")
+      .bind(channel)
+      .all()
   ).results;
   const points = (
     await env.DB
-      .prepare("SELECT member, ts, srv, n, c, sig FROM points_v2 WHERE channel = ? AND srv >= ? ORDER BY srv, ts")
+      .prepare("SELECT member, e, ts, srv, n, c, sig FROM points_v3 WHERE channel = ? AND srv >= ? ORDER BY srv, ts")
       .bind(channel, since)
       .all()
   ).results;
 
   const out = new Map();
-  for (const r of members) out.set(r.member, { m: r.member, alg: r.alg, pk: r.pk, points: [] });
-  // sig travels with every point: receivers verify it themselves rather than
-  // taking the relay's word that it checked one on the way in.
-  for (const r of points) out.get(r.member)?.points.push({ ts: r.ts, srv: r.srv, n: r.n, c: r.c, sig: r.sig });
+  for (const r of members) out.set(r.member, { m: r.member, alg: r.alg, pk: r.pk, epk: r.epk, points: [] });
+  // sig and e travel with every point: receivers verify and pick their own
+  // key rather than taking the relay's word for either.
+  for (const r of points) out.get(r.member)?.points.push({ e: r.e, ts: r.ts, srv: r.srv, n: r.n, c: r.c, sig: r.sig });
   return json(200, { now, members: [...out.values()] });
 }
 
@@ -283,12 +344,18 @@ async function route(request, env) {
     });
   }
 
-  if (p === "/api/v1/health") {
+  // v1 fails loudly rather than syncing into silence against a channel
+  // nobody else is on: v1 and v2 derive different channel ids from the same
+  // circle secret, so a v1 client polling here would just see an empty feed
+  // forever with no signal anything is wrong.
+  if (p.startsWith("/api/v1/")) return retired();
+
+  if (p === "/api/v2/health") {
     if (request.method !== "GET") return err(405, "method not allowed");
     return json(200, { ok: true });
   }
 
-  const m = /^\/api\/v1\/f\/([^/]+)(\/loc)?$/.exec(p);
+  const m = /^\/api\/v2\/f\/([^/]+)(\/loc)?$/.exec(p);
   if (!m) return err(404, "not found");
   const [, seg, loc] = m;
   if (!isChannelId(seg)) return err(404, "not found");
@@ -320,7 +387,7 @@ async function route(request, env) {
 // route handlers themselves stay origin-unaware.
 async function withCors(request, env, response) {
   const url = new URL(request.url);
-  if (!/^\/api\/v1\/f\//.test(url.pathname)) return response;
+  if (!/^\/api\/v2\/f\//.test(url.pathname)) return response;
   const cors = corsHeaders(request.headers.get("origin"), env, url);
   if (!cors["access-control-allow-origin"]) return response;
   const headers = new Headers(response.headers);

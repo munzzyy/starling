@@ -33,15 +33,34 @@ digging further than needed to prove the issue.
 ## What is in scope
 
 The app (`app/`), the relay (`relay/`), the Android wrapper (`android/`),
-the protocol (`docs/PROTOCOL.md`), and the crypto
-(`app/js/crypto.js`, `app/js/lock.js`, `app/js/wire.js`).
+the protocol (`docs/PROTOCOL.md`), and the crypto (`app/js/crypto.js`,
+`app/js/wire.js`, `app/js/ratchet.js`, `app/js/rekey.js`, `app/js/net.js`,
+`app/js/membership.js`, `app/js/lock.js`, `app/js/circles.js`).
+
+Protocol v2 is wired end to end as of 0.5.0: crypto core, relay, multi-circle
+storage, app orchestration, and the Android wrapper. It has not had an
+independent security review; `docs/AUDIT.md` has the exact, checkable status
+of what has and has not been verified, and is where to start if you are
+looking for where the least-reviewed code is (currently the invite/welcome
+handshake and roster convergence in `app/js/membership.js` and `app/js/main.js`).
+The live relay's actual protocol version can drift from what is in this
+repository depending on when it was last deployed;
+`curl https://starlingmap.app/api/v2/health` tells you which one you are
+testing against before you start.
 
 Good things to report:
 
-- Any path where a location, name, or the circle secret reaches the relay, a
-  log, a URL, or disk in a form the server or a bystander can read.
+- Any path where a location, name, or a circle's key material reaches the
+  relay, a log, a URL, or disk in a form the server or a bystander can read.
 - Any way to write, alter, or replay another member's position that the
-  signature and timestamp rules should have blocked.
+  signature and timestamp/epoch rules should have blocked.
+- Any way to decrypt an epoch after the device that held its key destroyed
+  it, or any way to keep reading a circle after a re-key that removed you.
+- Any way to make a receiver accept a re-key from a sender it has not
+  already pinned, or to re-pin a member's keys without surfacing the change.
+- Any way to make a joiner accept a welcome from anyone other than the
+  identity its invite link committed to, or any way to claim a member seat
+  by posting a `member` record anywhere other than inside a verified welcome.
 - XSS or injection reachable from a decrypted message field or a relay response.
 - A way to bypass the app lock or recover the sealed circle secret without the
   passcode or biometric.
@@ -52,14 +71,19 @@ Good things to report:
 
 ## What is already known
 
-`docs/THREAT-MODEL.md` (including its "Android app deltas" section) lists
-the limits Starling does not try to solve: network and timing metadata
-visible to the relay, no forward-secrecy ratchet within a circle's
-lifetime, invite links as bearer capabilities, the web delivery trust
-model, passcode strength being the user's own, and the foreground-service
-notification being a required, not accidental, disclosure of active
-sharing. Reports that restate these are welcome as discussion but are not
-treated as new findings.
+`docs/THREAT-MODEL.md` (including its "Android app deltas" section) and
+`docs/AUDIT.md` list the limits Starling does not try to solve and the gaps
+that are already tracked: no human security audit, network and timing
+metadata visible to the relay, the SOS-and-circle correlation signal from
+firing a beacon on the same IP as the circle channel, forward secrecy bounded
+by a device's retained history window rather than absolute, post-compromise
+security requiring an actual re-key rather than happening automatically, no
+cover traffic beyond a steady-cadence posting option, no post-quantum
+protection, the web delivery trust model (including why there is no iOS app
+and why F-Droid has not built this yet), passcode strength being the user's
+own, and the foreground-service notification being a required disclosure of
+active sharing. Reports that restate these are welcome as discussion but are
+not treated as new findings.
 
 ## No bounty
 

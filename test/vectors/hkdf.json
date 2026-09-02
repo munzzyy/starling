@@ -1,0 +1,93 @@
+{
+  "note": "Every HKDF info string in protocol v2, with a fixed input and the exact output. HKDF-SHA-256 throughout; the salt is always 32 zero bytes and the info string always begins with the protocol prefix. All byte strings are hex.",
+  "hash": "SHA-256",
+  "salt": "0000000000000000000000000000000000000000000000000000000000000000",
+  "proto": "starling/v2",
+  "fixed": {
+    "channel": "00112233445566778899aabbccddeeff",
+    "member": "ffeeddccbbaa99887766554433221100",
+    "note": "the channel and member ids above appear inside two of the info strings"
+  },
+  "cases": [
+    {
+      "info": "starling/v2/anchor",
+      "use": "names a generation's relay channel",
+      "ikm": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "len": 32,
+      "okm": "d448eeb615b7078dfb1bd9cda7a14f1ff8e85446e8851d19553437e545fade5f"
+    },
+    {
+      "info": "starling/v2/channel-id",
+      "use": "the channel id, rendered as hex",
+      "ikm": "d448eeb615b7078dfb1bd9cda7a14f1ff8e85446e8851d19553437e545fade5f",
+      "len": 16,
+      "okm": "f1c695a80bae6baf8bb34828bc177bc9",
+      "rendered": "f1c695a80bae6baf8bb34828bc177bc9"
+    },
+    {
+      "info": "starling/v2/chain",
+      "use": "CK_0, the generation's first chain key",
+      "ikm": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "len": 32,
+      "okm": "3e807d0367f0c50adeb1ab8defe671706808d2f6812345b7e6632e7d56682992"
+    },
+    {
+      "info": "starling/v2/step",
+      "use": "CK_e -> CK_{e+1}",
+      "ikm": "030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dc",
+      "len": 32,
+      "okm": "bde5c17cc1602562b4ddfd6d6133d3824fc0abb69a565751883f6b6222be6f9a"
+    },
+    {
+      "info": "starling/v2/msg|ffeeddccbbaa99887766554433221100",
+      "use": "AES-256-GCM content key for one (epoch, member)",
+      "ikm": "030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dc",
+      "len": 32,
+      "okm": "097d1ed5b2c2d87bded9c82e0b121389412f2483088249e4f3fad32278ab62b6"
+    },
+    {
+      "info": "starling/v2/rekey",
+      "use": "next generation's seed, from CK_e || NS",
+      "ikm": "030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dc05101b26313c47525d68737e89949faab5c0cbd6e1ecf7020d18232e39444f5a",
+      "len": 32,
+      "okm": "c7acc26e46d1fc9bfa3af2c68ec68d55e8f06f0840e9dc94b478248eb617b270"
+    },
+    {
+      "info": "starling/v2/wrap|00112233445566778899aabbccddeeff|ffeeddccbbaa99887766554433221100",
+      "use": "AES-256-GCM key wrapping NS to one member",
+      "ikm": "fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0efeeedecebeae9e8e7e6e5e4e3e2e1e0",
+      "len": 32,
+      "okm": "6255da4b76173325ced25406733bcfec2574381f93c91a64f497c6412acc62fe"
+    },
+    {
+      "info": "starling/v2/invite-channel",
+      "use": "invite rendezvous channel",
+      "ikm": "0104070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
+      "len": 16,
+      "okm": "ec167a0c69b9cb78e6d9423990062684",
+      "rendered": "ec167a0c69b9cb78e6d9423990062684"
+    },
+    {
+      "info": "starling/v2/invite-enc",
+      "use": "seals the invite handshake",
+      "ikm": "0104070a0d101316191c1f2225282b2e3134373a3d404346494c4f5255585b5e",
+      "len": 32,
+      "okm": "88d5a20193a7b17d1665e63ec5839e6ba6347585e9dd02d074ca42e834695882"
+    },
+    {
+      "info": "starling/v2/help-channel-id",
+      "use": "one beacon viewer's channel",
+      "ikm": "090e13181d22272c31363b40454a4f54595e63686d72777c81868b90959a9fa4",
+      "len": 16,
+      "okm": "2c777e61c23b70d08bfe9a8c28c3dd17",
+      "rendered": "2c777e61c23b70d08bfe9a8c28c3dd17"
+    },
+    {
+      "info": "starling/v2/help-enc",
+      "use": "seals beacon positions to one viewer",
+      "ikm": "090e13181d22272c31363b40454a4f54595e63686d72777c81868b90959a9fa4",
+      "len": 32,
+      "okm": "7a83364277572124bc14de571efeeced751a24848660d582cccebbade440358f"
+    }
+  ]
+}

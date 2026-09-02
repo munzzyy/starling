@@ -70,9 +70,9 @@ trap 'rm -f ../app/starling.apk' EXIT
 echo "== 4/4 health check =="
 SUB=$("${W[@]}" whoami 2>/dev/null | grep -oE '[a-z0-9-]+\.workers\.dev' | head -1 || true)
 URL="https://$WORKER.${SUB:-workers.dev}"
-echo "trying $URL/api/v1/health"
+echo "trying $URL/api/v2/health"
 for i in 1 2 3 4 5 6; do
-  if curl -fsS "$URL/api/v1/health" 2>/dev/null | grep -q '"ok":true'; then
+  if curl -fsS "$URL/api/v2/health" 2>/dev/null | grep -q '"ok":true'; then
     echo "live: $URL"; exit 0
   fi
   echo "  not ready yet (new subdomains take a few minutes for TLS); retrying..."

@@ -5,7 +5,7 @@
   "description": "Starling's landing page and live demo. Location sharing itself lives in the Starling Android app.",
   "start_url": "/",
   "scope": "/",
-  "display": "browser",
+  "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0a0d14",
   "theme_color": "#0a0d14",

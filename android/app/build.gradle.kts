@@ -11,8 +11,8 @@ android {
         applicationId = "app.starlingmap"
         minSdk = 29
         targetSdk = 36
-        versionCode = 401
-        versionName = "0.4.1"
+        versionCode = 500
+        versionName = "0.5.0"
     }
 
     buildTypes {
