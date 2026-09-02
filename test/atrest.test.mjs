@@ -242,6 +242,15 @@ test("the code destroys in the order the plan says it does", async () => {
   // swallows, so a store with no quota left cannot take the erase down.
   const between = body.slice(body.indexOf("leaveActive("), body.indexOf("dbSet(DESTROYED_KEY"));
   assert.match(between, /try \{/, "the bookkeeping write is guarded, so its failure cannot unwind the erase");
+
+  // And the guard has to actually swallow. A catch that rethrows satisfies the
+  // shape above while doing nothing, and that mutation passed the whole suite:
+  // the erase still commits, but everything after it is skipped, so the
+  // session stays on the dead circle's name while the disk holds the promoted
+  // one. mayFail:true means the failure stops here.
+  const guard = body.slice(body.indexOf("dbSet(DESTROYED_KEY"));
+  const catchBody = guard.slice(guard.indexOf("catch"), guard.indexOf("}", guard.indexOf("catch")));
+  assert.ok(!/\bthrow\b/.test(catchBody), "and it swallows rather than rethrowing, or the guard is decoration");
 });
 
 test("nothing on the destruct path takes the app lock off", async () => {
@@ -282,4 +291,45 @@ test("main.js asks one function whether it may write, and asks it nowhere else",
   const write = src.slice(src.indexOf("async function writeChainKey"), src.indexOf("// The members this generation"));
   assert.match(write, /atRestForm\(lock\)/);
   assert.match(write, /if \(!form\.ok\) throw/, "the crown jewel is still refused rather than downgraded");
+});
+
+test("an active circle wins over the waiting ones, even though both are present", async () => {
+  // The ordering nothing was holding. bootVerdict is the sole authority for
+  // what a launch does, and "active before promote" is its most load-bearing
+  // line: on a multi-circle device BOTH conditions are true at once, because
+  // the active slots hold one circle while the array holds the rest.
+  //
+  // Swapping the two left the whole suite green while a launch took the
+  // promote branch, and promote runs leaveActive over the active slots. The
+  // circle the person was actually in loses its chain key, its identity, its
+  // roster and its invitation, and the device comes up silently in a different
+  // circle under a different pseudonym. Every existing check asserted the two
+  // kinds separately and never the case where both are set, which is the
+  // normal configuration for anyone with more than one circle.
+  const both = bootVerdict({
+    lockEnabled: false,
+    secret: new Uint8Array(32).fill(1),
+    identity: { memberId: "a".repeat(32) },
+    circles: [{ name: "the others" }, { name: "and another" }],
+    destroyed: false,
+  });
+  assert.equal(both.kind, "active", "a device that has an active circle is in it, not promoting over it");
+
+  // The promote branch is still reachable, so the assertion above is about
+  // precedence and not about promote being dead.
+  const onlyStored = bootVerdict({
+    lockEnabled: false,
+    secret: null,
+    identity: null,
+    circles: [{ name: "left after a crash mid-leave" }],
+    destroyed: false,
+  });
+  assert.equal(onlyStored.kind, "promote", "with the slots empty, the waiting circle is promoted");
+
+  // And a half-written slot pair is not an active circle.
+  assert.equal(
+    bootVerdict({ lockEnabled: false, secret: new Uint8Array(32), identity: null, circles: [{}], destroyed: false }).kind,
+    "promote",
+    "a chain key with no identity beside it is a torn write, not a circle to enter",
+  );
 });
