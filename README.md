@@ -252,7 +252,7 @@ reason.
   and the live site running it are two different facts. See
   [docs/AUDIT.md](docs/AUDIT.md).
 - F-Droid and Google Play, both still not live; the F-Droid merge request is
-  open, Play review is in progress.
+  open.
 - Argon2id (memory-hard) app-lock KDF via a vetted WASM build
 - One-time guest links as short-lived side circles
 
