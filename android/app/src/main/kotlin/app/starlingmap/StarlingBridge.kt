@@ -56,6 +56,22 @@ class StarlingBridge(private val activity: MainActivity) {
         activity.runOnUiThread { Wipe.everything(activity) }
     }
 
+    // Open this app's system settings page, for the moment a permission was
+    // denied and the in-app prompt can no longer be shown again.
+    @JavascriptInterface
+    fun openAppSettings() {
+        activity.runOnUiThread {
+            runCatching {
+                activity.startActivity(
+                    android.content.Intent(
+                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        android.net.Uri.parse("package:" + activity.packageName),
+                    ),
+                )
+            }
+        }
+    }
+
     // ------------------------------------------------------------- clipboard
 
     // Clear the clipboard only if it still holds exactly the text the app put

@@ -3,6 +3,61 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [0.7.0]
+
+Six critics were pointed at 0.6.1 before this release: a parent who just
+left Life360, a teenager, a screen-reader user, a Guardian-Project-style
+reviewer, a security auditor, and a first-run user. What follows is what
+they found, fixed.
+
+- **Alerts actually reach a pocketed phone now.** The poller used to stop
+  the moment the app was hidden, everywhere, which quietly hollowed out the
+  background notifications 0.6.0 promised. The Android app now keeps
+  listening in the background at a relaxed cadence (the sharing service
+  keeps it alive), so a member's SOS lands as a notification while the
+  phone sits in a pocket. The web keeps its hidden-tab pause. The threat
+  model now states the delivery model exactly, including what a phone with
+  the app closed does and does not see.
+- **Status captions.** A few words on your own dot: "omw", "here", "at the
+  north gate". Tap your name to set one. It rides inside the same
+  encrypted, padded payload as everything else, only speaks while you are
+  live, and clears itself when you stop sharing.
+- **Join flow, humanized.** Both hinge moments notify (request received,
+  request accepted). The waiting card admits when it has been a while and
+  says what to do. A refused welcome no longer flatly announces an attack
+  the code cannot distinguish from a stale retry. The joiner's circle-name
+  field explains why it is blank. Safety-number screens say in plain words
+  what the check is for, and tapping any safety number opens it full
+  screen in large type for comparing phones side by side.
+- **Warned before stranding, told when cut off.** Accepting a member or
+  making new keys now warns when someone has been quiet for over an hour
+  and might miss the new keys. And a circle that goes silent for 45
+  minutes while you share raises a gentle card naming the one cause the
+  app can do something about.
+- **Accessibility.** SOS can be held via keyboard. The bottom sheet's
+  grabber is a real button with a real name. System font size scales the
+  whole app (WebView textZoom). Amber and rose text hold AA contrast in
+  the light theme. Compact icon buttons grew 44px hit areas. The
+  connection dot speaks. Firing SOS surfaces its own cancel instructions.
+- **Swiped away means told.** Removing the app from recents while sharing
+  posts a "Sharing stopped" notification instead of ending the share in
+  silence.
+- **Tor mode explains itself.** If Orbot never answers the port question,
+  the app now says so and names the fix (Power User Mode, or Orbot's
+  per-app VPN). docs/TOR.md gained an honest section on Cloudflare versus
+  Tor exits and the self-host escape hatch.
+- **Cheaper to flood, for the attacker's sake of it.** A joiner now
+  refuses non-inviter identities with a hash compare before spending
+  signature verifications on their messages. A new test proves welcome
+  wraps and re-key wraps can never open as each other.
+- Copied invite links now get five minutes before the clipboard clears,
+  and the clear announces itself. Location-permission help inside the app
+  points at the app's own settings screen, with a button that opens it.
+- The landing page says out loud that the app is Android-only, what
+  Starling does not do (no driving reports, no crash detection), and how
+  SOS delivery actually works. The help beacon page explains itself to
+  no-JavaScript visitors instead of rendering blank.
+
 ## [0.6.1]
 
 - **The app is the app, not the website.** A fresh install used to open on

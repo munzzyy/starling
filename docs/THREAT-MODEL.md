@@ -247,15 +247,28 @@ database) gets ciphertext and metadata only:
     codes are indistinguishable at the keyboard, and by the time storage
     can be read calmly, the wipe has either run or was never needed. If
     your threat includes a forensic read BEFORE coercion, do not set one.
-16. **Event notifications go through the OS.** On Android, an SOS, arrival,
-    or low-battery alert posted while the app is hidden is a system
-    notification: its title and text (a member's name, a place name) pass
-    through the OS notification pipeline and appear on the lock screen
-    subject to the system's own lock-screen privacy setting. Nothing is
-    sent to any push service, there are no push tokens, and the
-    notification is built locally, but a shoulder surfer reading your lock
-    screen is reading real names. Android's "sensitive notification
-    content" setting is the control for that.
+16. **Event notifications go through the OS, and arrive only while the app
+    can listen.** On Android, an SOS, arrival, or low-battery alert posted
+    while the app is hidden is a system notification: its title and text (a
+    member's name, a place name) pass through the OS notification pipeline
+    and appear on the lock screen subject to the system's own lock-screen
+    privacy setting. Nothing is sent to any push service, there are no push
+    tokens, and the notification is built locally. Two consequences follow.
+    A shoulder surfer reading your lock screen is reading real names;
+    Android's "sensitive notification content" setting is the control for
+    that. And with no push service there is nothing that can wake a phone
+    Starling is not running on: the app polls in the background (the
+    location-sharing service keeps it alive while you share), so alerts
+    reach a pocketed phone while sharing is on, but a phone with the app
+    swiped away, frozen by the OS, or powered off sees the alert on the
+    next open. Life360-grade "the push wakes the phone no matter what" is
+    exactly the tradeoff Starling refuses, because the token that buys it
+    is an address a server holds for you.
+17. **The app speaks English, left to right, and nothing else yet.** Every
+    string is hardcoded English, and at-risk users are mostly not English
+    speakers. A translation layer (and with it RTL support) is the plan;
+    until it exists this is a real reach limit, not a cosmetic one, and it
+    belongs on this list.
 
 ## Emergency beacon
 

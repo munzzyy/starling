@@ -133,3 +133,15 @@ body.hv {
   background: linear-gradient(transparent, color-mix(in srgb, var(--bg) 85%, transparent));
   pointer-events: none;
 }
+
+.hv-noscript {
+  margin: 16vh auto 0;
+  max-width: 32em;
+  padding: 20px;
+  border-radius: var(--r-md);
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.5;
+}

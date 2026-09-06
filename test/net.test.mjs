@@ -576,3 +576,34 @@ test("an idle poller still advances the chain: syncToClock runs on every tick", 
   );
   assert.equal(syncCalls.length, 3, "syncToClock ran on every tick, including the ticks nothing arrived on");
 });
+
+// ------------------------------------------------- background listening
+
+// The wrapper keeps polling while hidden (an SOS must reach a pocketed
+// phone); the web stays paused as it always did. isWrapped() keys on
+// globalThis.StarlingNative, so wrapper mode is one stub away.
+test("hidden document: web pauses, wrapper keeps listening", async () => {
+  const calls = [];
+  const restore = stubGlobals([{ members: [] }], calls);
+  globalThis.document.visibilityState = "hidden";
+  try {
+    const web = createPoller({ channelId: CHANNEL, roster: { async ingest() {} } });
+    web.start();
+    await new Promise((r) => setTimeout(r, 50));
+    web.stop();
+    assert.equal(calls.length, 0, "a hidden web tab must not fetch");
+
+    globalThis.StarlingNative = { platform: () => "android" };
+    try {
+      const app = createPoller({ channelId: CHANNEL, roster: { async ingest() {} } });
+      app.start();
+      await new Promise((r) => setTimeout(r, 50));
+      app.stop();
+      assert.ok(calls.length >= 1, "the hidden wrapper keeps polling");
+    } finally {
+      delete globalThis.StarlingNative;
+    }
+  } finally {
+    restore();
+  }
+});

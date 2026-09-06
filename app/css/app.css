@@ -845,13 +845,30 @@ a.land-download {
   cursor: grab;
 }
 
+/* A real button now (keyboard and screen-reader path to expand the sheet),
+   drawn as the same small bar with a much larger invisible hit area. */
 .grabber {
+  display: block;
+  width: 120px;
+  min-height: 24px;
+  padding: 0;
+  margin: 0 auto 4px;
+  background: none;
+  border: 0;
+  position: relative;
+}
+
+.grabber::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   width: 40px;
   height: 4px;
   border-radius: 999px;
   background: var(--ink-3);
   opacity: 0.55;
-  margin: 4px auto 12px;
 }
 
 .you-card {
@@ -2323,4 +2340,78 @@ div.danger-zone {
 .ob-about .btn {
   font-size: 13px;
   color: var(--ink-3);
+}
+
+/* ---------------------------------------------------------------- status */
+
+/* .you-info became a button (it opens the status sheet); keep its layout. */
+button.you-info {
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  min-height: 44px;
+}
+
+.status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 14px;
+}
+
+.status-chip {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+/* ------------------------------------------------------------ a11y floor */
+
+/* Visually hidden, screen-reader spoken. */
+.vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 44px minimum hit areas on the compact controls; the glyphs stay small. */
+.icon-btn,
+.pill-gear,
+.btn-mini {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.seg-cell {
+  min-height: 40px;
+}
+
+/* Full-screen safety-number compare. */
+.safety-tappable {
+  cursor: pointer;
+}
+
+.safety-huge {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 18px;
+  justify-items: center;
+  padding: 18px 0 8px;
+}
+
+.safety-huge-g {
+  font-family: var(--mono);
+  font-size: clamp(28px, 11vw, 44px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
 }

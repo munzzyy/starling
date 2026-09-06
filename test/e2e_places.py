@@ -127,6 +127,17 @@ def main():
         time.sleep(0.7)
         a.shot("21-member-at-place.png")
 
+        # A status caption set on B rides the encrypted payload to A's card.
+        bb.click('[data-testid="status-open"]')
+        wait_for(lambda: q(bb, "return !!document.querySelector('[data-testid=\"status-sheet\"]')"),
+                 timeout=10, desc="B status sheet")
+        bb.send_keys('[data-testid="status-input"]', "omw north gate")
+        bb.click('[data-testid="status-save"]')
+        wait_for(lambda: '"omw north gate"' in (member_sub(a, "Blair") or ""), timeout=30,
+                 desc="A sees B's caption", nudge=a.nudge_poll)
+        check("B's caption reaches A's card", True)
+        check("relay feed never carries the caption", "omw north gate" not in E.http_get(f"/api/v2/f/{channel}")[1])
+
         # Rename and radius edits stick, and rename flows into the card line.
         open_places(a)
         q(a,

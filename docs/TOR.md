@@ -82,3 +82,22 @@ actively dangerous for this app's use case.
 
 Any one of those alone narrows the gap. All three, and it's worth
 prototyping for real instead of writing it up as a no.
+
+## Censorship, honestly
+
+Tor gets your traffic out from under a local network that blocks
+starlingmap.app. What it does not solve is the other end: the relay lives on
+Cloudflare, and Cloudflare sometimes challenges traffic from Tor exit nodes.
+What actually happens today: the relay is an API on a Workers route, and
+Workers requests are not served the browser-challenge interstitial the way
+proxied HTML pages are, so polls and posts from Tor exits generally pass. But
+"generally" is an observation, not a guarantee; Cloudflare's treatment of
+exit-node reputation is theirs to change, per IP, per day. If a circle's
+polls start failing only under Tor, that is the likeliest reason.
+
+The self-host escape hatch is real: the relay is one Worker anyone can
+deploy on their own zone (or port to another host; it is fetch-in,
+fetch-out with a small SQL table), and the app takes a custom relay URL in
+settings. An .onion mirror of the relay would close this gap properly and
+is worth doing; it is not done today, and this file does not pretend
+otherwise.

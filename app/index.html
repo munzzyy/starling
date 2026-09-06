@@ -112,7 +112,8 @@
       <h1 class="ob-wordmark">starling</h1>
       <p class="ob-tagline">Your people, on your map. Nobody else.</p>
       <p class="lnd-subline">Create a circle, send one link, and watch each other arrive.
-        Nothing about where you are ever leaves your phone in a form anyone else can read.</p>
+        Nothing about where you are ever leaves your phone in a form anyone else can read.
+        The app is Android-only today.</p>
       <ul class="lnd-trustrow">
         <li><span class="lnd-trust-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3 4.5 6v6c0 4.4 3 7.9 7.5 9 4.5-1.1 7.5-4.6 7.5-9V6L12 3Z"/></svg></span>End-to-end encrypted</li>
         <li><span class="lnd-trust-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4.5 20.5v-1a6.5 6.5 0 0 1 13 0v1M11 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="m17 9 1.6 1.6L22 7"/></svg></span>No accounts</li>
@@ -400,9 +401,18 @@
         </details>
         <details class="lnd-faq-item">
           <summary>What happens in an emergency?</summary>
-          <p>Hold the SOS button and your circle gets an alert at your live position. You can also
-            open a help beacon, a link that works in any browser, for someone outside your circle,
-            and revoke it the moment you are safe.</p>
+          <p>Hold the SOS button and your circle gets an alert at your live position. On their
+            phones it lands as a notification while Starling runs in the background; a phone that
+            is off or has the app fully closed sees it on the next open, because there is no push
+            service to force it awake. You can also open a help beacon, a link that works in any
+            browser, for someone outside your circle, and revoke it the moment you are safe.</p>
+        </details>
+        <details class="lnd-faq-item">
+          <summary>What does Starling not do?</summary>
+          <p>No iPhone app yet. No driving reports, speed alerts, or crash detection. No location
+            history older than a day, on purpose. If those are the features you need most,
+            Starling is not your app yet, and finding that out here beats finding it out after
+            you switched.</p>
         </details>
       </div>
     </section>
@@ -445,6 +455,7 @@
   <div class="top-chrome">
     <div class="pill" data-testid="circle-pill">
       <span class="status-dot dot-idle" id="status-dot" aria-hidden="true"></span>
+      <span class="vh" id="status-text" role="status">Not connected</span>
       <button type="button" class="pill-open" data-testid="circle-open" aria-label="Switch circle">
         <span class="pill-name" id="pill-name">My circle</span>
         <svg class="pill-chevron" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
@@ -479,13 +490,13 @@
 
   <div class="sheet" data-testid="sheet" id="sheet">
     <div class="sheet-drag" id="sheet-drag">
-      <div class="grabber" aria-hidden="true"></div>
+      <button type="button" class="grabber" aria-label="Expand or collapse the circle sheet" aria-expanded="false"></button>
       <div class="you-card" id="you-card">
         <div class="ava" id="you-ava"><span class="ava-emoji" id="you-emoji">&#129517;</span></div>
-        <div class="you-info">
+        <button type="button" class="you-info" id="you-info" data-testid="status-open" aria-label="Set a status for your circle">
           <div class="you-name" id="you-name">You</div>
           <div class="you-sub" id="you-sub">Not sharing</div>
-        </div>
+        </button>
         <div class="quick">
           <button type="button" class="qbtn qbtn-check" data-testid="checkin-button" aria-label="Check in with your circle">
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="m5 12.5 4.5 4.5L19 7.5"/></svg>

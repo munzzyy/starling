@@ -91,6 +91,11 @@ class MainActivity : FragmentActivity() {
         with(webView.settings) {
             javaScriptEnabled = true
             domStorageEnabled = true
+            // The system font-size setting reaches WebView content only
+            // through textZoom, and it scales px-sized text too. Font-scale
+            // changes recreate the activity, so onCreate is the one place
+            // this needs setting.
+            textZoom = (resources.configuration.fontScale * 100).toInt()
             setGeolocationEnabled(true)
             allowFileAccess = false
             allowContentAccess = false
@@ -245,41 +250,9 @@ class MainActivity : FragmentActivity() {
     // because "SOS from Juno" and "sharing is running" are not the same kind
     // of news. The channel is created lazily and deleted by the panic wipe
     // along with the share channel.
-    fun postEventNotification(title: String, body: String, tag: String) {
-        if (title.isEmpty()) return
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            return
-        }
-        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
-        nm.createNotificationChannel(
-            android.app.NotificationChannel(
-                EVENTS_CHANNEL,
-                getString(R.string.notif_events_channel),
-                android.app.NotificationManager.IMPORTANCE_HIGH,
-            ),
-        )
-        val open = android.app.PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java),
-            android.app.PendingIntent.FLAG_IMMUTABLE,
-        )
-        val n = android.app.Notification.Builder(this, EVENTS_CHANNEL)
-            .setSmallIcon(R.drawable.ic_stat_starling)
-            .setContentTitle(title)
-            .apply { if (body.isNotEmpty()) setContentText(body) }
-            .setContentIntent(open)
-            .setAutoCancel(true)
-            .build()
-        nm.notify(tag.ifEmpty { "event" }, EVENTS_NOTIF_ID, n)
-    }
+    fun postEventNotification(title: String, body: String, tag: String) = Events.post(this, title, body, tag)
 
-    fun cancelEventNotification(tag: String) {
-        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
-        nm.cancel(tag.ifEmpty { "event" }, EVENTS_NOTIF_ID)
-    }
+    fun cancelEventNotification(tag: String) = Events.cancel(this, tag)
 
     private fun deliverFix(json: String) {
         runOnUiThread {
@@ -305,6 +278,28 @@ class MainActivity : FragmentActivity() {
     fun setTorEnabled(on: Boolean) {
         getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(PREF_TOR, on).apply()
         applyTorPref()
+        // Orbot only answers the port question with Power User Mode on. If it
+        // says nothing at all, the user is about to watch traffic stall on
+        // the default port with no explanation; give them the one that helps.
+        if (on) {
+            val asked = android.os.SystemClock.elapsedRealtime()
+            webView.postDelayed({
+                if (torEnabled() && OrbotStatus.lastAnswerAt < asked) {
+                    pageNotice(
+                        "Orbot did not answer. If sharing stalls, turn on Power User Mode in " +
+                            "Orbot's settings, or use Orbot's per-app VPN mode instead.",
+                    )
+                }
+            }, 8000)
+        }
+    }
+
+    // A short, human notice into the page's toast line. Only bundled app code
+    // runs in this WebView, and the string is quoted, never interpolated as
+    // script.
+    private fun pageNotice(message: String) {
+        val quoted = JSONObject.quote(message)
+        webView.evaluateJavascript("globalThis.__starlingNotice && __starlingNotice($quoted)", null)
     }
 
     // All WebView traffic through Orbot's SOCKS port, with no direct fallback:

@@ -46,6 +46,13 @@ object OrbotStatus {
     @Volatile
     private var askedAt = 0L
 
+    // When Orbot last said anything we trusted, so a caller can tell "Orbot
+    // answered, port unchanged" apart from "Orbot never answered", which is
+    // what Power User Mode being off looks like.
+    @Volatile
+    var lastAnswerAt = 0L
+        private set
+
     // Last port Orbot reported, or the default until it says otherwise.
     @Volatile
     var socksPort: Int = DEFAULT_SOCKS_PORT
@@ -61,6 +68,7 @@ object OrbotStatus {
             override fun onReceive(c: Context, intent: Intent) {
                 if (intent.action != ACTION_STATUS) return
                 if (android.os.SystemClock.elapsedRealtime() - askedAt > TRUST_WINDOW_MS) return
+                lastAnswerAt = android.os.SystemClock.elapsedRealtime()
                 if (intent.getStringExtra(EXTRA_STATUS) != STATUS_ON) return
                 // Absent or -1 means Orbot has not configured a port yet;
                 // keep whatever is in use rather than proxying to port -1.

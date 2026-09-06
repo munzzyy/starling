@@ -515,12 +515,15 @@ test("junk from a link holder is counted and shown, not swallowed", async () => 
   harness.onFetch(null);
 
   assert.ok(state.joining, "still waiting, because no real welcome came");
-  assert.equal(state.joining.imposters, 12, "every stranger message is counted");
+  // Twelve messages, one flooding identity: counted once, per stranger, not
+  // per message. The cheap commitment gate refuses the identity before any
+  // of its twelve signatures would have been verified.
+  assert.equal(state.joining.imposters, 1, "the stranger identity is counted");
   // A device with no circle yet reads this off the onboarding card, which is
   // the only place it can appear before a join lands.
   const card = harness.node("#join-waiting");
   assert.equal(card.hidden, false, "the waiting card is on screen");
-  assert.match(harness.node("#join-waiting-text").textContent, /not the person who sent it/);
+  assert.match(harness.node("#join-waiting-text").textContent, /did not match the person this link came from/);
 
   state.joining = null;
 });

@@ -52,6 +52,11 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
+  /* The dark theme's amber and rose fail contrast as TEXT on light
+     backgrounds; these darker variants hold 4.5:1 on bg-1/bg-2 and also
+     feed the tinted chips and borders, which just get a touch deeper. */
+  --warn: #a16207;
+  --sos: #be123c;
   --bg: #f4f6fb;
   --bg-1: #ffffff;
   --bg-2: #eef1f8;

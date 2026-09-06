@@ -255,12 +255,16 @@ reason.
 
 - An independent security review. Nothing else on this list matters as much;
   see [docs/AUDIT.md](docs/AUDIT.md) for where to start.
-- Ship protocol v2: get the relay actually redeployed and verify with
-  `curl https://starlingmap.app/api/v2/health`, since the code being wired
-  and the live site running it are two different facts. See
-  [docs/AUDIT.md](docs/AUDIT.md).
+- Localization and RTL. Every string is hardcoded English today, which fails
+  most of the people an app like this is for; the threat model says so out
+  loud. Extracting the strings is the first step, community translations the
+  second.
 - F-Droid and Google Play, both still not live; the F-Droid merge request is
   open.
+- QR scan for safety numbers, alongside the tap-to-enlarge in-person compare
+  that exists today.
+- Per-circle sharing settings (precision, cadence), and being visible to more
+  than one circle at once.
 - Argon2id (memory-hard) app-lock KDF via a vetted WASM build
 - One-time guest links as short-lived side circles
 

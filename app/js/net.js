@@ -23,9 +23,15 @@ import {
 import { openMessage, sealMessage, buildPost } from "./crypto.js";
 import { admitPinned, keyChangeVerdict } from "./roster.js";
 import { EPOCH_MS, epochAt } from "./ratchet.js";
-import { apiUrl } from "./env.js";
+import { apiUrl, isWrapped } from "./env.js";
 
 const POLL_MS = 10000;
+// The wrapper keeps listening while hidden, at a relaxed cadence: an SOS is
+// worth hearing about with the phone in a pocket, and while sharing is on the
+// foreground service keeps the process alive to hear it. On the web a hidden
+// tab stays paused, as it always did: browsers throttle it anyway and no
+// notification could be shown from it.
+const BG_POLL_MS = 30000;
 const BACKOFF_MAX_MS = 120000;
 
 export const STALE_MS = 3 * 60 * 1000;
@@ -214,6 +220,9 @@ export function createRoster({ channelId, ratchet, selfId, pinned, onControl, on
         if (Number.isFinite(obj.hue)) rec.hue = ((obj.hue % 360) + 360) % 360;
         if (typeof obj.bat === "number") rec.bat = obj.bat;
         if (obj.mode === "coarse" || obj.mode === "precise") rec.mode = obj.mode;
+        // A short self-set caption ("omw", "at the gate"). Empty string is a
+        // deliberate clear, so string-typed means assign, not merge.
+        if (typeof obj.st === "string") rec.st = obj.st.slice(0, 24);
         if (Number.isFinite(obj.lat) && Number.isFinite(obj.lon)) {
           rec.lat = obj.lat;
           rec.lon = obj.lon;
@@ -279,9 +288,13 @@ export function createPoller({ channelId, roster, ratchet, onChange, onStatus, o
     timer = setTimeout(poll, delay);
   }
 
+  const bgCapable = isWrapped();
+  const cadence = () =>
+    document.visibilityState === "hidden" && bgCapable ? BG_POLL_MS : POLL_MS;
+
   async function poll() {
     if (!running || inFlight) return;
-    if (document.visibilityState === "hidden") return;
+    if (document.visibilityState === "hidden" && !bgCapable) return;
     inFlight = true;
     try {
       const res = await fetch(apiUrl(`/api/v2/f/${channelId}?since=${since}`), { cache: "no-store" });
@@ -321,7 +334,7 @@ export function createPoller({ channelId, roster, ratchet, onChange, onStatus, o
       failures = 0;
       onStatus?.("ok");
       onChange?.();
-      schedule(POLL_MS);
+      schedule(cadence());
     } catch {
       failures += 1;
       if (failures >= 2) onStatus?.("reconnecting");
@@ -335,6 +348,8 @@ export function createPoller({ channelId, roster, ratchet, onChange, onStatus, o
   function onVisibility() {
     if (document.visibilityState === "visible") {
       poll();
+    } else if (bgCapable) {
+      schedule(cadence());
     } else {
       clearTimeout(timer);
       onStatus?.("idle");

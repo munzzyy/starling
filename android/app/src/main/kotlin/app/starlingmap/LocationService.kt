@@ -126,6 +126,21 @@ class LocationService : Service(), LocationListener {
         stopSelf()
     }
 
+    // Swiping the app out of recents kills the page that encrypts and posts
+    // positions, so the share is dead from that moment no matter what this
+    // service does. Keeping the "sharing" notification up over a dead pipe
+    // would be a lie the circle pays for; say what happened and stop.
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        Events.post(
+            this,
+            getString(R.string.notif_swiped_title),
+            getString(R.string.notif_swiped_text),
+            "share-ended",
+        )
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
         if (watching) {
             (getSystemService(LOCATION_SERVICE) as LocationManager).removeUpdates(this)

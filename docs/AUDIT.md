@@ -349,7 +349,11 @@ a unit test in isolation, and the things round five turned up.
    id is validated as a 32-hex member id before a context is rebuilt, so
    the two shapes should not be able to collide. Confirm that, and
    confirm there is no third caller of `sealTo`/`openSealed` that could
-   be made to open one as the other.
+   be made to open one as the other. Partially closed:
+   `test/rekey.test.mjs` ("a welcome wrap and a re-key wrap can never
+   open as each other") now proves the cross-open fails both ways and
+   that the context shapes cannot collide; the no-third-caller half is
+   still an invitation to grep.
 4. **How much freedom `me` gives a rotator.** `me` may name any epoch
    the receiver still retains, up to the message's own epoch
    (`rekey.js:130`). Normally it is the current epoch.

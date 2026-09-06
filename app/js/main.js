@@ -33,6 +33,7 @@ import {
 import {
   assembleWelcome,
   circleControl,
+  inviterMatches,
   welcomeContext,
 } from "./membership.js";
 // The roster and pinning decisions: who may be pinned and in what form, what
@@ -136,6 +137,12 @@ import { createDemo, DEMO_CENTER } from "./demo.js";
 
 // Error collector so automated checks can read back anything that went wrong.
 window.__starlingErrors = [];
+
+// The wrapper's one way to say something human to the page (an Orbot that
+// never answered, for instance). Bundled app code only; it becomes a toast.
+window.__starlingNotice = (message, kind) => {
+  if (typeof message === "string" && message) ui.toast(message.slice(0, 200), kind === "info" ? "info" : "warn");
+};
 window.addEventListener("error", (e) => {
   window.__starlingErrors.push(String(e.message || e.error || "error"));
 });
@@ -313,6 +320,9 @@ let shareTimer = 0;
 let lastSentPos = null;
 let wakeLock = null;
 const prevStatus = new Map();
+// The whole-circle-silent card, dismissed for this session once acknowledged.
+const QUIET_CHANNEL_MS = 45 * 60 * 1000;
+let quietDismissed = false;
 // Arrive/leave tracking against the device's saved places, plus which members
 // have already been called out for a low battery. Memory only, like prevStatus.
 const placeTracker = createPlaceTracker();
@@ -517,6 +527,7 @@ function ensureMapUI() {
   $("#sos-help").addEventListener("click", openHelpLink);
   byTestid("members-open").addEventListener("click", openMembers);
   byTestid("places-open").addEventListener("click", openPlaces);
+  byTestid("status-open").addEventListener("click", openStatus);
   $("#banner-keys-open").addEventListener("click", openMembers);
 }
 
@@ -556,6 +567,9 @@ function renderChrome() {
   const dotState = state.demo ? "ok" : state.netStatus;
   const dot = $("#status-dot");
   dot.className = `status-dot dot-${dotState}`;
+  // The dot's color is invisible to a screen reader; this line is not.
+  $("#status-text").textContent =
+    dotState === "ok" ? "Connected" : dotState === "reconnecting" ? "Reconnecting" : "Not connected";
   const reconnecting = !state.demo && (state.offline || state.netStatus === "reconnecting");
   $("#banner-offline").hidden = !reconnecting;
   // A key change is the one warning that must not wait behind a collapsed
@@ -584,6 +598,7 @@ function renderYou() {
   else sub = state.settings.precision === "coarse" ? "Live · Neighborhood" : "Live · Precise";
   const myPlace = placeTracker.placeFor(SELF_KEY);
   if (myPlace && hasFix) sub = `At ${myPlace.name} · ${sub}`;
+  if (state.sharing && state.profile?.st) sub = `"${state.profile.st}" · ${sub}`;
   // No background execution on this platform, so sharing runs only while the
   // app is in front. It belongs on the line that claims you are live, not in a
   // help page nobody opens mid-emergency.
@@ -600,7 +615,27 @@ function renderYou() {
       ? "Sharing live"
       : "Locating..."
     : "Start sharing";
-  $("#geo-warn").hidden = !state.geoDenied;
+  const gw = $("#geo-warn");
+  gw.hidden = !state.geoDenied;
+  // The static copy talks about browser site settings, which is the right
+  // story on the web and nonsense inside the wrapper, where the fix is the
+  // app's own system permission page, one intent away.
+  if (state.geoDenied && isWrapped() && !gw.dataset.wrapped) {
+    gw.dataset.wrapped = "1";
+    $(".notice-text", gw).textContent =
+      "Location permission is off for Starling. Open the app's settings, allow location, then come back and tap Start sharing.";
+    const openBtn = ui.el("button", "btn btn-secondary btn-small");
+    openBtn.type = "button";
+    openBtn.textContent = "Open app settings";
+    openBtn.addEventListener("click", () => {
+      try {
+        native()?.openAppSettings?.();
+      } catch {
+        // an older wrapper without the method
+      }
+    });
+    gw.append(openBtn);
+  }
   $("#sos-notice").hidden = !state.sosActive;
   $("#sos-help").hidden = !(state.sosActive && beacon);
   const checkBtn = byTestid("checkin-button");
@@ -753,7 +788,7 @@ function alertItems() {
     // attack this whole handshake exists to stop. It was stopped, and the
     // person still needs to know it happened.
     const jumped = state.joining.imposters
-      ? " Somebody answered this link who is not the person who sent it. Their welcome was refused. Check with whoever gave you the link before you use it again."
+      ? " A welcome that did not match the link's sender was refused. That can be an interception attempt, or just a stale retry. Check with whoever gave you the link before you use it again."
       : "";
     items.push({
       id: "joining",
@@ -857,6 +892,33 @@ function alertItems() {
     });
   }
 
+  // A whole circle going silent at once is what being cut off by a missed
+  // re-key looks like from the inside, and nothing else ever says so. It is
+  // also what everyone's phone being in a bag looks like, so the card asks a
+  // question instead of announcing a verdict.
+  if (state.sharing && state.pinned.size > 0 && !quietDismissed) {
+    const heard = members().map((r) => r.ts).filter(Number.isFinite);
+    const newest = heard.length ? Math.max(...heard) : 0;
+    if (newest && Date.now() - newest > QUIET_CHANNEL_MS) {
+      items.push({
+        id: "quiet-channel",
+        kind: "info",
+        title: "Nobody has been heard from in a while",
+        text: `No update from anyone in over ${Math.round(QUIET_CHANNEL_MS / 60000)} minutes. Usually that just means phones are asleep. But if others say they are sharing right now, this phone may have missed the circle's new keys; ask any member for a fresh invite to be sure.`,
+        actions: [
+          {
+            label: "Probably just quiet",
+            testid: "alert-quiet-ok",
+            onClick: () => {
+              quietDismissed = true;
+              render();
+            },
+          },
+        ],
+      });
+    }
+  }
+
   return items;
 }
 
@@ -905,9 +967,21 @@ function renderOnboarding() {
   if (waiting) {
     // No circle name here: the joiner has not been told one, and a made-up
     // label in a sentence about who is deciding their access reads as fact.
-    $("#join-waiting-text").textContent = state.joining.imposters
-      ? "Somebody answered this link who is not the person who sent it, and their welcome was refused. Your request is still waiting for the person who actually invited you. Check with them before you use the link again."
-      : "Your request is waiting on the relay. Somebody already in the circle has to check your number and accept it, and they do not have to be online right now.";
+    // The refused-welcome copy names the innocent causes too: the check
+    // cannot tell an attack from a stale retry, so neither may the words.
+    const waitedMin = (Date.now() - state.joining.since) / 60000;
+    let text;
+    if (state.joining.imposters) {
+      text =
+        "A welcome arrived that did not match the person this link came from, and it was refused. That can be an interception attempt, or just a stale retry or a network hiccup. Your request is still waiting for the person who actually invited you; check with them before using the link again.";
+    } else if (waitedMin >= 10) {
+      text =
+        "This is taking a while. The person who invited you may not have seen the request yet, or the link may have expired. Reach them however you normally would; a fresh link takes a minute to make.";
+    } else {
+      text =
+        "Your request is waiting on the relay. Somebody already in the circle has to check your number and accept it, and they do not have to be online right now.";
+    }
+    $("#join-waiting-text").textContent = text;
     ui.setSafety($("#join-waiting-safety"), state.joining.safety);
   }
 
@@ -2886,7 +2960,7 @@ function inviteSender(identity, chanId, key) {
 // relay says is taken on trust: the member id has to commit to the keys
 // presented, the signature has to verify against them, and the sealed ts has
 // to be the one the header committed to.
-function pollInviteChannel({ chanId, key, selfId, onMessage, onBatch }) {
+function pollInviteChannel({ chanId, key, selfId, onMessage, onBatch, screenEntry }) {
   let stopped = false;
   let timer = 0;
   let since = 0;
@@ -2908,6 +2982,12 @@ function pollInviteChannel({ chanId, key, selfId, onMessage, onBatch }) {
             continue;
           }
           if ((await memberIdFromKeys(pk, epk)) !== entry.m) continue;
+          // A caller who can already name the only sender it will listen to
+          // (the joiner, whose link commits to the inviter) filters here,
+          // with a hash compare, before any signature below is paid for.
+          // Anyone holding the invite link could otherwise feed this loop
+          // well-formed garbage at one Ed25519 verification per point.
+          if (screenEntry && !(await screenEntry({ memberId: entry.m, pk: entry.pk, epk: entry.epk }))) continue;
           for (const p of entry.points || []) {
             if (Number.isFinite(p.srv) && p.srv > since) since = p.srv;
             const tag = `${entry.m}|${p.e}|${p.ts}`;
@@ -3063,7 +3143,11 @@ async function onJoinRequest(inv, obj, from) {
     safety: seen.safety,
     at: Date.now(),
   });
-  ui.toast(`${obj.name ? String(obj.name).slice(0, 24) : "Someone"} wants to join. Check their safety number.`);
+  const who = obj.name ? String(obj.name).slice(0, 24) : "Someone";
+  ui.toast(`${who} wants to join. Check their safety number.`);
+  // The inviter often pockets the phone right after sending the link; the
+  // request arriving is the other moment this flow hinges on.
+  notifyEvent(`${who} wants to join`, "Open Starling to check their number and let them in.", "join-req");
   render();
 }
 
@@ -3365,10 +3449,23 @@ function startJoinWatch() {
   // looked at t:"welcome", so a stranger posting t:"member" was invisible to
   // it, and the buffer it filled was the only place the jam showed.
   let strangers = 0;
+  const strangerIds = new Set();
   joinPoll = pollInviteChannel({
     chanId: j.chanId,
     key: j.key,
     selfId: j.identity.memberId,
+    // Cheap gate first: only the identity the link commits to gets a
+    // signature check. A refused entry is the same stranger signal the
+    // message screen used to count, deduped by identity because the poll
+    // walks the same entries every tick.
+    screenEntry: async (from) => {
+      if (await inviterMatches(j.commit, from)) return true;
+      if (!strangerIds.has(from.memberId)) {
+        strangerIds.add(from.memberId);
+        strangers += 1;
+      }
+      return false;
+    },
     onMessage: async (obj, from, epoch) => {
       if (state.joining !== j) return;
       const { action } = await screenWelcomeMessage({ obj, from, commit: j.commit, buffered: pending.length });
@@ -3528,6 +3625,10 @@ async function completeJoin(j, welcome) {
   if (state.locked) return true;
   await enterCircle();
   ui.toast("You joined the circle.");
+  // The wait for an accept can easily outlast someone's patience with a
+  // spinner; if they backgrounded the app, the moment it resolves is exactly
+  // what they are waiting to hear.
+  notifyEvent("You're in", "Your request was accepted. Your circle is on the map.", "join");
   // Say hello on the circle channel. Everyone else was told a new member
   // exists by the re-key that admitted this device, but only its own posts
   // carry its keys, and until they land nobody can attribute anything it
@@ -4051,6 +4152,12 @@ async function setSharing(on) {
     stopGeo = null;
     stopForeground();
     lastSentPos = null;
+    // A caption is a claim about right now; it must not outlive the share.
+    // Cleared BEFORE the bye goes out, so the bye itself carries no caption.
+    if (state.profile?.st) {
+      state.profile = { ...state.profile, st: "" };
+      dbSet("profile", state.profile).catch(() => {});
+    }
     // Stopping the share stops every audience, helpers included.
     endBeacon().catch(() => {});
     // Returned so circle switches can wait for the departure to actually
@@ -4179,7 +4286,9 @@ async function sendMsg(type) {
     emoji: state.profile?.emoji || "\u{1F9ED}",
     hue: myHue(),
     mode: state.settings.precision,
-    st: "",
+    // The self-set caption ("omw", "here"). Rides inside the same padded
+    // plaintext as everything else; empty string means no caption.
+    st: (state.profile?.st || "").slice(0, 24),
   };
   if (state.me) {
     let { lat, lon } = state.me;
@@ -4223,6 +4332,10 @@ async function doCheckin() {
 async function fireSos() {
   navigator.vibrate?.([120, 60, 120]);
   state.sosActive = true;
+  // The armed-SOS card, with the cancel instructions and the help-link
+  // button, lives in the sheet body; surface it rather than leave it
+  // behind a drag gesture at exactly the wrong moment.
+  if (sheet && sheet.getSnap() === "peek") sheet.snapTo("half");
   if (state.demo) {
     ui.toast("SOS sent to your circle. Tap the check mark to cancel.", "sos");
     render();
@@ -4383,6 +4496,30 @@ function cancelEventNotification(tag) {
   } catch {
     // an older wrapper without the method
   }
+}
+
+// ---------------------------------------------------------------- status UI
+
+function openStatus() {
+  if (state.demo) {
+    ui.toast("Exit the demo to set a status.");
+    return;
+  }
+  if (!state.gen) return;
+  ui.openStatusSheet({
+    current: state.profile?.st || "",
+    onSet: async (st) => {
+      state.profile = { ...(state.profile || {}), st };
+      await dbSet("profile", state.profile);
+      if (state.sharing) {
+        sendLoc(true);
+        ui.toast(st ? "Status set." : "Status cleared.");
+      } else if (st) {
+        ui.toast("Saved. Your circle sees it once you start sharing.");
+      }
+      render();
+    },
+  });
 }
 
 // ---------------------------------------------------------------- places UI
@@ -4582,6 +4719,20 @@ const api = {
   cancelJoin,
   // membership
   pinnedList: () => [...state.pinned.values()],
+  // Pinned members whose phones have been quiet long enough that a re-key
+  // right now risks stranding them (they would miss the new keys and need a
+  // fresh invite). Read by the accept and new-keys confirmations.
+  staleNames: () => {
+    const now = Date.now();
+    const last = new Map(members().map((r) => [r.id, r.ts]));
+    const out = [];
+    for (const [id] of state.pinned) {
+      if (id === state.identity?.memberId) continue;
+      const ts = last.get(id);
+      if (!ts || now - ts > 60 * 60 * 1000) out.push(displayName(id));
+    }
+    return out;
+  },
   keyChanges: () => [...state.keyChanges.entries()].map(([memberId, c]) => ({ memberId, ...c })),
   acceptKeyChange,
   markVerified,

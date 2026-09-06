@@ -532,3 +532,37 @@ test("M cannot splice A's wrap to B into a re-key M signs with a different remov
   assert.ok(genuineApplied, "the same wrap still applies when the claim matches what it was sealed for");
   assert.deepEqual(genuineApplied.removed, [c.members.d.identity.memberId], "the real removal, not the forged one");
 });
+
+// Audit question 3, answered by construction: the two wrap types (welcome
+// and re-key) share the AAD label shape, and what keeps them apart is the
+// channel id plus the context string. A welcome context always begins with
+// "starling/v2/welcome|"; a re-key context always begins with a 32-hex
+// rotator id. Neither can be spelled as the other, and a wrap sealed under
+// one must refuse to open under the other even with the right keys.
+test("a welcome wrap and a re-key wrap can never open as each other", async () => {
+  const a = await generateIdentity();
+  const b = await generateIdentity();
+  const eph = await generateEphemeral();
+  const chan = "c".repeat(32);
+  const ns = newSeed();
+
+  const welcomeCtx = `starling/v2/welcome|${a.memberId}|3|100`;
+  const rekeyCtx = `${a.memberId}|3|100|99|rh|`;
+
+  const asWelcome = await sealTo(eph.privateKey, b.epk, chan, b.memberId, ns, welcomeCtx);
+  const asRekey = await sealTo(eph.privateKey, b.epk, chan, b.memberId, ns, rekeyCtx);
+  const ephPub = eph.pub;
+
+  // Positive controls first: each opens under its own context.
+  assert.ok(await openSealed(b, ephPub, chan, b.memberId, asWelcome, welcomeCtx));
+  assert.ok(await openSealed(b, ephPub, chan, b.memberId, asRekey, rekeyCtx));
+
+  // The confusion cases: same keys, same channel, other type's context.
+  assert.equal(await openSealed(b, ephPub, chan, b.memberId, asWelcome, rekeyCtx), null);
+  assert.equal(await openSealed(b, ephPub, chan, b.memberId, asRekey, welcomeCtx), null);
+
+  // And the shapes themselves cannot collide: a rotator id is 32 hex chars,
+  // which can never spell the welcome prefix.
+  assert.ok(!/^[0-9a-f]{32}\|/.test(welcomeCtx));
+  assert.ok(/^[0-9a-f]{32}\|/.test(rekeyCtx));
+});

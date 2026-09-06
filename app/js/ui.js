@@ -189,7 +189,11 @@ export function holdToFire(button, { ms = 1200, onFire, onShortTap }) {
     raf = requestAnimationFrame(step);
   }
 
-  button.addEventListener("pointerdown", start);
+  let sawPointer = false;
+  button.addEventListener("pointerdown", (e) => {
+    sawPointer = true;
+    start(e);
+  });
   button.addEventListener("pointerup", () => {
     // A released short press is a plain tap; tell the user this button
     // needs a hold instead of doing nothing.
@@ -198,8 +202,40 @@ export function holdToFire(button, { ms = 1200, onFire, onShortTap }) {
   });
   button.addEventListener("pointerleave", cancel);
   button.addEventListener("pointercancel", cancel);
+
+  // The keyboard path: holding Enter or Space arms the same timer a finger
+  // does, so the deliberate-hold property survives without a pointer.
+  let keyHeld = false;
+  button.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    // Space would otherwise synthesize a click on keyup and Enter on keydown.
+    e.preventDefault();
+    if (e.repeat || keyHeld) return;
+    keyHeld = true;
+    start({ button: 0 });
+  });
+  button.addEventListener("keyup", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    if (!keyHeld) return;
+    keyHeld = false;
+    if (armed && progress < 1) onShortTap?.();
+    cancel();
+  });
+  button.addEventListener("blur", () => {
+    keyHeld = false;
+    cancel();
+  });
+
   button.addEventListener("click", (e) => {
-    if (!e.isTrusted && !armed) onFire();
+    // Untrusted clicks come from automation; they fire directly. A trusted
+    // click with no pointer behind it is assistive tech's double-tap, which
+    // cannot hold anything; answer with the instruction instead of silence.
+    if (!e.isTrusted && !armed) {
+      onFire();
+      return;
+    }
+    if (e.isTrusted && !sawPointer && !armed) onShortTap?.();
+    sawPointer = false;
   });
 }
 
@@ -327,7 +363,7 @@ export function openJoinSheet({ profile, hasCircle, circleName, onJoin }) {
     el(
       "p",
       "ov-note",
-      "This sends a request. Somebody already in the circle has to check your safety number and accept it before you can see anyone, or they you.",
+      "This sends a request. Somebody already in the circle has to check your safety number and accept it before you can see anyone, or they you. That check is how they know the request really came from you and not from somebody who got hold of the link.",
     ),
   );
   if (hasCircle) {
@@ -340,7 +376,14 @@ export function openJoinSheet({ profile, hasCircle, circleName, onJoin }) {
   let cn = null;
   if (circleName) {
     cn = circleNameField(circleName);
-    ov.body.append(cn.field);
+    ov.body.append(
+      cn.field,
+      el(
+        "p",
+        "field-note",
+        "Nobody has told you the circle's real name yet (names travel encrypted, like everything else), so pick whatever you will recognize. Rename it any time in settings.",
+      ),
+    );
   }
   const join = btn("btn btn-primary", "Ask to join");
   join.dataset.testid = "join-confirm";
@@ -442,6 +485,32 @@ export function safetyBlock(number, testid) {
   const wrap = el("div", "safety");
   if (testid) wrap.dataset.testid = testid;
   setSafety(wrap, number);
+  // Tapping the number opens it full screen in large type: two people
+  // standing next to each other compare phones directly, which is both the
+  // easiest ceremony and the one no compromised messaging channel can sit in
+  // the middle of.
+  wrap.classList.add("safety-tappable");
+  wrap.setAttribute("role", "button");
+  wrap.tabIndex = 0;
+  wrap.setAttribute("aria-label", "Show this safety number large for comparing in person");
+  const openBig = () => {
+    const digits = [...wrap.querySelectorAll(".safety-g")].map((g) => g.textContent).join(" ");
+    if (!/\d/.test(digits)) return;
+    const ov = openOverlay({ title: "Compare in person", testid: "safety-big" });
+    ov.body.append(
+      el("p", "ov-note", "Hold the phones side by side. Every group has to match."),
+    );
+    const big = el("div", "safety-huge");
+    for (const g of digits.split(/\s+/)) big.append(el("span", "safety-huge-g", g));
+    ov.body.append(big);
+  };
+  wrap.addEventListener("click", openBig);
+  wrap.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openBig();
+    }
+  });
   return wrap;
 }
 
@@ -489,13 +558,23 @@ export function fmtCountdown(ms) {
 // exactly what was copied. Never touches anything the user copied since, and
 // silently does nothing where reading the clipboard would mean a permission
 // prompt out of thin air.
-const CLIP_CLEAR_MS = 90_000;
+// A link is meant to be pasted into another app, so it gets five minutes,
+// not ninety seconds: a share sheet, an app switch, and a scroll through a
+// conversation all happen before the paste. The clear announces itself when
+// the app is on screen, so a later failed paste has an explanation.
+const CLIP_CLEAR_MS = 5 * 60_000;
 let clipTimer = 0;
 function scheduleClipboardClear(text) {
   clearTimeout(clipTimer);
   clipTimer = setTimeout(async () => {
+    const announce = () => {
+      if (document.visibilityState === "visible") toast("Invite link cleared from your clipboard.");
+    };
     const n = native();
     if (n?.clearClipboardIf) {
+      // The bridge checks the clipboard still holds this text before
+      // clearing, but cannot answer whether it did; no announcement here
+      // beats announcing a clear that never happened.
       try {
         n.clearClipboardIf(text);
       } catch {
@@ -508,6 +587,7 @@ function scheduleClipboardClear(text) {
       if (perm?.state !== "granted") return;
       if ((await navigator.clipboard.readText()) === text) {
         await navigator.clipboard.writeText("");
+        announce();
       }
     } catch {
       // no clipboard read here; leave it alone
@@ -1002,6 +1082,19 @@ function reviewBlock(api, req, { onChanged, onAccepted }) {
       "Accepting gives the whole circle new keys and lets them see everyone's location from then on. They cannot read anything sent before.",
     ),
   );
+  // Accepting re-keys everyone; a phone that sleeps through it is stranded.
+  // Said before the tap, to the person who can still time it better, instead
+  // of after, to the person it stranded.
+  const quiet = api.staleNames?.() || [];
+  if (quiet.length) {
+    box.append(
+      el(
+        "p",
+        "ov-note review-stale",
+        `Heads up: ${quiet.join(", ")} ${quiet.length === 1 ? "has" : "have"} not been heard from in over an hour. A phone that misses the new keys is cut off until it rejoins from a fresh invite.`,
+      ),
+    );
+  }
   const actions = el("div", "mem-actions");
   const accept = btn("btn btn-primary btn-small", "Numbers match, let them in");
   accept.dataset.testid = "join-accept";
@@ -1157,6 +1250,58 @@ export function openInviteSheet({ api, getLink, qrSvgFor, onClose }) {
 // noteFor(value) is for the settings whose note IS the setting: the history
 // window means nothing as a duration, and everything as "this is what you can
 // read, and this is what a seized phone gives up".
+// ---------------------------------------------------------------- status
+//
+// A short caption on your own dot: "omw", "here", "running late". It rides
+// inside the same encrypted, padded payload as a position, so the relay
+// learns nothing new from it existing.
+
+const STATUS_CHIPS = ["On my way", "Here", "5 minutes", "Running late", "Busy"];
+
+export function openStatusSheet({ current, onSet, onClose }) {
+  const ov = openOverlay({ title: "Your status", testid: "status-sheet", onClose });
+  ov.body.append(
+    el("p", "ov-note", "A few words your circle sees next to your name. It is encrypted like everything else, and it clears when you stop sharing."),
+  );
+  const chips = el("div", "status-chips");
+  for (const c of STATUS_CHIPS) {
+    const b = btn("btn btn-secondary status-chip", c);
+    b.addEventListener("click", () => {
+      ov.close();
+      onSet(c);
+    });
+    chips.append(b);
+  }
+  ov.body.append(chips);
+  const field = el("label", "field");
+  field.append(el("span", "field-label", "Or your own words"));
+  const input = el("input", "text-input");
+  input.type = "text";
+  input.maxLength = 24;
+  input.value = current || "";
+  input.placeholder = "at the north gate";
+  input.dataset.testid = "status-input";
+  field.append(input);
+  const save = btn("btn btn-primary", "Set status");
+  save.dataset.testid = "status-save";
+  save.addEventListener("click", () => {
+    const v = input.value.trim().slice(0, 24);
+    ov.close();
+    if (v) onSet(v);
+  });
+  ov.body.append(field, save);
+  if (current) {
+    const clear = btn("btn btn-ghost", "Clear status");
+    clear.dataset.testid = "status-clear";
+    clear.addEventListener("click", () => {
+      ov.close();
+      onSet("");
+    });
+    ov.body.append(clear);
+  }
+  return ov;
+}
+
 // ---------------------------------------------------------------- places
 //
 // Named spots that live only on this phone. The sheet edits the local list;
@@ -1464,6 +1609,16 @@ export function openSettingsSheet({ api, values, demo, tor, lock, lockActions, o
         "Everyone in the circle gets a fresh key and the old one stops working, so anybody holding a copy of the old one goes dark. Do this if a phone in the circle was taken, unlocked, or handed over. Nobody is removed and nothing on your map disappears.",
       ),
     );
+    const rekeyQuiet = api.staleNames?.() || [];
+    if (rekeyQuiet.length) {
+      rekeyBox.append(
+        el(
+          "p",
+          "ov-note review-stale",
+          `Heads up: ${rekeyQuiet.join(", ")} ${rekeyQuiet.length === 1 ? "has" : "have"} not been heard from in over an hour and may miss the new keys. A phone that misses them is cut off until it rejoins from a fresh invite.`,
+        ),
+      );
+    }
     const rekeyGo = btn("btn btn-primary", "Make new keys");
     rekeyGo.dataset.testid = "rekey-confirm";
     rekeyGo.addEventListener("click", async () => {
@@ -1712,7 +1867,7 @@ export function openSettingsSheet({ api, values, demo, tor, lock, lockActions, o
         openPasscodeSheet({
           title: lock.hasDuress ? "Change duress passcode" : "Set a duress passcode",
           intro:
-            "A second passcode for a moment when someone makes you open Starling. Entering it on the lock screen erases everything on this device, instantly and silently, and shows a fresh install. There is no undo and no way back in.",
+            "A second passcode for a moment when someone makes you open Starling. Entering it on the lock screen erases everything on this device, instantly and silently, and shows a fresh install. There is no undo and no way back in. It only guards the passcode path: biometric unlock still opens the app normally, so if a forced unlock is in your threat model, turn biometrics off too.",
           cta: "Save duress passcode",
           confirm: true,
           onSubmit: async (pc) => {
@@ -1857,7 +2012,7 @@ export function openSettingsSheet({ api, values, demo, tor, lock, lockActions, o
   // About
   const gAbout = group("About");
   gAbout.append(
-    el("p", "about-version", "Starling 0.6.1"),
+    el("p", "about-version", "Starling 0.7.0"),
     el("p", "ov-note", "Your positions are encrypted on this device with a key only your circle holds. There are no accounts, no phone numbers, and no server that can read where you are. Sharing is off until you turn it on, and stopping is one tap."),
     el("p", "ov-note", "The relay that passes your updates along stores only encrypted data it cannot read, and deletes it after 24 hours. The protocol is open, so anyone can check these claims against the code."),
   );
@@ -1933,6 +2088,7 @@ export function createSheet(sheetEl, dragEl, bodyEl, { onSnap } = {}) {
       untrap?.();
       untrap = null;
     }
+    dragEl.querySelector(".grabber")?.setAttribute("aria-expanded", String(snap !== "peek"));
     if (!animate) requestAnimationFrame(() => sheetEl.classList.remove("no-anim"));
     onSnap?.(snap);
   }
@@ -1943,10 +2099,27 @@ export function createSheet(sheetEl, dragEl, bodyEl, { onSnap } = {}) {
   let lastY = 0;
   let lastT = 0;
   let vel = 0;
+  let dragMoved = false;
+
+  // Click (keyboard, screen reader double-tap, or a plain tap on the bar)
+  // toggles between peek and half; a click that was really the tail of a
+  // drag is ignored, the drag already picked its snap.
+  const grab = dragEl.querySelector(".grabber");
+  grab?.addEventListener("click", () => {
+    if (dragMoved) {
+      dragMoved = false;
+      return;
+    }
+    snap = snap === "peek" ? "half" : "peek";
+    apply(true);
+  });
 
   dragEl.addEventListener("pointerdown", (e) => {
-    if (e.target.closest("button, input, a")) return;
+    // Buttons in the header still tap normally; the grabber is a button too
+    // now (for keyboard and screen readers) but stays a drag handle.
+    if (e.target.closest("button:not(.grabber), input, a")) return;
     dragging = true;
+    dragMoved = false;
     dragEl.setPointerCapture(e.pointerId);
     sheetEl.classList.add("no-anim");
     startY = lastY = e.clientY;
@@ -1956,6 +2129,7 @@ export function createSheet(sheetEl, dragEl, bodyEl, { onSnap } = {}) {
   });
   dragEl.addEventListener("pointermove", (e) => {
     if (!dragging) return;
+    if (Math.abs(e.clientY - startY) > 6) dragMoved = true;
     const now = performance.now();
     if (now > lastT) vel = (e.clientY - lastY) / (now - lastT);
     lastY = e.clientY;
@@ -2034,8 +2208,13 @@ function buildCard(id, onTap) {
   return card;
 }
 
-export function memberSubLine(rec, now, mePos, place) {
+export function memberSubLine(rec, now, mePos, place, status) {
   const bits = [];
+  // The caption only speaks for a live presence: "omw" on a dot that
+  // stopped sharing an hour ago is a stale claim, not a status.
+  if (rec.st && (status === "live" || status === "checkin" || status === "sos")) {
+    bits.push(`"${rec.st}"`);
+  }
   if (place) bits.push(`At ${place}`);
   bits.push(fmtRelTime(now - rec.ts));
   if (mePos && Number.isFinite(rec.lat) && Number.isFinite(rec.lon)) {
@@ -2057,7 +2236,7 @@ export function updateMemberList(container, items, { now, mePos, statusOf, onTap
     card.style.setProperty("--m-hue", String(rec.hue ?? 0));
     $(".ava-emoji", card).textContent = rec.emoji || "";
     $(".mc-name", card).textContent = rec.name || "Member";
-    $(".mc-sub", card).textContent = memberSubLine(rec, now, mePos, placeOf?.(rec.id));
+    $(".mc-sub", card).textContent = memberSubLine(rec, now, mePos, placeOf?.(rec.id), status);
     const chip = $(".chip", card);
     chip.textContent = CHIP_TEXT[status];
     chip.className = `chip chip-${status}`;
@@ -2147,7 +2326,7 @@ export function renderFocusCard(root, rec, ctx) {
   root.style.setProperty("--m-hue", String(rec.hue ?? 0));
   $(".ava-emoji", root).textContent = rec.emoji || "";
   $(".fc-name", root).textContent = rec.name || "Member";
-  $(".fc-sub", root).textContent = `${CHIP_TEXT[status]} · ${memberSubLine(rec, now, mePos, place)}`;
+  $(".fc-sub", root).textContent = `${CHIP_TEXT[status]} · ${memberSubLine(rec, now, mePos, place, status)}`;
   const hasPos = Number.isFinite(rec.lat) && Number.isFinite(rec.lon);
   const latlon = hasPos ? `${rec.lat.toFixed(5)}, ${rec.lon.toFixed(5)}` : "no position yet";
   $(".fc-latlon", root).textContent = latlon;
