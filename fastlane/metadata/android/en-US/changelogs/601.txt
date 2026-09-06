@@ -1,0 +1,1 @@
+The app now opens like an app: logo, create, join, demo, and one link out to the website, instead of the site's whole explanation with a button offering to download the APK you already installed. Links to starlingmap.app open in your browser; invite links still open in the app.

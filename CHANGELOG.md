@@ -3,6 +3,21 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [0.6.1]
+
+- **The app is the app, not the website.** A fresh install used to open on
+  the site's whole sales pitch, FAQ and all, ending in a button offering to
+  download the APK you were already inside. The Android app now boots to a
+  start screen that belongs to an app: logo, one line, create, join, demo,
+  and a single link out to starlingmap.app for anyone who wants the long
+  version. The marketing sections are removed from the DOM there, not
+  hidden. The website keeps every section, exactly as before.
+- Inside the app, a bare starlingmap.app link now opens in your browser
+  instead of reloading the bundled page; invite and help deep links still
+  open in the app.
+- A new headless-Chromium suite boots the real page both ways and holds the
+  split: wrapper start screen clean, website complete.
+
 ## [0.6.0]
 
 - **Places.** Name the spots that matter, like Home or School, and Starling

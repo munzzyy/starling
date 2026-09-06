@@ -116,16 +116,19 @@ class MainActivity : FragmentActivity() {
                 request: WebResourceRequest,
             ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
 
-            // The WebView only ever navigates inside the bundled app. Real
-            // starlingmap.app links (someone taps an invite inside the app)
-            // stay internal too; everything else goes to the system.
+            // The WebView only ever navigates inside the bundled app. A
+            // starlingmap.app link CARRYING A FRAGMENT is a deep link (an
+            // invite, a help beacon) and stays internal; a bare site link is
+            // a trip to the website, which is a different thing from the app
+            // and belongs in the system browser. Everything else goes to the
+            // system too.
             override fun shouldOverrideUrlLoading(
                 view: WebView,
                 request: WebResourceRequest,
             ): Boolean {
                 val url = request.url
                 if (url.host == ASSET_HOST) return false
-                if (url.host == APP_HOST && url.scheme == "https") {
+                if (url.host == APP_HOST && url.scheme == "https" && !url.fragment.isNullOrEmpty()) {
                     loadAppUrl(url.fragment)
                     return true
                 }

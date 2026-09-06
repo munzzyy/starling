@@ -2311,3 +2311,16 @@ div.danger-zone {
 #map.picking {
   cursor: crosshair;
 }
+
+/* App-only line under the start screen actions: the one link out to the
+   website. Revealed by boot in the wrapper; the web never shows it. */
+.ob-about {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.ob-about .btn {
+  font-size: 13px;
+  color: var(--ink-3);
+}

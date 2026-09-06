@@ -1857,7 +1857,7 @@ export function openSettingsSheet({ api, values, demo, tor, lock, lockActions, o
   // About
   const gAbout = group("About");
   gAbout.append(
-    el("p", "about-version", "Starling 0.6.0"),
+    el("p", "about-version", "Starling 0.6.1"),
     el("p", "ov-note", "Your positions are encrypted on this device with a key only your circle holds. There are no accounts, no phone numbers, and no server that can read where you are. Sharing is off until you turn it on, and stopping is one tap."),
     el("p", "ov-note", "The relay that passes your updates along stores only encrypted data it cannot read, and deletes it after 24 hours. The protocol is open, so anyone can check these claims against the code."),
   );

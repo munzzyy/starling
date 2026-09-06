@@ -913,8 +913,14 @@ function renderOnboarding() {
 
   const install = document.getElementById("install-card");
   const canPrompt = canPromptInstall();
+  // Never in the wrapper, whatever events a WebView might invent: the app
+  // does not offer to install itself.
   const wantInstall =
-    shareCapable() && !state.demo && !state.installDismissed && ((isIOS() && !isInstalled()) || canPrompt);
+    shareCapable() &&
+    !isWrapped() &&
+    !state.demo &&
+    !state.installDismissed &&
+    ((isIOS() && !isInstalled()) || canPrompt);
   install.hidden = !wantInstall;
   if (wantInstall) {
     $("#install-text").textContent = isIOS()
@@ -4697,6 +4703,19 @@ async function boot() {
   const invite = parseInviteFragment(location.hash);
   if (invite) history.replaceState(null, "", location.pathname + location.search);
 
+  // The installed app is the app, not a copy of the website. The marketing
+  // sections (how it works, features, the honesty table, FAQ, the download
+  // card, the big footer) exist to convince a visitor; a person inside the
+  // app is convinced. They get the start screen and one link out to the
+  // site for the long version. Removal, not hiding: no screen this app can
+  // show should carry a "Download the APK" button. Nothing has painted yet
+  // (every screen starts hidden), so there is no flash to race.
+  if (isWrapped()) {
+    for (const n of document.querySelectorAll(".web-only")) n.remove();
+    const about = document.getElementById("ob-about");
+    if (about) about.hidden = false;
+  }
+
   byTestid("onboarding-demo").addEventListener("click", startDemo);
   // The install nudge only becomes offerable when Chromium fires its event,
   // which lands after boot; platform.js captures it, this repaints for it.
@@ -4719,10 +4738,12 @@ async function boot() {
   // persist() into a permission prompt the web app never used to show.
   if (isWrapped()) navigator.storage?.persist?.().catch(() => {});
 
-  // The landing's download card is for browser visitors; the Android app and
-  // installed PWAs do not advertise themselves to themselves.
-  if (isWrapped() || matchMedia("(display-mode: standalone)").matches) {
-    $("#landing-app").hidden = true;
+  // The landing's download card is for browser visitors; an installed PWA
+  // does not advertise itself to itself. In the wrapper the card is not
+  // hidden but gone: the web-only removal above already took it out.
+  if (matchMedia("(display-mode: standalone)").matches) {
+    const dl = $("#landing-app");
+    if (dl) dl.hidden = true;
   }
 
   // A last-circle leave that a crash cut short left its journal behind. Finish
