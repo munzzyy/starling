@@ -12,7 +12,11 @@
 import { parseBeaconFragment, deriveHelpChannelId, deriveHelpEncKey } from "./crypto.js";
 import { createRoster, createPoller, statusOf, STALE_MS, epochAt } from "./net.js";
 import { createMapView } from "./map.js";
+import { t, setLocale, resolveLocale } from "./i18n.js";
 import { fmtRelTime } from "./fmt.js";
+
+// A helper opening this in an emergency gets their browser's language.
+setLocale(resolveLocale("auto"));
 
 const $ = (s) => document.querySelector(s);
 
@@ -65,8 +69,8 @@ const STATUS_LINE = {
 };
 
 function showPanel(title, body) {
-  $("#hv-panel-title").textContent = title;
-  $("#hv-panel-body").textContent = body;
+  $("#hv-panel-title").textContent = t(title);
+  $("#hv-panel-body").textContent = t(body);
   $("#hv-panel").hidden = false;
   $("#hv-banner").hidden = true;
 }
@@ -152,10 +156,10 @@ async function boot() {
 
     $("#hv-banner").hidden = false;
     $("#hv-waiting").hidden = true;
-    $("#hv-name").textContent = `${rec.emoji || "\u{1F6A8}"} ${rec.name || "Someone"}`;
-    $("#hv-status").textContent = STATUS_LINE[st] || "Sharing";
+    $("#hv-name").textContent = `${rec.emoji || "\u{1F6A8}"} ${rec.name || t("Someone")}`;
+    $("#hv-status").textContent = t(STATUS_LINE[st] || "Sharing");
     $("#hv-status").dataset.state = st;
-    $("#hv-ago").textContent = `Last update ${fmtRelTime(now - rec.ts)}`;
+    $("#hv-ago").textContent = t("Last update {ago}", { ago: fmtRelTime(now - rec.ts) });
 
     if (Number.isFinite(rec.lat) && Number.isFinite(rec.lon)) {
       mapView.upsert(rec.id, rec);

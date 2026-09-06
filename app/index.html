@@ -77,19 +77,19 @@
     <div class="lock-logo-ring">
       <img class="lock-logo" src="icons/starling.svg" alt="" width="64" height="64">
     </div>
-    <h1 class="lock-title">Locked</h1>
-    <p class="lock-sub" id="lock-sub">Enter your passcode to open your circle.</p>
+    <h1 class="lock-title" data-i18n>Locked</h1>
+    <p class="lock-sub" id="lock-sub" data-i18n>Enter your passcode to open your circle.</p>
     <form class="lock-form" id="lock-form" autocomplete="off">
       <input class="lock-input" id="lock-input" data-testid="lock-input" type="password"
-        inputmode="numeric" autocomplete="off" aria-label="Passcode" placeholder="Passcode">
+        inputmode="numeric" autocomplete="off" aria-label="Passcode" placeholder="Passcode" data-i18n-attr="aria-label,placeholder">
       <p class="lock-error" id="lock-error" role="alert" hidden></p>
-      <button type="submit" class="btn btn-primary" id="lock-unlock" data-testid="lock-unlock">Unlock</button>
+      <button type="submit" class="btn btn-primary" id="lock-unlock" data-testid="lock-unlock" data-i18n>Unlock</button>
     </form>
     <button type="button" class="btn btn-secondary lock-bio" id="lock-bio" data-testid="lock-bio" hidden>
       <span class="lock-bio-icon" aria-hidden="true"></span>
-      <span>Unlock with biometrics</span>
+      <span data-i18n>Unlock with biometrics</span>
     </button>
-    <button type="button" class="btn btn-ghost lock-wipe" id="lock-wipe" data-testid="lock-wipe">Forgot passcode</button>
+    <button type="button" class="btn btn-ghost lock-wipe" id="lock-wipe" data-testid="lock-wipe" data-i18n>Forgot passcode</button>
   </div>
 </section>
 
@@ -110,7 +110,7 @@
         <img class="ob-logo" src="icons/starling.svg" alt="" width="84" height="84">
       </div>
       <h1 class="ob-wordmark">starling</h1>
-      <p class="ob-tagline">Your people, on your map. Nobody else.</p>
+      <p class="ob-tagline" data-i18n>Your people, on your map. Nobody else.</p>
       <p class="lnd-subline">Create a circle, send one link, and watch each other arrive.
         Nothing about where you are ever leaves your phone in a form anyone else can read.
         The app is Android-only today.</p>
@@ -157,13 +157,13 @@
     </div>
 
     <div class="ob-actions">
-      <button type="button" class="btn btn-primary" data-testid="onboarding-create">Create a circle</button>
-      <button type="button" class="btn btn-secondary" data-testid="onboarding-join">I have an invite</button>
-      <button type="button" class="btn btn-ghost" id="hero-demo" data-testid="onboarding-demo">Watch the demo</button>
+      <button type="button" class="btn btn-primary" data-testid="onboarding-create" data-i18n>Create a circle</button>
+      <button type="button" class="btn btn-secondary" data-testid="onboarding-join" data-i18n>I have an invite</button>
+      <button type="button" class="btn btn-ghost" id="hero-demo" data-testid="onboarding-demo" data-i18n>Watch the demo</button>
     </div>
-    <p class="ob-footer">End-to-end encrypted. No accounts. Open protocol.</p>
+    <p class="ob-footer" data-i18n>End-to-end encrypted. No accounts. Open protocol.</p>
     <div class="ob-about" id="ob-about" hidden>
-      <a class="btn btn-ghost" id="about-site" href="https://starlingmap.app/">What Starling is and how it works &#8599;</a>
+      <a class="btn btn-ghost" id="about-site" href="https://starlingmap.app/" data-i18n>What Starling is and how it works &#8599;</a>
     </div>
 
     <section class="lnd-section lnd-how web-only" aria-labelledby="lnd-how-title">
@@ -456,33 +456,33 @@
     <div class="pill" data-testid="circle-pill">
       <span class="status-dot dot-idle" id="status-dot" aria-hidden="true"></span>
       <span class="vh" id="status-text" role="status">Not connected</span>
-      <button type="button" class="pill-open" data-testid="circle-open" aria-label="Switch circle">
-        <span class="pill-name" id="pill-name">My circle</span>
+      <button type="button" class="pill-open" data-testid="circle-open" aria-label="Switch circle" data-i18n-attr="aria-label">
+        <span class="pill-name" id="pill-name" dir="auto">My circle</span>
         <svg class="pill-chevron" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>
       </button>
-      <button type="button" class="pill-gear" data-testid="settings-open" aria-label="Settings">
+      <button type="button" class="pill-gear" data-testid="settings-open" aria-label="Settings" data-i18n-attr="aria-label">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Zm7.4-3.2c0 .5 0 .9-.1 1.4l2 1.6-1.9 3.3-2.4-1a7.5 7.5 0 0 1-2.4 1.4l-.4 2.6h-3.8l-.4-2.6a7.5 7.5 0 0 1-2.4-1.4l-2.4 1-1.9-3.3 2-1.6a8 8 0 0 1 0-2.8l-2-1.6 1.9-3.3 2.4 1a7.5 7.5 0 0 1 2.4-1.4l.4-2.6h3.8l.4 2.6a7.5 7.5 0 0 1 2.4 1.4l2.4-1 1.9 3.3-2 1.6c.1.5.1.9.1 1.4Z"/></svg>
       </button>
     </div>
     <div class="banners" id="banners">
       <div class="banner banner-demo" id="banner-demo" data-testid="demo-banner" hidden>
-        <span>Demo flight - nothing is real</span>
-        <button type="button" class="banner-btn" id="banner-demo-exit">Exit</button>
+        <span data-i18n>Demo flight - nothing is real</span>
+        <button type="button" class="banner-btn" id="banner-demo-exit" data-i18n>Exit</button>
       </div>
       <div class="banner banner-keys" id="banner-keys" data-testid="keys-banner" hidden>
-        <span id="banner-keys-text">A member's keys changed</span>
-        <button type="button" class="banner-btn" id="banner-keys-open">Check</button>
+        <span id="banner-keys-text" data-i18n>A member's keys changed</span>
+        <button type="button" class="banner-btn" id="banner-keys-open" data-i18n>Check</button>
       </div>
       <div class="banner banner-warn" id="banner-offline" hidden>
-        <span class="banner-dot" aria-hidden="true"></span><span>Reconnecting...</span>
+        <span class="banner-dot" aria-hidden="true"></span><span data-i18n>Reconnecting...</span>
       </div>
       <div class="banner banner-warn" id="banner-insecure" hidden>
-        <span>Location needs HTTPS. Open the deployed app or localhost.</span>
+        <span data-i18n>Location needs HTTPS. Open the deployed app or localhost.</span>
       </div>
     </div>
   </div>
 
-  <button type="button" class="fab" id="fab-locate" aria-label="Center the map on me">
+  <button type="button" class="fab" id="fab-locate" aria-label="Center the map on me" data-i18n-attr="aria-label">
     <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.6"/><path d="M12 1.8v3M12 19.2v3M1.8 12h3M19.2 12h3"/></g></svg>
   </button>
 
@@ -490,55 +490,55 @@
 
   <div class="sheet" data-testid="sheet" id="sheet">
     <div class="sheet-drag" id="sheet-drag">
-      <button type="button" class="grabber" aria-label="Expand or collapse the circle sheet" aria-expanded="false"></button>
+      <button type="button" class="grabber" aria-label="Expand or collapse the circle sheet" aria-expanded="false" data-i18n-attr="aria-label"></button>
       <div class="you-card" id="you-card">
         <div class="ava" id="you-ava"><span class="ava-emoji" id="you-emoji">&#129517;</span></div>
-        <button type="button" class="you-info" id="you-info" data-testid="status-open" aria-label="Set a status for your circle">
-          <div class="you-name" id="you-name">You</div>
-          <div class="you-sub" id="you-sub">Not sharing</div>
+        <button type="button" class="you-info" id="you-info" data-testid="status-open" aria-label="Set a status for your circle" data-i18n-attr="aria-label">
+          <div class="you-name" id="you-name" dir="auto">You</div>
+          <div class="you-sub" id="you-sub" data-i18n>Not sharing</div>
         </button>
         <div class="quick">
-          <button type="button" class="qbtn qbtn-check" data-testid="checkin-button" aria-label="Check in with your circle">
+          <button type="button" class="qbtn qbtn-check" data-testid="checkin-button" aria-label="Check in with your circle" data-i18n-attr="aria-label">
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="m5 12.5 4.5 4.5L19 7.5"/></svg>
           </button>
-          <button type="button" class="qbtn qbtn-sos" data-testid="sos-button" aria-label="Hold to send SOS">SOS</button>
+          <button type="button" class="qbtn qbtn-sos" data-testid="sos-button" aria-label="Hold to send SOS" data-i18n-attr="aria-label">SOS</button>
         </div>
       </div>
       <button type="button" class="share-toggle" data-testid="share-toggle" aria-pressed="false">
         <span class="share-dot" aria-hidden="true"></span>
-        <span id="share-label">Start sharing</span>
+        <span id="share-label" data-i18n>Start sharing</span>
       </button>
       <div class="ava-strip" id="ava-strip" aria-hidden="true"></div>
     </div>
     <div class="sheet-body" id="sheet-body">
       <div id="alerts"></div>
       <div class="notice notice-warn" id="geo-warn" hidden>
-        <p class="notice-title">Location is blocked</p>
-        <p class="notice-text">Your browser is blocking location for this site. Allow location in your browser's site settings, then tap Start sharing again.</p>
+        <p class="notice-title" data-i18n>Location is blocked</p>
+        <p class="notice-text" data-i18n>Your browser is blocking location for this site. Allow location in your browser's site settings, then tap Start sharing again.</p>
       </div>
       <div class="notice notice-sos" id="sos-notice" hidden>
-        <p class="notice-title">SOS is armed</p>
-        <p class="notice-text">Your circle sees an alert at your live position. Tap the check mark above to cancel it and let everyone know you are okay.</p>
-        <button type="button" class="btn btn-primary btn-small" id="sos-help" data-testid="sos-help" hidden>Get help from outside your circle</button>
+        <p class="notice-title" data-i18n>SOS is armed</p>
+        <p class="notice-text" data-i18n>Your circle sees an alert at your live position. Tap the check mark above to cancel it and let everyone know you are okay.</p>
+        <button type="button" class="btn btn-primary btn-small" id="sos-help" data-testid="sos-help" hidden data-i18n>Get help from outside your circle</button>
       </div>
       <div class="nudge" id="nudge" hidden>
-        <p class="nudge-title">Just you here so far</p>
-        <p class="nudge-text">Starling only gets good when your people are on the map. Send them your invite link.</p>
-        <button type="button" class="btn btn-primary btn-small" id="nudge-invite">Invite your people</button>
+        <p class="nudge-title" data-i18n>Just you here so far</p>
+        <p class="nudge-text" data-i18n>Starling only gets good when your people are on the map. Send them your invite link.</p>
+        <button type="button" class="btn btn-primary btn-small" id="nudge-invite" data-i18n>Invite your people</button>
       </div>
       <div class="sheet-tools">
         <button type="button" class="tool-btn" id="members-open" data-testid="members-open">
-          <span class="tool-label">People and keys</span>
+          <span class="tool-label" data-i18n>People and keys</span>
           <span class="tool-sub" id="members-tool-sub">Check who you are sharing with</span>
           <span class="tool-badge" id="members-badge" hidden></span>
         </button>
         <button type="button" class="tool-btn" id="places-open" data-testid="places-open">
-          <span class="tool-label">Places</span>
+          <span class="tool-label" data-i18n>Places</span>
           <span class="tool-sub" id="places-tool-sub">Get told when your people arrive</span>
         </button>
       </div>
       <div id="member-list"></div>
-      <p class="sheet-foot">End-to-end encrypted. The relay sees ciphertext only.</p>
+      <p class="sheet-foot" data-i18n>End-to-end encrypted. The relay sees ciphertext only.</p>
     </div>
   </div>
 </section>

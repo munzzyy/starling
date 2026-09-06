@@ -1,0 +1,1 @@
+Starling speaks Spanish now: the whole app surface, from the lock screen to SOS to the help beacon page, selectable in settings or following your system language. English stays the source and the fallback. The translation layer is open to more languages; the repo has the tooling and a test that holds every catalog to full coverage.

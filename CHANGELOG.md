@@ -3,6 +3,25 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [0.8.0]
+
+- **Starling habla español.** The app has a translation layer now (gettext
+  style: the English source string is the key, catalogs ship with the app,
+  nothing is fetched) and Spanish is the first translation, covering all
+  ~390 strings of the app surface: lock screen, sharing, SOS, places,
+  captions, settings, the alert cards, the help beacon page, the Android
+  notifications, and the demo's own story. Pick it in Settings or let
+  "Auto" follow the system language. Honest caveats, also in the threat
+  model: the Spanish is developer-reviewed but not yet community-reviewed,
+  the website and long docs are still English, and no right-to-left
+  language ships yet, though the engine and document wiring are ready for
+  one. `node tools/extract-strings.mjs` prints the full catalog for anyone
+  who wants to add a language, and a test refuses any new UI string the
+  shipped catalog does not cover.
+- An untranslated string always falls back to English rather than to a key
+  or a blank, and user content (names, captions, circle names) never passes
+  through the translator.
+
 ## [0.7.1]
 
 - **The demo grew into a real tour.** It now shows Places: two invented

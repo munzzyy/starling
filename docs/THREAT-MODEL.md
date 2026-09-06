@@ -132,7 +132,7 @@ database) gets ciphertext and metadata only:
 1. **No human security audit, and that gap is not theoretical.** The
    constructions are deliberately boring (AES-GCM, HKDF-SHA-256,
    Ed25519/P-256, all through WebCrypto), the design is written down before
-   the code, and 517 unit tests replay committed test vectors an independent
+   the code, and 500-plus unit tests replay committed test vectors an independent
    implementation could check itself against. None of that is a substitute
    for an independent reviewer. What verification exists: negative controls
    run against the load-bearing security tests (deliberately breaking the
@@ -264,11 +264,17 @@ database) gets ciphertext and metadata only:
     next open. Life360-grade "the push wakes the phone no matter what" is
     exactly the tradeoff Starling refuses, because the token that buys it
     is an address a server holds for you.
-17. **The app speaks English, left to right, and nothing else yet.** Every
-    string is hardcoded English, and at-risk users are mostly not English
-    speakers. A translation layer (and with it RTL support) is the plan;
-    until it exists this is a real reach limit, not a cosmetic one, and it
-    belongs on this list.
+17. **Localization is young.** The app has a translation layer (gettext
+    style: English source strings as keys, catalogs shipped with the app,
+    nothing fetched) and ships Spanish as its first translation, selectable
+    in settings or following the system language. Honest caveats: the
+    Spanish was written by the developer's tooling and reviewed, not yet by
+    a native-speaker community, and mistranslated security guidance is
+    worse than English, so rough edges deserve bug reports; the website and
+    long-form docs are still English; and no RTL language ships yet, though
+    the engine and document wiring are RTL-ready. `tools/extract-strings.mjs`
+    regenerates the full catalog for anyone who wants to add a language,
+    and a test refuses any new UI string that Spanish does not cover.
 
 ## Emergency beacon
 

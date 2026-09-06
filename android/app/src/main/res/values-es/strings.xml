@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Starling</string>
+    <string name="notif_channel">Compartir ubicación</string>
+    <string name="notif_events_channel">Alertas del círculo</string>
+    <string name="notif_title">Compartiendo con tu círculo</string>
+    <string name="notif_text">Toca Detener para terminarlo.</string>
+    <string name="notif_stop">Detener</string>
+    <string name="notif_swiped_title">Dejaste de compartir</string>
+    <string name="notif_swiped_text">Starling se cerró. Ábrela de nuevo para seguir compartiendo.</string>
+    <string name="bio_wrap_title">Confirma para activar el desbloqueo biométrico</string>
+    <string name="bio_unwrap_title">Desbloquear Starling</string>
+    <string name="bio_cancel">Usar código</string>
+    <string name="panic_connect_title">Botón de pánico</string>
+    <string name="panic_connect_text">¿Permitir que %1$s active el borrado de pánico de Starling? Al activarse se borra el secreto del círculo, tu identidad y todo rastro de Starling en este dispositivo, de inmediato y sin preguntar. No hay vuelta atrás.</string>
+    <string name="panic_allow">Permitir borrado de pánico</string>
+    <string name="panic_deny">No permitir</string>
+    <string name="panic_unknown_app">esta app</string>
+</resources>

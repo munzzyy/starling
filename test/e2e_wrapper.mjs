@@ -195,10 +195,41 @@ async function main() {
     check("demo: the invented places are Home and The fountain", demoState.tags === "Home,The fountain", demoState.tags);
     check("demo: console clean", demoState.errs.length === 0, JSON.stringify(demoState.errs));
     web.close();
+
+    // A Spanish system boots a Spanish app: bridge stub plus a language
+    // override, before any page script runs.
+    const esTab = await newTab();
+    await esTab.send("Page.addScriptToEvaluateOnNewDocument", { source: BRIDGE_STUB });
+    await esTab.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: 'Object.defineProperty(navigator, "languages", { get: () => ["es-MX", "es"] });',
+    });
+    await esTab.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    await esTab.send("Page.navigate", { url: BASE + "/" });
+    await waitFor(
+      () => esTab.evalJs("!!window.__starlingApi && !document.getElementById('screen-onboarding').hidden"),
+      "es onboarding on screen",
+    );
+    const esState = await esTab.evalJs(`(() => ({
+      lang: document.documentElement.lang,
+      create: document.querySelector('[data-testid="onboarding-create"]').textContent,
+      tagline: document.querySelector("#screen-onboarding .ob-tagline").textContent,
+      errs: (window.__starlingErrors || []).slice(0, 3),
+    }))()`);
+    check("es: document language follows the system", esState.lang === "es", esState.lang);
+    check("es: the start screen speaks Spanish", esState.create === "Crear un círculo" && esState.tagline === "Tu gente, en tu mapa. Nadie más.", JSON.stringify([esState.create, esState.tagline]));
+    check("es: console clean", esState.errs.length === 0, JSON.stringify(esState.errs));
+    esTab.close();
   } finally {
     chromium.kill();
     server.kill();
-    rmSync(profile, { recursive: true, force: true });
+    // Chromium flushes its profile on the way down; a leftover temp dir is
+    // harmless, a teardown throw masking real results is not.
+    await sleep(400);
+    try {
+      rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    } catch {
+      // still shutting down; the OS temp cleaner owns it now
+    }
   }
   if (fails.length) {
     console.log("FAILS:", fails.join("; "));

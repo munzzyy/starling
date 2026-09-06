@@ -1,4 +1,7 @@
-// Pure formatting and geometry helpers. No DOM, no globals, unit-tested.
+// Pure formatting and geometry helpers. Unit-tested; the one word in here
+// ("now") goes through the translation layer.
+
+import { t } from "./i18n.js";
 
 const EARTH_R = 6371008.8; // mean Earth radius, meters
 
@@ -22,7 +25,7 @@ export function fmtDistance(m) {
 export function fmtRelTime(msAgo) {
   if (!Number.isFinite(msAgo) || msAgo < 0) msAgo = 0;
   const s = Math.floor(msAgo / 1000);
-  if (s < 15) return "now";
+  if (s < 15) return t("now");
   if (s < 60) return `${s} s`;
   const min = Math.floor(s / 60);
   if (min < 60) return `${min} min`;

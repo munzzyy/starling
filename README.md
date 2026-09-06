@@ -11,7 +11,7 @@ grab the Android app there.
 This document describes protocol v2: forward secrecy, post-compromise
 security, and cryptographic member removal. As of 0.5.0 it is wired end to
 end, crypto core through relay through storage through UI, on both web and
-Android, and 517 unit tests plus two headless-browser end to end suites
+Android, and 500-plus unit tests plus five end to end suites
 exercise it as a running app talking to a running relay. Nobody outside this
 project has independently reviewed any of it. See
 [docs/AUDIT.md](docs/AUDIT.md) for exactly what has and has not been
@@ -122,17 +122,19 @@ says so instead of pretending otherwise.
 No build step, no dependencies to install. Needs Node 24 or newer.
 
 ```
-# unit tests: 517 as of this writing (crypto, wire, ratchet, rekey, membership,
+# unit tests (crypto, wire, ratchet, rekey, membership,
 # relay, QR, UI logic, lock, circles, manifest, and every committed test vector)
 node --test test/*.test.mjs
 
 # local dev server (app + relay on one origin)
 node test/serve_local.mjs 8899
 
-# the three headless-Firefox end to end suites (need a real Firefox; not run in CI)
+# the end to end suites (need a real Firefox, and Chromium for the wrapper one; not run in CI)
 python3 test/e2e_marionette.py   # sharing: create, invite, join, cross-visibility, check-in, SOS, help link, stop
 python3 test/e2e_v2_ui.py        # safety-number comparison, review/accept, re-key, key-change warning, beacon revocation
-python3 test/e2e_lock.py         # the app-lock lifecycle
+python3 test/e2e_lock.py         # the app-lock lifecycle, duress included
+python3 test/e2e_places.py       # places: save, arrive, rename, reload; the relay never sees one
+node test/e2e_wrapper.mjs        # the app-vs-website split and the demo scene
 ```
 
 The QR tests cross-check the encoder against the Python `qrcode` library when it
@@ -219,7 +221,7 @@ Being clear about the edges is part of the point.
   network. There is no iOS app; the hosted site refuses to open circles on
   iOS too, for the same reason.
 - **No independent security review.** The design is documented before the
-  code, 517 unit tests replay committed test vectors, and two rounds of
+  code, 500-plus unit tests replay committed test vectors, and two rounds of
   adversarial review plus a cross-model audit have found and fixed real bugs.
   Nobody outside this project has reviewed any of it. See
   [docs/AUDIT.md](docs/AUDIT.md).
@@ -255,10 +257,11 @@ reason.
 
 - An independent security review. Nothing else on this list matters as much;
   see [docs/AUDIT.md](docs/AUDIT.md) for where to start.
-- Localization and RTL. Every string is hardcoded English today, which fails
-  most of the people an app like this is for; the threat model says so out
-  loud. Extracting the strings is the first step, community translations the
-  second.
+- More languages. The translation layer is live and Spanish ships with the
+  app; `node tools/extract-strings.mjs` prints the full catalog for a new
+  language, and a test holds every catalog to full coverage. RTL layout
+  polish lands with the first RTL translation. Native-speaker review of the
+  shipped Spanish is wanted before anything else.
 - F-Droid and Google Play, both still not live; the F-Droid merge request is
   open.
 - QR scan for safety numbers, alongside the tap-to-enlarge in-person compare

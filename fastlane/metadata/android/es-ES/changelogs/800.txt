@@ -1,0 +1,1 @@
+Starling ahora habla español: toda la app, desde la pantalla de bloqueo hasta el SOS y la página de la baliza de ayuda. Elígelo en ajustes o deja que siga el idioma del sistema. El inglés sigue siendo la fuente y el respaldo.

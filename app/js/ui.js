@@ -6,22 +6,26 @@
 // anything decrypted) only ever pass through textContent, never innerHTML.
 
 import { fmtDistance, fmtRelTime, haversineMeters } from "./fmt.js";
+import { t, LOCALE_CHOICES } from "./i18n.js";
 import { native } from "./env.js";
 import { PLACE_RADII, MAX_PLACES, MAX_NAME_LEN } from "./places.js";
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 
+// The translation chokepoint: every plain English literal handed to el()
+// or btn() is looked up in the active catalog (t() passes unknown strings
+// through, so user content and pre-composed sentences are never mangled).
 export function el(tag, cls, text) {
   const n = document.createElement(tag);
   if (cls) n.className = cls;
-  if (text != null) n.textContent = text;
+  if (text != null) n.textContent = typeof text === "string" ? t(text) : text;
   return n;
 }
 
 function btn(cls, text, label) {
   const b = el("button", cls, text);
   b.type = "button";
-  if (label) b.setAttribute("aria-label", label);
+  if (label) b.setAttribute("aria-label", t(label));
   return b;
 }
 
@@ -29,18 +33,18 @@ function btn(cls, text, label) {
 
 export function toast(message, kind = "info") {
   const host = document.getElementById("toasts");
-  const t = el("div", `toast toast-${kind}`, message);
-  t.dataset.testid = "toast";
+  const node = el("div", `toast toast-${kind}`, message);
+  node.dataset.testid = "toast";
   // Safety-critical toasts (an incoming SOS, a warning) announce assertively
   // instead of waiting behind the polite live region.
-  if (kind === "sos" || kind === "warn") t.setAttribute("role", "alert");
-  host.append(t);
-  requestAnimationFrame(() => t.classList.add("in"));
+  if (kind === "sos" || kind === "warn") node.setAttribute("role", "alert");
+  host.append(node);
+  requestAnimationFrame(() => node.classList.add("in"));
   setTimeout(() => {
-    t.classList.remove("in");
-    setTimeout(() => t.remove(), 400);
+    node.classList.remove("in");
+    setTimeout(() => node.remove(), 400);
   }, 3400);
-  return t;
+  return node;
 }
 
 // ------------------------------------------------------------ focus trap
@@ -96,7 +100,7 @@ export function openOverlay({ title, testid, className, onClose } = {}) {
   const panel = el("section", `ov-panel${className ? " " + className : ""}`);
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-modal", "true");
-  if (title) panel.setAttribute("aria-label", title);
+  if (title) panel.setAttribute("aria-label", t(title));
   if (testid) panel.dataset.testid = testid;
 
   const head = el("header", "ov-head");
@@ -255,7 +259,7 @@ export function emojiGrid(initial) {
   let selected = EMOJI.includes(initial) ? initial : EMOJI[0];
   const cells = new Map();
   for (const em of EMOJI) {
-    const b = btn("emoji-cell", em, `Avatar ${em}`);
+    const b = btn("emoji-cell", em, t("Avatar {em}", { em }));
     b.setAttribute("role", "radio");
     cells.set(em, b);
     b.addEventListener("click", () => {
@@ -535,7 +539,7 @@ export function setSafety(wrap, number) {
     if (i) wrap.append(" ");
     wrap.append(el("span", "safety-g", g));
   });
-  wrap.setAttribute("aria-label", `Safety number ${groups.join(" ")}`);
+  wrap.setAttribute("aria-label", t("Safety number {digits}", { digits: groups.join(" ") }));
   return wrap;
 }
 
@@ -610,7 +614,7 @@ async function copyLink(link, msg) {
 async function shareLink(link, lead, msg) {
   if (navigator.share) {
     try {
-      await navigator.share({ text: `${lead} ${link}` });
+      await navigator.share({ text: `${t(lead)} ${link}` });
       return;
     } catch {
       // cancelled or unavailable: fall through to copying
@@ -749,7 +753,7 @@ function memberRow(api, id, { onChanged }) {
       // null is a re-key that did not happen; false is the circle guard's
       // busy-bail, which has already said so.
       const out = await api.removeMember(id);
-      if (out) toast(`${who} is out. Everyone else has new keys.`);
+      if (out) toast(t("{who} is out. Everyone else has new keys.", { who }));
       else if (out === null) toast("Could not remove them. Nothing changed.", "warn");
     } catch {
       toast("Could not remove them. Nothing changed.", "warn");
@@ -763,7 +767,7 @@ function memberRow(api, id, { onChanged }) {
     acceptBtn.disabled = true;
     const who = cur.name;
     try {
-      if (await api.acceptKeyChange(id)) toast(`${who} is now pinned to the new keys.`);
+      if (await api.acceptKeyChange(id)) toast(t("{who} is now pinned to the new keys.", { who }));
     } finally {
       acceptBtn.disabled = false;
     }
@@ -795,7 +799,7 @@ function memberRow(api, id, { onChanged }) {
       safety.hidden = false;
       setSafety(safety, number);
       hint.textContent = verified
-        ? `You have checked this number with ${who}.`
+        ? t("You have checked this number with {who}.", { who })
         : `Read this out to ${who} on a call or in person. The same digits on both screens means nobody is in between.`;
     }
   }
@@ -946,7 +950,7 @@ function viewerRow(v, { onRevoke, onChanged }) {
       actions.hidden = true;
     } else {
       const left = fmtCountdown(next.expiresAt - Date.now());
-      when.textContent = next.failing ? "Not reaching the relay" : `Expires in ${left}`;
+      when.textContent = next.failing ? "Not reaching the relay" : t("Expires in {left}", { left });
       when.classList.toggle("viewer-failing", !!next.failing);
       linkText.textContent = link;
       linkRow.hidden = !link;
@@ -1065,7 +1069,7 @@ function reviewBlock(api, req, { onChanged, onAccepted }) {
   box.dataset.testid = "join-review";
   box.dataset.member = req.memberId;
   const who = req.name || "Someone";
-  box.append(el("h3", "review-title", `${who} wants to join`));
+  box.append(el("h3", "review-title", t("{who} wants to join", { who })));
   box.append(el("p", "ov-note", `They chose the name ${who}. Anyone can type any name, so the number below is the only part that proves who they are.`));
   box.append(safetyBlock(req.safety, "join-safety"));
   box.append(
@@ -1229,7 +1233,7 @@ export function openInviteSheet({ api, getLink, qrSvgFor, onClose }) {
     const inv = api.invite();
     const left = inv ? inv.expiresAt - Date.now() : 0;
     expiry.textContent = inv
-      ? `One use only, and it expires in ${fmtCountdown(left)}. Accepting somebody uses it up.`
+      ? t("One use only, and it expires in {left}. Accepting somebody uses it up.", { left: fmtCountdown(left) })
       : "This link is gone. Close this and tap Invite again for a new one.";
     waiting.textContent = requests.length
       ? "Somebody is waiting on you above. The link still works until you accept."
@@ -1268,7 +1272,9 @@ export function openStatusSheet({ current, onSet, onClose }) {
     const b = btn("btn btn-secondary status-chip", c);
     b.addEventListener("click", () => {
       ov.close();
-      onSet(c);
+      // The caption sent is the words the person saw and chose, in their
+      // language; the English constant is just the catalog key.
+      onSet(t(c));
     });
     chips.append(b);
   }
@@ -1328,7 +1334,7 @@ export function openPlacesSheet({ api, onAdd, onPick, onRename, onRadius, onRemo
   const radiusSeg = (place) => {
     const seg = el("div", "seg seg-mini");
     seg.setAttribute("role", "radiogroup");
-    seg.setAttribute("aria-label", `${place.name} radius`);
+    seg.setAttribute("aria-label", t("{name} radius", { name: place.name }));
     for (const r of PLACE_RADII) {
       const cell = btn("seg-cell", r < 1000 ? `${r} m` : `${r / 1000} km`);
       cell.setAttribute("role", "radio");
@@ -1355,7 +1361,7 @@ export function openPlacesSheet({ api, onAdd, onPick, onRename, onRadius, onRemo
       if (v) onRename(place.id, v);
       else nameIn.value = place.name;
     });
-    const rm = btn("icon-btn place-remove", "✕", `Remove ${place.name}`);
+    const rm = btn("icon-btn place-remove", "✕", t("Remove {name}", { name: place.name }));
     rm.addEventListener("click", () => onRemove(place.id));
     head.append(nameIn, rm);
     row.append(head, radiusSeg(place));
@@ -1371,7 +1377,7 @@ export function openPlacesSheet({ api, onAdd, onPick, onRename, onRadius, onRemo
     listEl.replaceChildren(...places.map(placeRow));
     addBox.replaceChildren();
     if (places.length >= MAX_PLACES) {
-      addBox.append(el("p", "field-note", `That is the lot: ${MAX_PLACES} places is the cap.`));
+      addBox.append(el("p", "field-note", t("That is the lot: {n} places is the cap.", { n: MAX_PLACES })));
       return;
     }
     const nameField = el("label", "field");
@@ -1525,7 +1531,7 @@ export function openPasscodeSheet({ title, intro, cta, confirm = false, current 
   submit.addEventListener("click", async () => {
     if (busy) return;
     const pc = newIn.value;
-    if (pc.length < minLen) return fail(`Use at least ${minLen} characters.`);
+    if (pc.length < minLen) return fail(t("Use at least {n} characters.", { n: minLen }));
     if (confIn && confIn.value !== pc) return fail("The two passcodes do not match.");
     busy = true;
     submit.disabled = true;
@@ -1760,6 +1766,13 @@ export function openSettingsSheet({ api, values, demo, tor, lock, lockActions, o
       ],
       value: values.settings.theme,
       onChange: (v) => onChange("theme", v),
+    }),
+    segControl({
+      label: "Language",
+      note: "English is the app's source language. Translations come from the community; rough edges are worth reporting.",
+      options: LOCALE_CHOICES.map((c) => ({ value: c.id, label: c.label })),
+      value: values.settings.lang,
+      onChange: (v) => onChange("lang", v),
     }),
     switchRow({
       label: "Keep screen awake",
@@ -2012,7 +2025,7 @@ export function openSettingsSheet({ api, values, demo, tor, lock, lockActions, o
   // About
   const gAbout = group("About");
   gAbout.append(
-    el("p", "about-version", "Starling 0.7.1"),
+    el("p", "about-version", "Starling 0.8.0"),
     el("p", "ov-note", "Your positions are encrypted on this device with a key only your circle holds. There are no accounts, no phone numbers, and no server that can read where you are. Sharing is off until you turn it on, and stopping is one tap."),
     el("p", "ov-note", "The relay that passes your updates along stores only encrypted data it cannot read, and deletes it after 24 hours. The protocol is open, so anyone can check these claims against the code."),
   );
@@ -2215,12 +2228,12 @@ export function memberSubLine(rec, now, mePos, place, status) {
   if (rec.st && (status === "live" || status === "checkin" || status === "sos")) {
     bits.push(`"${rec.st}"`);
   }
-  if (place) bits.push(`At ${place}`);
+  if (place) bits.push(t("At {place}", { place }));
   bits.push(fmtRelTime(now - rec.ts));
   if (mePos && Number.isFinite(rec.lat) && Number.isFinite(rec.lon)) {
     bits.push(fmtDistance(haversineMeters(mePos.lat, mePos.lon, rec.lat, rec.lon)));
   }
-  if (rec.mode === "coarse") bits.push("Neighborhood");
+  if (rec.mode === "coarse") bits.push(t("Neighborhood"));
   return bits.join(" · ");
 }
 
@@ -2238,7 +2251,7 @@ export function updateMemberList(container, items, { now, mePos, statusOf, onTap
     $(".mc-name", card).textContent = rec.name || "Member";
     $(".mc-sub", card).textContent = memberSubLine(rec, now, mePos, placeOf?.(rec.id), status);
     const chip = $(".chip", card);
-    chip.textContent = CHIP_TEXT[status];
+    chip.textContent = t(CHIP_TEXT[status]);
     chip.className = `chip chip-${status}`;
     const bat = $(".bat", card);
     if (typeof rec.bat === "number") {
@@ -2246,11 +2259,11 @@ export function updateMemberList(container, items, { now, mePos, statusOf, onTap
       const pct = Math.round(Math.min(1, Math.max(0, rec.bat)) * 100);
       $(".bat-fill", bat).style.width = `${pct}%`;
       bat.classList.toggle("bat-low", rec.bat < 0.15);
-      bat.setAttribute("aria-label", `Battery ${pct} percent`);
+      bat.setAttribute("aria-label", t("Battery {pct} percent", { pct }));
     } else {
       bat.hidden = true;
     }
-    card.setAttribute("aria-label", `${rec.name || "Member"}, ${CHIP_TEXT[status]}`);
+    card.setAttribute("aria-label", `${rec.name || t("Member")}, ${t(CHIP_TEXT[status])}`);
     container.append(card);
   }
   for (const node of existing.values()) node.remove();
@@ -2326,7 +2339,7 @@ export function renderFocusCard(root, rec, ctx) {
   root.style.setProperty("--m-hue", String(rec.hue ?? 0));
   $(".ava-emoji", root).textContent = rec.emoji || "";
   $(".fc-name", root).textContent = rec.name || "Member";
-  $(".fc-sub", root).textContent = `${CHIP_TEXT[status]} · ${memberSubLine(rec, now, mePos, place, status)}`;
+  $(".fc-sub", root).textContent = `${t(CHIP_TEXT[status])} · ${memberSubLine(rec, now, mePos, place, status)}`;
   const hasPos = Number.isFinite(rec.lat) && Number.isFinite(rec.lon);
   const latlon = hasPos ? `${rec.lat.toFixed(5)}, ${rec.lon.toFixed(5)}` : "no position yet";
   $(".fc-latlon", root).textContent = latlon;

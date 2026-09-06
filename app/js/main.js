@@ -134,6 +134,7 @@ import { startBeacon } from "./helpsession.js";
 import { startWatch, batteryLevel } from "./geo.js";
 import { haversineMeters, coarsePos, hueFromMemberId, fmtRelTime } from "./fmt.js";
 import { createDemo, demoPlaces, DEMO_CENTER } from "./demo.js";
+import { t, translateDom, setLocale, resolveLocale, LOCALE_CHOICES } from "./i18n.js";
 
 // Error collector so automated checks can read back anything that went wrong.
 window.__starlingErrors = [];
@@ -183,6 +184,7 @@ const state = {
     wakeLock: false,
     history: "default", // an id from ratchet.js HISTORY_CHOICES
     steady: false, // post on a fixed cadence whether or not you have moved
+    lang: "auto", // UI language; "auto" follows the system, English is the source
     placeAlerts: true, // say when a member arrives at or leaves a saved place
     batAlerts: true, // say when a member's battery runs low
   },
@@ -474,8 +476,8 @@ function showNotice({ title, body, actions = [] }) {
     notice.append(wrap);
     document.body.append(notice);
   }
-  notice.querySelector(".ob-wordmark").textContent = title;
-  notice.querySelector(".ob-tagline").textContent = body;
+  notice.querySelector(".ob-wordmark").textContent = t(title);
+  notice.querySelector(".ob-tagline").textContent = t(body);
   const acts = notice.querySelector(".ob-actions");
   acts.replaceChildren();
   for (const a of actions) {
@@ -563,13 +565,13 @@ function render() {
 }
 
 function renderChrome() {
-  $("#pill-name").textContent = state.demo ? "Demo circle" : state.circleName;
+  $("#pill-name").textContent = state.demo ? t("Demo circle") : state.circleName;
   const dotState = state.demo ? "ok" : state.netStatus;
   const dot = $("#status-dot");
   dot.className = `status-dot dot-${dotState}`;
   // The dot's color is invisible to a screen reader; this line is not.
   $("#status-text").textContent =
-    dotState === "ok" ? "Connected" : dotState === "reconnecting" ? "Reconnecting" : "Not connected";
+    dotState === "ok" ? t("Connected") : dotState === "reconnecting" ? t("Reconnecting") : t("Not connected");
   const reconnecting = !state.demo && (state.offline || state.netStatus === "reconnecting");
   $("#banner-offline").hidden = !reconnecting;
   // A key change is the one warning that must not wait behind a collapsed
@@ -579,7 +581,7 @@ function renderChrome() {
   if (changed) {
     const [first] = [...state.keyChanges.keys()];
     $("#banner-keys-text").textContent =
-      changed === 1 ? `${displayName(first)}'s keys changed` : `${changed} members' keys changed`;
+      changed === 1 ? t("{who}'s keys changed", { who: displayName(first) }) : t("{n} members' keys changed", { n: changed });
   }
   $("#banner-insecure").hidden = !insecureContext;
   $("#banner-demo").hidden = !state.demo;
@@ -588,33 +590,33 @@ function renderChrome() {
 function renderYou() {
   const p = state.profile || {};
   $("#you-emoji").textContent = p.emoji || "\u{1F9ED}";
-  $("#you-name").textContent = p.name || "You";
+  $("#you-name").textContent = p.name || t("You");
   $("#you-ava").style.setProperty("--m-hue", String(myHue()));
   const hasFix = !!(state.me && Number.isFinite(state.me.lat));
   let sub;
-  if (!state.sharing) sub = "Not sharing";
-  else if (state.sosActive) sub = hasFix ? "SOS armed · Sharing live" : "SOS armed · Locating...";
-  else if (!hasFix) sub = state.geoFailed ? "No location fix yet. Still trying..." : "Locating...";
-  else sub = state.settings.precision === "coarse" ? "Live · Neighborhood" : "Live · Precise";
+  if (!state.sharing) sub = t("Not sharing");
+  else if (state.sosActive) sub = hasFix ? t("SOS armed · Sharing live") : t("SOS armed · Locating...");
+  else if (!hasFix) sub = state.geoFailed ? t("No location fix yet. Still trying...") : t("Locating...");
+  else sub = state.settings.precision === "coarse" ? t("Live · Neighborhood") : t("Live · Precise");
   const myPlace = placeTracker.placeFor(SELF_KEY);
-  if (myPlace && hasFix) sub = `At ${myPlace.name} · ${sub}`;
+  if (myPlace && hasFix) sub = `${t("At {place}", { place: myPlace.name })} · ${sub}`;
   if (state.sharing && state.profile?.st) sub = `"${state.profile.st}" · ${sub}`;
   // No background execution on this platform, so sharing runs only while the
   // app is in front. It belongs on the line that claims you are live, not in a
   // help page nobody opens mid-emergency.
-  if (state.sharing && state.foreground) sub += " · Keep this screen on";
+  if (state.sharing && state.foreground) sub += ` · ${t("Keep this screen on")}`;
   // The relay refuses every post from a phone whose clock is out of tolerance.
   // The one thing this line may never say in that state is that you are live.
-  if (state.sharing && state.clockError) sub = "Not visible: this phone's clock is wrong";
+  if (state.sharing && state.clockError) sub = t("Not visible: this phone's clock is wrong");
   $("#you-sub").textContent = sub;
   const toggle = byTestid("share-toggle");
   toggle.classList.toggle("on", state.sharing);
   toggle.setAttribute("aria-pressed", String(state.sharing));
   $("#share-label").textContent = state.sharing
     ? hasFix
-      ? "Sharing live"
-      : "Locating..."
-    : "Start sharing";
+      ? t("Sharing live")
+      : t("Locating...")
+    : t("Start sharing");
   const gw = $("#geo-warn");
   gw.hidden = !state.geoDenied;
   // The static copy talks about browser site settings, which is the right
@@ -622,11 +624,12 @@ function renderYou() {
   // app's own system permission page, one intent away.
   if (state.geoDenied && isWrapped() && !gw.dataset.wrapped) {
     gw.dataset.wrapped = "1";
-    $(".notice-text", gw).textContent =
-      "Location permission is off for Starling. Open the app's settings, allow location, then come back and tap Start sharing.";
+    $(".notice-text", gw).textContent = t(
+      "Location permission is off for Starling. Open the app's settings, allow location, then come back and tap Start sharing.",
+    );
     const openBtn = ui.el("button", "btn btn-secondary btn-small");
     openBtn.type = "button";
-    openBtn.textContent = "Open app settings";
+    openBtn.textContent = t("Open app settings");
     openBtn.addEventListener("click", () => {
       try {
         native()?.openAppSettings?.();
@@ -660,8 +663,8 @@ function alertItems() {
     items.push({
       id: `key:${id}`,
       kind: "sos",
-      title: `${who}'s keys changed`,
-      text: `That phone is answering with keys this device has never seen. It is a reinstall, or somebody else in ${who}'s place, and nothing here can tell you which. Their location stays off your map until you check the number with them and accept it.`,
+      title: t("{who}'s keys changed", { who }),
+      text: t("That phone is answering with keys this device has never seen. It is a reinstall, or somebody else in {who}'s place, and nothing here can tell you which. Their location stays off your map until you check the number with them and accept it.", { who }),
       actions: [
         { label: "Check the numbers", variant: "btn-primary", testid: "alert-keys", onClick: openMembers },
       ],
@@ -708,13 +711,13 @@ function alertItems() {
     // person does not have is the same defect as a card that claims an erase
     // that did not happen.
     const kept = state.lock?.enabled
-      ? "Your app lock and your other circles were not touched."
-      : "Your other circles were not touched.";
+      ? t("Your app lock and your other circles were not touched.")
+      : t("Your other circles were not touched.");
     items.push({
       id: "chain-wiped",
       kind: "warn",
       title: "One of your circles expired while this phone was away",
-      text: `Starling throws a circle's keys away rather than carry them for weeks, and that circle passed the point where this device could still read it, so it was erased from this phone. ${kept} Ask somebody in that circle for a fresh invite link if you want back in.`,
+      text: t("Starling throws a circle's keys away rather than carry them for weeks, and that circle passed the point where this device could still read it, so it was erased from this phone. {kept} Ask somebody in that circle for a fresh invite link if you want back in.", { kept }),
       // It stays until it is read, like a re-key somebody else made, and then
       // it goes. Nothing else cleared it, so it sat on the map for good.
       //
@@ -760,13 +763,13 @@ function alertItems() {
     const skew = state.clockError.skewMs;
     const off =
       Number.isFinite(skew) && Math.abs(skew) >= CLOCK_TOLERANCE_MS
-        ? ` It is about ${Math.round(Math.abs(skew) / 60000)} minutes ${skew > 0 ? "behind" : "ahead"}.`
+        ? t(" It is about {n} minutes {dir}.", { n: Math.round(Math.abs(skew) / 60000), dir: skew > 0 ? t("behind") : t("ahead") })
         : "";
     items.push({
       id: "clock",
       kind: "warn",
       title: "This phone's clock is wrong",
-      text: `Your circle cannot see you. The relay refuses anything stamped with a time that far out, so your position is not going anywhere.${off} Turn on automatic date and time, then check again.`,
+      text: t("Your circle cannot see you. The relay refuses anything stamped with a time that far out, so your position is not going anywhere.{off} Turn on automatic date and time, then check again.", { off }),
       actions: [{ label: "Check again", testid: "alert-clock", onClick: recheckClock }],
     });
   }
@@ -775,7 +778,7 @@ function alertItems() {
     items.push({
       id: `join:${req.memberId}`,
       kind: "info",
-      title: `${req.name || "Someone"} wants to join`,
+      title: t("{who} wants to join", { who: req.name || t("Someone") }),
       text: "Check their safety number with them first. Accepting is what lets them see everyone's location.",
       actions: [
         { label: "Review the request", variant: "btn-primary", testid: "alert-review", onClick: openInvite },
@@ -788,13 +791,13 @@ function alertItems() {
     // attack this whole handshake exists to stop. It was stopped, and the
     // person still needs to know it happened.
     const jumped = state.joining.imposters
-      ? " A welcome that did not match the link's sender was refused. That can be an interception attempt, or just a stale retry. Check with whoever gave you the link before you use it again."
+      ? t(" A welcome that did not match the link's sender was refused. That can be an interception attempt, or just a stale retry. Check with whoever gave you the link before you use it again.")
       : "";
     items.push({
       id: "joining",
       kind: state.joining.imposters ? "warn" : "info",
-      title: `Waiting to be let into ${state.joining.circleName}`,
-      text: `Somebody already in that circle has to accept your request. Read them your number: ${state.joining.safety || "not ready yet"}${jumped}`,
+      title: t("Waiting to be let into {name}", { name: state.joining.circleName }),
+      text: t("Somebody already in that circle has to accept your request. Read them your number: {digits}{jumped}", { digits: state.joining.safety || t("not ready yet"), jumped }),
       actions: [{ label: "Cancel the request", testid: "alert-cancel-join", onClick: cancelJoin }],
     });
   }
@@ -805,7 +808,7 @@ function alertItems() {
       id: "join-incomplete",
       kind: "warn",
       title: "That invitation arrived incomplete",
-      text: `The circle sent ${want} member ${want === 1 ? "record" : "records"} and only ${got} arrived, so this device would not be able to tell who is making new keys and would quietly stop keeping up. You were not joined. Ask for a fresh invite link.`,
+      text: t(want === 1 ? "The circle sent {want} member record and only {got} arrived, so this device would not be able to tell who is making new keys and would quietly stop keeping up. You were not joined. Ask for a fresh invite link." : "The circle sent {want} member records and only {got} arrived, so this device would not be able to tell who is making new keys and would quietly stop keeping up. You were not joined. Ask for a fresh invite link.", { want, got }),
       actions: [
         {
           label: "Got it",
@@ -824,8 +827,8 @@ function alertItems() {
     items.push({
       id: "joined-via",
       kind: "info",
-      title: `Check ${displayName(v.memberId, "the person who let you in")}'s number`,
-      text: `Their number is ${v.safety || "not available"}. Yours is ${v.mine || "not available"}. Read them to each other out loud, on a line you already trust. Nothing else in this circle has been checked by a person yet.`,
+      title: t("Check {who}'s number", { who: displayName(v.memberId, t("the person who let you in")) }),
+      text: t("Their number is {theirs}. Yours is {mine}. Read them to each other out loud, on a line you already trust. Nothing else in this circle has been checked by a person yet.", { theirs: v.safety || t("not available"), mine: v.mine || t("not available") }),
       actions: [
         { label: "Open members", variant: "btn-primary", testid: "alert-joined-via", onClick: openMembers },
         {
@@ -841,11 +844,11 @@ function alertItems() {
   }
 
   if (state.foreground) {
-    const run = state.foreground.elapsedMs >= 60000 ? ` for ${fmtRelTime(state.foreground.elapsedMs)}` : "";
+    const run = state.foreground.elapsedMs >= 60000 ? t(" for {t}", { t: fmtRelTime(state.foreground.elapsedMs) }) : "";
     items.push({
       id: "foreground",
       kind: "info",
-      title: `Sharing${run}, and this screen has to stay on`,
+      title: t("Sharing{run}, and this screen has to stay on", { run }),
       text: state.foreground.wakeLock
         ? "This phone gives a web app no way to send a position in the background, so Starling only sends while it is open and in front. It is holding the screen awake for you."
         : "This phone gives a web app no way to send a position in the background, so Starling only sends while it is open and in front. It could not hold the screen awake, so stop the phone locking itself.",
@@ -859,10 +862,12 @@ function alertItems() {
       id: "rekey",
       kind: "info",
       title: gone.length
-        ? `${r.byName} removed ${gone.length === 1 ? gone[0] : `${gone.length} people`}`
-        : `${r.byName} changed the keys`,
+        ? (gone.length === 1
+            ? t("{who} removed {gone}", { who: r.byName, gone: gone[0] })
+            : t("{who} removed {n} people", { who: r.byName, n: gone.length }))
+        : t("{who} changed the keys", { who: r.byName }),
       text: gone.length
-        ? `${gone.length === 1 ? gone[0] : "They"} can read nothing this circle sends from now on. Everyone still here got new keys.`
+        ? t("{who} can read nothing this circle sends from now on. Everyone still here got new keys.", { who: gone.length === 1 ? gone[0] : t("They") })
         : "Everyone in the circle has new keys. Nobody was removed, and nothing on your map goes away.",
       actions: [
         {
@@ -904,7 +909,7 @@ function alertItems() {
         id: "quiet-channel",
         kind: "info",
         title: "Nobody has been heard from in a while",
-        text: `No update from anyone in over ${Math.round(QUIET_CHANNEL_MS / 60000)} minutes. Usually that just means phones are asleep. But if others say they are sharing right now, this phone may have missed the circle's new keys; ask any member for a fresh invite to be sure.`,
+        text: t("No update from anyone in over {n} minutes. Usually that just means phones are asleep. But if others say they are sharing right now, this phone may have missed the circle's new keys; ask any member for a fresh invite to be sure.", { n: Math.round(QUIET_CHANNEL_MS / 60000) }),
         actions: [
           {
             label: "Probably just quiet",
@@ -935,12 +940,12 @@ function renderTools() {
   const changed = state.keyChanges.size;
   const unchecked = [...state.pinned.values()].filter((r) => !r.verified).length;
   $("#members-tool-sub").textContent = changed
-    ? "Keys changed. Check before you trust it."
+    ? t("Keys changed. Check before you trust it.")
     : unchecked
-      ? `${unchecked} ${unchecked === 1 ? "person" : "people"} you have not checked`
+      ? t(unchecked === 1 ? "{n} person you have not checked" : "{n} people you have not checked", { n: unchecked })
       : state.pinned.size
-        ? "Everyone here is checked"
-        : "Nobody else in this circle yet";
+        ? t("Everyone here is checked")
+        : t("Nobody else in this circle yet");
   const badge = $("#members-badge");
   const count = changed || unchecked;
   badge.hidden = !count;
@@ -950,8 +955,8 @@ function renderTools() {
   if (placesSub) {
     const n = state.places.length;
     placesSub.textContent = n
-      ? `${n} ${n === 1 ? "place" : "places"} saved on this phone`
-      : "Get told when your people arrive";
+      ? t(n === 1 ? "{n} place saved on this phone" : "{n} places saved on this phone", { n })
+      : t("Get told when your people arrive");
   }
 }
 
@@ -972,14 +977,17 @@ function renderOnboarding() {
     const waitedMin = (Date.now() - state.joining.since) / 60000;
     let text;
     if (state.joining.imposters) {
-      text =
-        "A welcome arrived that did not match the person this link came from, and it was refused. That can be an interception attempt, or just a stale retry or a network hiccup. Your request is still waiting for the person who actually invited you; check with them before using the link again.";
+      text = t(
+        "A welcome arrived that did not match the person this link came from, and it was refused. That can be an interception attempt, or just a stale retry or a network hiccup. Your request is still waiting for the person who actually invited you; check with them before using the link again.",
+      );
     } else if (waitedMin >= 10) {
-      text =
-        "This is taking a while. The person who invited you may not have seen the request yet, or the link may have expired. Reach them however you normally would; a fresh link takes a minute to make.";
+      text = t(
+        "This is taking a while. The person who invited you may not have seen the request yet, or the link may have expired. Reach them however you normally would; a fresh link takes a minute to make.",
+      );
     } else {
-      text =
-        "Your request is waiting on the relay. Somebody already in the circle has to check your number and accept it, and they do not have to be online right now.";
+      text = t(
+        "Your request is waiting on the relay. Somebody already in the circle has to check your number and accept it, and they do not have to be online right now.",
+      );
     }
     $("#join-waiting-text").textContent = text;
     ui.setSafety($("#join-waiting-safety"), state.joining.safety);
@@ -997,11 +1005,11 @@ function renderOnboarding() {
     ((isIOS() && !isInstalled()) || canPrompt);
   install.hidden = !wantInstall;
   if (wantInstall) {
-    $("#install-text").textContent = isIOS()
+    $("#install-text").textContent = t(isIOS()
       ? isIOSSafari()
         ? "In a Safari tab, iOS can throw your circle's keys away when storage runs low, and sharing stops the moment you switch apps. Tap the Share button, then Add to Home Screen."
         : "In a browser tab, iOS can throw your circle's keys away when storage runs low. Open this page in Safari, tap Share, then Add to Home Screen."
-      : "Installed, Starling opens without browser chrome and its storage is harder for the browser to evict. Nothing is uploaded either way.";
+      : "Installed, Starling opens without browser chrome and its storage is harder for the browser to evict. Nothing is uploaded either way.");
     const go = $("#install-go");
     go.hidden = !canPrompt;
     if (canPrompt && !installWired) {
@@ -1036,7 +1044,7 @@ async function recheckClock() {
     ui.toast("The clock looks right now. Your circle can see you again.");
   } else {
     state.clockError = { skewMs, at: Date.now() };
-    ui.toast(`Still about ${Math.round(Math.abs(skewMs) / 60000)} minutes out.`, "warn");
+    ui.toast(t("Still about {n} minutes out.", { n: Math.round(Math.abs(skewMs) / 60000) }), "warn");
   }
   render();
 }
@@ -1442,11 +1450,11 @@ async function leaveDestroyedCircle(circles) {
 // unlocked, say it with this, so there is one wording and one set of ways out.
 function showDestroyedNotice() {
   const lockLine = state.lock?.enabled
-    ? " Your app lock is untouched and still protects whatever you set up next."
+    ? t(" Your app lock is untouched and still protects whatever you set up next.")
     : "";
   showNotice({
     title: "Those keys are gone",
-    body: `Starling throws a circle's keys away rather than carry them for weeks, and this phone passed that point while it was away. The circle was erased from this device, and there was no other circle to fall back to.${lockLine} Ask somebody for a fresh invite link, or start a new circle.`,
+    body: t("Starling throws a circle's keys away rather than carry them for weeks, and this phone passed that point while it was away. The circle was erased from this device, and there was no other circle to fall back to.{lockLine} Ask somebody for a fresh invite link, or start a new circle.", { lockLine }),
     actions: [
       { label: "Join with a link", variant: "btn-primary", testid: "notice-destroyed-join", onClick: promptPasteInvite },
       { label: "Start a new circle", testid: "notice-destroyed-new", onClick: promptCreate },
@@ -1572,7 +1580,7 @@ async function onKeyChange(id, presented) {
   roster?.drop(id);
   mapView?.removeMarker(id);
   if (focusedId === id) unfocus();
-  ui.toast(`${known?.name || "A member"}'s keys changed. Their location is hidden until you accept it.`, "warn");
+  ui.toast(t("{who}'s keys changed. Their location is hidden until you accept it.", { who: known?.name || t("A member") }), "warn");
   // At peek the sheet body is inert and the warning would be invisible. The
   // chrome banner shows either way; this puts the card itself in front too.
   if (state.screen === "map" && sheet && sheet.getSnap() === "peek") sheet.snapTo("half");
@@ -1707,7 +1715,7 @@ async function reconcileRoster() {
     return false;
   }
   state.rosterMismatch = { by: p.by, at: Date.now() };
-  ui.toast(`${displayName(p.by)} made new keys, but your list of members does not match theirs.`, "warn");
+  ui.toast(t("{who} made new keys, but your list of members does not match theirs.", { who: displayName(p.by) }), "warn");
   render();
   return false;
 }
@@ -1801,7 +1809,7 @@ async function doRekey({ removed = [], admit = null, reason = "manual" } = {}) {
     return null;
   }
   if (failed) {
-    ui.toast(`${failed} of ${built.posts.length} members did not get the new keys yet.`, "warn");
+    ui.toast(t("{failed} of {total} members did not get the new keys yet.", { failed, total: built.posts.length }), "warn");
   }
 
   // The welcome needs the seed and openGeneration destroys it, so the copy is
@@ -1920,11 +1928,11 @@ async function adoptRekey(applied, senderId) {
   await commitGeneration(prev);
   await enterCircle();
   if (removedNames.length === 1) {
-    ui.toast(`${senderName} removed ${removedNames[0]}.`);
+    ui.toast(t("{who} removed {gone}.", { who: senderName, gone: removedNames[0] }));
   } else if (removedNames.length) {
-    ui.toast(`${senderName} removed ${removedNames.length} people from the circle.`);
+    ui.toast(t("{who} removed {n} people from the circle.", { who: senderName, n: removedNames.length }));
   } else {
-    ui.toast(`${senderName} changed the keys.`);
+    ui.toast(t("{who} changed the keys.", { who: senderName }));
   }
   render();
   return true;
@@ -2681,7 +2689,7 @@ function ensureLockUI() {
     if (!pc) return;
     input.disabled = true;
     unlockBtn.disabled = true;
-    unlockBtn.textContent = "Unlocking...";
+    unlockBtn.textContent = t("Unlocking...");
     let ok = false;
     // A sealed record that will not authenticate is a damaged or tampered
     // install, not a mistyped passcode. Telling someone their passcode is
@@ -2711,13 +2719,13 @@ function ensureLockUI() {
       }
     }
     unlockBtn.disabled = false;
-    unlockBtn.textContent = "Unlock";
+    unlockBtn.textContent = t("Unlock");
     input.disabled = false;
     if (!ok) {
       showLockError(
         damagedAtRest
-          ? "That passcode is right, but this install's stored data will not open. Nothing was erased."
-          : "Wrong passcode. Try again.",
+          ? t("That passcode is right, but this install's stored data will not open. Nothing was erased.")
+          : t("Wrong passcode. Try again."),
       );
     }
   });
@@ -2729,7 +2737,7 @@ function ensureLockUI() {
     } catch {
       ok = false;
     }
-    if (!ok) showLockError("Biometric unlock did not work. Use your passcode.");
+    if (!ok) showLockError(t("Biometric unlock did not work. Use your passcode."));
   });
   $("#lock-wipe").addEventListener("click", forgotPasscode);
 }
@@ -3147,13 +3155,13 @@ async function onJoinRequest(inv, obj, from) {
     at: Date.now(),
   });
   const who = obj.name ? String(obj.name).slice(0, 24) : "Someone";
-  ui.toast(`${who} wants to join. Check their safety number.`);
+  ui.toast(t("{who} wants to join. Check their safety number.", { who }));
   // The inviter often pockets the phone right after sending the link; the
   // request arriving is the other moment this flow hinges on. The name stays
   // OUT of the notification: it is whatever the requester typed, anyone
   // holding the link can send one, and the lock screen is no place to render
   // an unauthenticated stranger's chosen words.
-  notifyEvent("Someone wants to join", "Open Starling to check their number and let them in.", "join-req");
+  notifyEvent(t("Someone wants to join"), t("Open Starling to check their number and let them in."), "join-req");
   render();
 }
 
@@ -3180,7 +3188,7 @@ async function acceptJoin(req) {
         await burnInvite();
         ui.toast("That invitation expired. Make a new link.", "warn");
       } else if (check.reason === "full") {
-        ui.toast(`A circle holds ${MEMBER_CAP} people and yours is full. Remove somebody before letting anyone else in.`, "warn");
+        ui.toast(t("A circle holds {n} people and yours is full. Remove somebody before letting anyone else in.", { n: MEMBER_CAP }), "warn");
       } else if (check.reason === "bad-keys") {
         ui.toast("That request's keys are malformed. Nobody was let in.", "warn");
       }
@@ -3257,7 +3265,7 @@ async function acceptJoin(req) {
         ui.toast("Could not send them the keys, so nobody was let in. Your link still works, so try again.", "warn");
       } else {
         ui.toast(
-          `Could not send ${req.name || "them"} the keys, and could not undo letting them in. Remove them from the circle before you try again.`,
+          t("Could not send {who} the keys, and could not undo letting them in. Remove them from the circle before you try again.", { who: req.name || t("them") }),
           "warn",
         );
       }
@@ -3265,7 +3273,7 @@ async function acceptJoin(req) {
       return false;
     }
     await burnInvite();
-    ui.toast(`${req.name || "They"} joined. Everyone got new keys.`);
+    ui.toast(t("{who} joined. Everyone got new keys.", { who: req.name || t("They") }));
     render();
     return true;
   });
@@ -3634,7 +3642,7 @@ async function completeJoin(j, welcome) {
   // The wait for an accept can easily outlast someone's patience with a
   // spinner; if they backgrounded the app, the moment it resolves is exactly
   // what they are waiting to hear.
-  notifyEvent("You're in", "Your request was accepted. Your circle is on the map.", "join");
+  notifyEvent(t("You're in"), t("Your request was accepted. Your circle is on the map."), "join");
   // Say hello on the circle channel. Everyone else was told a new member
   // exists by the re-key that admitted this device, but only its own posts
   // carry its keys, and until they land nobody can attribute anything it
@@ -3802,7 +3810,7 @@ async function doSwitchCircle(i) {
   }
   if (state.locked) return false;
   await enterCircle();
-  ui.toast(`Switched to ${state.circleName}.`);
+  ui.toast(t("Switched to {name}.", { name: state.circleName }));
   return true;
 }
 
@@ -3817,7 +3825,7 @@ async function promoteCircle(i) {
   state.circles = res.circles;
   applyActive(res.active);
   await enterCircle();
-  ui.toast(`Switched to ${state.circleName}.`);
+  ui.toast(t("Switched to {name}.", { name: state.circleName }));
   return true;
 }
 
@@ -3853,7 +3861,7 @@ const leaveCircle = () =>
       state.circles = res.circles;
       applyActive(res.active);
       await enterCircle();
-      ui.toast(`You left. Now in ${state.circleName}.`);
+      ui.toast(t("You left. Now in {name}.", { name: state.circleName }));
       return true;
     }
     // Back where a fresh install starts.
@@ -4041,6 +4049,11 @@ async function onSettingChange(key, value) {
     state.settings = { ...state.settings, [key]: value };
     await dbSet("settings", state.settings);
     if (key === "theme") applyTheme();
+    if (key === "lang") {
+      setLocale(resolveLocale(value));
+      translateDom();
+      ui.toast(t("Language saved. Reopen settings to see them translated too."));
+    }
     if (key === "basemap" && mapView) {
       // The demo promises zero network traffic; the choice is saved and
       // applied when the demo exits.
@@ -4102,8 +4115,8 @@ async function noteSendFailure(err) {
   const off =
     skewMs === null || Math.abs(skewMs) < CLOCK_TOLERANCE_MS
       ? ""
-      : ` It is about ${Math.round(Math.abs(skewMs) / 60000)} minutes ${skewMs > 0 ? "behind" : "ahead"}.`;
-  ui.toast(`This phone's clock is wrong, so your circle cannot see you.${off} Turn on automatic date and time.`, "warn");
+      : t(" It is about {n} minutes {dir}.", { n: Math.round(Math.abs(skewMs) / 60000), dir: skewMs > 0 ? t("behind") : t("ahead") });
+  ui.toast(t("This phone's clock is wrong, so your circle cannot see you.{off} Turn on automatic date and time.", { off }), "warn");
   render();
 }
 
@@ -4259,7 +4272,7 @@ function onGeoError(err) {
     // provider) and will not retry. Anything short of a full stop here would
     // keep the share timer republishing the last fix as if it were fresh.
     if (state.sharing) setSharing(false);
-    if (!err.stopped) ui.toast(`Location stopped: ${err.message || "service error"}`, "warn");
+    if (!err.stopped) ui.toast(t("Location stopped: {reason}", { reason: err.message || t("service error") }), "warn");
   } else if (err && err.code === 2 && !navigator.geolocation) {
     // No geolocation API at all: sharing can never work here.
     if (state.sharing) stopSharingInternals();
@@ -4555,15 +4568,15 @@ function openPlaces() {
           return false;
         }
         await addPlace(name, state.me.lat, state.me.lon);
-        ui.toast(`${name} saved. Only this phone knows it exists.`);
+        ui.toast(t("{name} saved. Only this phone knows it exists.", { name }));
         return true;
       },
       onPick: (name) => {
-        ui.toast(`Tap the map where ${name} is.`);
+        ui.toast(t("Tap the map where {name} is.", { name }));
         mapView.startPick(async ({ lat, lon }) => {
           if (state.locked || state.demo) return;
           await addPlace(name, lat, lon);
-          ui.toast(`${name} saved. Only this phone knows it exists.`);
+          ui.toast(t("{name} saved. Only this phone knows it exists.", { name }));
           openPlaces();
         });
       },
@@ -4595,13 +4608,13 @@ function checkAlerts() {
     const prev = prevStatus.get(rec.id);
     const who = rec.name || "A member";
     if (st === "sos" && prev !== "sos") {
-      ui.toast(`SOS from ${rec.name || "a member"}`, "sos");
+      ui.toast(t("SOS from {who}", { who: rec.name || t("a member") }), "sos");
       navigator.vibrate?.([160, 80, 160, 80, 240]);
-      notifyEvent(`SOS from ${who}`, "Open Starling to see their live position.", `sos-${rec.id}`);
+      notifyEvent(t("SOS from {who}", { who }), t("Open Starling to see their live position."), `sos-${rec.id}`);
     } else if (st === "checkin" && prev === "sos") {
-      ui.toast(`${who} checked in`);
+      ui.toast(t("{who} checked in", { who }));
       cancelEventNotification(`sos-${rec.id}`);
-      notifyEvent(`${who} checked in`, "The SOS is cleared.", `sos-${rec.id}`);
+      notifyEvent(t("{who} checked in", { who }), t("The SOS is cleared."), `sos-${rec.id}`);
     }
     prevStatus.set(rec.id, st);
 
@@ -4616,7 +4629,7 @@ function checkAlerts() {
       if (state.settings.placeAlerts) {
         for (const ev of evs) {
           const msg =
-            ev.type === "arrive" ? `${who} arrived at ${ev.placeName}` : `${who} left ${ev.placeName}`;
+            ev.type === "arrive" ? t("{who} arrived at {place}", { who, place: ev.placeName }) : t("{who} left {place}", { who, place: ev.placeName });
           ui.toast(msg);
           navigator.vibrate?.(80);
           notifyEvent(msg, "", `place-${rec.id}`);
@@ -4628,9 +4641,9 @@ function checkAlerts() {
       if (rec.bat < 0.15 && !batWarned.has(rec.id)) {
         batWarned.add(rec.id);
         const pct = Math.max(1, Math.round(rec.bat * 100));
-        const msg = `${who}'s phone is at ${pct}%`;
+        const msg = t("{who}'s phone is at {pct}%", { who, pct });
         ui.toast(msg, "warn");
-        notifyEvent(msg, "Their dot may go dark soon.", `bat-${rec.id}`);
+        notifyEvent(msg, t("Their dot may go dark soon."), `bat-${rec.id}`);
       } else if (rec.bat > 0.25) {
         if (batWarned.delete(rec.id)) cancelEventNotification(`bat-${rec.id}`);
       }
@@ -4970,6 +4983,10 @@ async function boot() {
   // The API base is fixed for this run before any poller or sender is built.
   setApiBase(state.relay);
   applyTheme();
+  // Language before anything paints: every screen starts hidden, so the
+  // static page translates exactly once with no flash of English.
+  setLocale(resolveLocale(state.settings.lang));
+  translateDom();
 
   if (!shareCapable()) {
     // Hosted web: landing and demo only. A circle stored by the old web app

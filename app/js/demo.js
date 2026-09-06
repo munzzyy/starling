@@ -8,6 +8,7 @@
 // The story beats repeat on a cycle so a patient viewer sees them again.
 
 import { TRAIL_CAP } from "./wire.js";
+import { t } from "./i18n.js";
 
 export const DEMO_CENTER = { lat: 40.7794, lon: -73.9632 };
 
@@ -24,7 +25,7 @@ const WALKERS = [
     speed: 1.35,
     bat: 0.82,
     phase: 0.5,
-    st: "coffee run",
+    stKey: "coffee run",
     path: [[30, -20], [95, 15], [150, -10], [185, -75], [130, -135], [55, -145], [5, -90]],
   },
   {
@@ -35,7 +36,7 @@ const WALKERS = [
     speed: 1.5,
     bat: 0.57,
     phase: 0.35,
-    st: "",
+    stKey: "",
     path: [[-60, 40], [-160, 85], [-260, 45], [-325, -40], [-260, -125], [-150, -135], [-70, -60]],
   },
   {
@@ -46,7 +47,7 @@ const WALKERS = [
     speed: 1.25,
     bat: 0.08,
     phase: 0.6,
-    st: "phone's dying",
+    stKey: "phone's dying",
     path: [[20, -180], [110, -235], [155, -320], [80, -400], [-40, -380], [-95, -280], [-30, -200]],
   },
   {
@@ -57,7 +58,7 @@ const WALKERS = [
     speed: 1.4,
     bat: 0.66,
     phase: 0.15,
-    st: "omw to the fountain",
+    stKey: "omw to the fountain",
     path: [[120, 80], [225, 145], [300, 220], [260, 320], [150, 335], [60, 240], [70, 140]],
   },
 ];
@@ -129,8 +130,8 @@ export function demoPlaces() {
   const fountain = toLatLon(FOUNTAIN_M);
   const home = toLatLon([0, 0]);
   return [
-    { id: "de30703e", name: "Home", lat: home.lat, lon: home.lon, radius: 100 },
-    { id: "de30f0f0", name: "The fountain", lat: fountain.lat, lon: fountain.lon, radius: FOUNTAIN_R },
+    { id: "de30703e", name: t("Home"), lat: home.lat, lon: home.lon, radius: 100 },
+    { id: "de30f0f0", name: t("The fountain"), lat: fountain.lat, lon: fountain.lon, radius: FOUNTAIN_R },
   ];
 }
 
@@ -143,14 +144,14 @@ export function demoFrame(tSec, now, profile) {
     const pos = toLatLon(mPos);
     const cycle = ((tSec % CYCLE_S) + CYCLE_S) % CYCLE_S;
     let type = "loc";
-    let st = w.st;
+    let st = w.stKey ? t(w.stKey) : "";
     if (w.name === "Juno") {
       if (cycle >= SOS_AT && cycle < CHECKIN_AT) type = "sos";
       else if (cycle >= CHECKIN_AT && cycle < CLEAR_AT) type = "checkin";
     }
     if (w.name === "Mabel") {
       const there = Math.hypot(mPos[0] - FOUNTAIN_M[0], mPos[1] - FOUNTAIN_M[1]) <= FOUNTAIN_R;
-      st = there ? "made it" : "omw to the fountain";
+      st = there ? t("made it") : t("omw to the fountain");
     }
     return {
       id: w.id,
