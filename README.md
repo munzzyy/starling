@@ -11,7 +11,7 @@ grab the Android app there.
 This document describes protocol v2: forward secrecy, post-compromise
 security, and cryptographic member removal. As of 0.5.0 it is wired end to
 end, crypto core through relay through storage through UI, on both web and
-Android, and 351 unit tests plus two headless-browser end to end suites
+Android, and 517 unit tests plus two headless-browser end to end suites
 exercise it as a running app talking to a running relay. Nobody outside this
 project has independently reviewed any of it. See
 [docs/AUDIT.md](docs/AUDIT.md) for exactly what has and has not been
@@ -68,7 +68,15 @@ sharing, and invites all follow whichever circle is active.
 - Optional app lock encrypts the circle secret at rest behind a passcode
   (PBKDF2-SHA-256, 600k iterations) and, where the browser supports it, a
   biometric unlock through the WebAuthn PRF extension. A locked device holds no
-  readable secret in memory or on disk.
+  readable secret in memory or on disk. An optional duress passcode, typed on
+  the lock screen, runs the full panic wipe and comes back up as a fresh
+  install.
+- Places live only on your phone. Name a spot like Home or School and Starling
+  says when someone in the circle arrives or leaves; detection runs on-device
+  against positions that already arrive, so the relay never learns a place
+  exists. SOS, arrival, and low-battery alerts reach the Android app as system
+  notifications while it is in the background, built locally, with no push
+  service involved.
 
 The exact wire format and crypto are in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 What the relay can and cannot learn, stated honestly, is in
@@ -114,7 +122,7 @@ says so instead of pretending otherwise.
 No build step, no dependencies to install. Needs Node 24 or newer.
 
 ```
-# unit tests: 351 as of this writing (crypto, wire, ratchet, rekey, membership,
+# unit tests: 517 as of this writing (crypto, wire, ratchet, rekey, membership,
 # relay, QR, UI logic, lock, circles, manifest, and every committed test vector)
 node --test test/*.test.mjs
 
@@ -211,7 +219,7 @@ Being clear about the edges is part of the point.
   network. There is no iOS app; the hosted site refuses to open circles on
   iOS too, for the same reason.
 - **No independent security review.** The design is documented before the
-  code, 351 unit tests replay committed test vectors, and two rounds of
+  code, 517 unit tests replay committed test vectors, and two rounds of
   adversarial review plus a cross-model audit have found and fixed real bugs.
   Nobody outside this project has reviewed any of it. See
   [docs/AUDIT.md](docs/AUDIT.md).

@@ -69,6 +69,13 @@ no tile requests at all.</p>
 and any local settings live in your device's local storage only. Starling
 does not run analytics, crash reporting, or advertising code, and makes no
 network requests beyond the relay and, optionally, map tiles.</p>
+<p>Places, the named spots like Home or School that the app can announce
+arrivals at, are part of that same local-only data. Their names and
+coordinates are never sent to the relay, to other circle members, or
+anywhere else; arrival detection runs entirely on your device against
+positions that were already arriving as part of sharing. Alerts about them
+are built locally too: the Android app posts notifications through the
+operating system on your phone, not through any push service.</p>
 
 <h2>Deleting your data</h2>
 <p>There is no account to delete because there is no account. To leave a

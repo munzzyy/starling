@@ -7,6 +7,7 @@ const PRECACHE = [
   "/index.html",
   "/css/tokens.css",
   "/css/app.css",
+  "/css/landing.css",
   "/js/main.js",
   "/js/env.js",
   "/js/platform.js",

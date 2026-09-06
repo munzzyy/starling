@@ -191,6 +191,48 @@ def main():
             raise E2EError("inactive circle did not survive the lock round-trip")
         log("inactive circle survived lock and unlock")
 
+        # Duress: setting it to the unlock passcode is refused, a distinct
+        # code is accepted, and typing it on the lock screen erases the lot.
+        b.click('[data-testid="settings-open"]')
+        wait_for(lambda: b.exec("return !!document.querySelector('[data-testid=\"duress-set\"]')"),
+                 timeout=10, desc="duress button")
+        b.click('[data-testid="duress-set"]')
+        wait_for(lambda: b.exec("return !!document.querySelector('[data-testid=\"passcode-sheet\"]')"),
+                 timeout=10, desc="duress passcode sheet")
+        b.send_keys('[data-testid="passcode-input"]', "246810")
+        b.send_keys('[data-testid="passcode-confirm"]', "246810")
+        b.click('[data-testid="passcode-save"]')
+        time.sleep(2.0)  # PBKDF2 derive
+        if b.exec("return !!(window.__starlingApi.state.lock || {}).duress"):
+            raise E2EError("duress equal to the unlock passcode must be refused")
+        log("duress equal to the unlock passcode refused")
+        b.exec("document.querySelector('[data-testid=\"passcode-input\"]').value='';")
+        b.exec("document.querySelector('[data-testid=\"passcode-confirm\"]').value='';")
+        b.send_keys('[data-testid="passcode-input"]', "135790")
+        b.send_keys('[data-testid="passcode-confirm"]', "135790")
+        b.click('[data-testid="passcode-save"]')
+        wait_for(lambda: b.exec("return !!(window.__starlingApi.state.lock || {}).duress"),
+                 timeout=15, desc="duress set")
+        log("duress passcode set")
+        escape_all()
+
+        # Relaunch locked, type the duress code: the app must come back as a
+        # fresh install with nothing left on disk.
+        b.navigate(BASE + "/")
+        wait_for(lambda: b.state() is not None, timeout=20, desc="reboot for duress")
+        wait_for(lambda: b.state().get("locked") is True, timeout=10, desc="locked again")
+        b.send_keys('[data-testid="lock-input"]', "135790")
+        b.click('[data-testid="lock-unlock"]')
+        wait_for(lambda: b.state() is not None and b.state().get("screen") == "onboarding",
+                 timeout=30, desc="fresh onboarding after duress")
+        if get_idb(b, "lock") is not None:
+            raise E2EError("duress left the lock record behind")
+        if get_idb(b, "vaultSecret") is not None:
+            raise E2EError("duress left the sealed secret behind")
+        if get_idb(b, "vaultCircles") is not None:
+            raise E2EError("duress left the sealed circles behind")
+        log("duress code wiped the device to a fresh install")
+
         # Console must be clean throughout.
         errs = b.errors()
         dirty = [v for v in (errs.get("__starlingErrors") or []) if v]

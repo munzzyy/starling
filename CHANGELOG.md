@@ -3,6 +3,40 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [0.6.0]
+
+- **Places.** Name the spots that matter, like Home or School, and Starling
+  tells you when someone in your circle arrives or leaves one. Everything
+  about a place lives only on your phone: detection runs on-device against
+  positions that were already arriving, so the relay never learns a place
+  exists, let alone where it is. Add a place from your current position or
+  by tapping the map; radius is a choice, boundary jitter is absorbed
+  rather than announced, and a deliberately coarse position is never used
+  to judge a 250 m circle. With the app lock on, places are sealed at rest
+  under the same vault key as the circle secret.
+- **Alerts that reach you.** A member's SOS, an arrival at a place, or a
+  circle member's phone running low now posts a real notification through
+  the Android app while it is in the background. On the open web nothing
+  changes, because Starling still has no push tokens to give anyone.
+- **Duress passcode.** An optional second passcode for the moment someone
+  makes you open the app: typed on the lock screen, it runs the full panic
+  wipe and comes back up as a fresh install. Setting it to your unlock
+  passcode is refused, and so is changing your passcode onto it. Storage
+  can reveal that a duress code exists; watching you type cannot tell it
+  from the real one. The threat model spells this out.
+- **One wipe, three triggers.** The in-app panic wipe in the Android app now
+  runs the same OS-level clear the PanicKit trigger always did, Keystore
+  wrap key and notification channels included, instead of only clearing the
+  page's own storage. The duress passcode fires that same path.
+- **Clipboard hygiene.** A copied invite link clears itself from the
+  clipboard after 90 seconds when the clipboard still holds exactly that
+  link. Anything you copied since is left alone.
+- **The landing page grew up.** How it works, a feature grid, the honesty
+  table of what the relay can and cannot see, a sealed-envelope diagram,
+  and answers to the questions people actually ask, all in the same
+  no-external-requests budget as before.
+- 517 unit tests.
+
 ## [0.5.0]
 
 Protocol v2. This is a hard break: **a v1 client cannot talk to a v2 relay.**

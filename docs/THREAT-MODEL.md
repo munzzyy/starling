@@ -115,13 +115,24 @@ database) gets ciphertext and metadata only:
   (like Signal's screen lock), turns on with a passcode, and can add
   biometric unlock where the platform supports it. Auto-lock relocks after a
   chosen idle delay in the background, and every launch starts locked.
+- Places (named spots with arrival and leave alerts) are computed on-device
+  against positions that already arrive as part of sharing. Nothing about a
+  place, not its name, not its coordinates, not even that one exists, is
+  ever sent to the relay or to other members. With the app lock on, the
+  place list is sealed at rest under the same vault key as the circle
+  secret, and a plaintext copy left behind by an interrupted lock
+  transition is adopted and resealed at the next unlock rather than left
+  readable.
+- An optional duress passcode runs the full panic wipe from the lock screen
+  and comes back up as a fresh install. It can never equal the unlock
+  passcode, in either direction of change.
 
 ## Known limits, stated plainly
 
 1. **No human security audit, and that gap is not theoretical.** The
    constructions are deliberately boring (AES-GCM, HKDF-SHA-256,
    Ed25519/P-256, all through WebCrypto), the design is written down before
-   the code, and 351 unit tests replay committed test vectors an independent
+   the code, and 517 unit tests replay committed test vectors an independent
    implementation could check itself against. None of that is a substitute
    for an independent reviewer. What verification exists: negative controls
    run against the load-bearing security tests (deliberately breaking the
@@ -226,6 +237,25 @@ database) gets ciphertext and metadata only:
     GitHub release and the direct APK download at starlingmap.app. Anyone
     telling you otherwise is wrong, and if this file says otherwise after
     that MR merges, that is now the stale claim.
+15. **A duress passcode's existence is visible in storage.** The unlock
+    passcode's verifier is the GCM tag of a wrapped key, so it stores
+    nothing that says "a passcode exists" beyond the lock itself. A duress
+    code unlocks nothing, so its verifier is a PBKDF2 hash sitting in the
+    clear, and anyone who reads the device's storage before the wipe can
+    see that a duress code is configured, though not what it is. What the
+    feature actually defends against is someone watching you type: the two
+    codes are indistinguishable at the keyboard, and by the time storage
+    can be read calmly, the wipe has either run or was never needed. If
+    your threat includes a forensic read BEFORE coercion, do not set one.
+16. **Event notifications go through the OS.** On Android, an SOS, arrival,
+    or low-battery alert posted while the app is hidden is a system
+    notification: its title and text (a member's name, a place name) pass
+    through the OS notification pipeline and appear on the lock screen
+    subject to the system's own lock-screen privacy setting. Nothing is
+    sent to any push service, there are no push tokens, and the
+    notification is built locally, but a shoulder surfer reading your lock
+    screen is reading real names. Android's "sensitive notification
+    content" setting is the control for that.
 
 ## Emergency beacon
 

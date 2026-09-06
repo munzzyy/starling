@@ -242,8 +242,11 @@ export function createMapView(container, { onMarkerTap } = {}) {
       const tag = document.createElement("div");
       tag.className = "place-tag";
       tag.textContent = p.name;
+      // The tag rides the ring's north edge, not its center, so it never sits
+      // on top of whoever is standing at the place. 1 degree of latitude is
+      // ~111320 m everywhere.
       placeLayers.push(
-        L.marker([p.lat, p.lon], {
+        L.marker([p.lat + p.radius / 111320, p.lon], {
           icon: L.divIcon({ className: "place-tag-wrap", html: tag, iconSize: [0, 0] }),
           keyboard: false,
           interactive: false,

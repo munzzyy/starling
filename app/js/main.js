@@ -493,6 +493,9 @@ function ensureMapUI() {
   if (mapView) return;
   mapView = createMapView($("#map"), { onMarkerTap: focusMember });
   mapView.setBasemap(state.settings.basemap);
+  // Places load before the map exists on a fresh launch (enterCircle runs
+  // loadPlaces first); the freshly built map has to catch up on them.
+  mapView.setPlaces(state.places);
   sheet = ui.createSheet($("#sheet"), $("#sheet-drag"), $("#sheet-body"));
 
   byTestid("share-toggle").addEventListener("click", () => setSharing(!state.sharing));
