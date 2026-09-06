@@ -65,7 +65,11 @@ export function t(text, vars) {
     }
   }
   if (vars) {
-    for (const [k, v] of Object.entries(vars)) out = out.replaceAll(`{${k}}`, String(v));
+    // One pass over the TEMPLATE, never over substituted output: a member
+    // who names themselves "{gone}" must not have another variable's value
+    // re-substituted into their slot. Sequential replaceAll had exactly
+    // that hole, in the who-removed-whom strings of all places.
+    out = out.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
   }
   return out;
 }
@@ -74,12 +78,15 @@ export function t(text, vars) {
 // by its normalized English source. The source is stashed on first touch so
 // a later locale switch translates from English again, not from the last
 // translation.
-export function translateDom(root = document) {
-  for (const node of root.querySelectorAll("[data-i18n]")) {
+export function translateDom(root) {
+  // Node imports these modules for tests; no document means nothing to do.
+  const scope = root || globalThis.document;
+  if (!scope?.querySelectorAll) return;
+  for (const node of scope.querySelectorAll("[data-i18n]")) {
     if (!node.dataset.i18nSrc) node.dataset.i18nSrc = norm(node.textContent);
     node.textContent = t(node.dataset.i18nSrc);
   }
-  for (const node of root.querySelectorAll("[data-i18n-attr]")) {
+  for (const node of scope.querySelectorAll("[data-i18n-attr]")) {
     for (const attr of node.dataset.i18nAttr.split(",")) {
       // Plain attributes, not dataset: attr names like "aria-label" are not
       // legal DOMStringMap property names.

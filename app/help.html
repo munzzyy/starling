@@ -18,7 +18,7 @@
 </head>
 <body class="hv">
 <noscript>
-  <p class="hv-noscript">This page needs JavaScript. The person's position arrives encrypted and is
+  <p class="hv-noscript" data-i18n>This page needs JavaScript. The person's position arrives encrypted and is
   decrypted here, in your browser, with a key carried in this link that never reaches any server;
   without JavaScript there is nothing that can do that decryption. If you are on Tor Browser's
   Safest setting, allow JavaScript for this page to see them.</p>
@@ -32,13 +32,13 @@
   </div>
   <div class="hv-sub">
     <span id="hv-ago"></span>
-    <span id="hv-net" hidden>Reconnecting...</span>
+    <span id="hv-net" hidden data-i18n>Reconnecting...</span>
   </div>
 </header>
 
 <div id="hv-waiting" class="hv-card">
-  <h1>Waiting for a location...</h1>
-  <p>Someone shared this emergency link with you. Their live position appears
+  <h1 data-i18n>Waiting for a location...</h1>
+  <p data-i18n>Someone shared this emergency link with you. Their live position appears
   here the moment it arrives. Keep this page open.</p>
 </div>
 
@@ -48,21 +48,21 @@
 </div>
 
 <div id="hv-ended" class="hv-card" hidden>
-  <h1>This session has ended</h1>
-  <p>The person who shared this link stopped their emergency share or checked
+  <h1 data-i18n>This session has ended</h1>
+  <p data-i18n>The person who shared this link stopped their emergency share or checked
   in safe. The last known position stays on the map.</p>
 </div>
 
 <div id="hv-expired" class="hv-card" hidden>
-  <h1>This link has expired</h1>
-  <p>This help link is no longer active. The last known position stays on the
+  <h1 data-i18n>This link has expired</h1>
+  <p data-i18n>This help link is no longer active. The last known position stays on the
   map; ask for a fresh link if the emergency is still going on.</p>
 </div>
 
-<button id="hv-recenter" class="hv-recenter" hidden>Recenter</button>
+<button id="hv-recenter" class="hv-recenter" hidden data-i18n>Recenter</button>
 
 <footer class="hv-foot">
-  <span>End to end encrypted. This page can read this one emergency share and
+  <span data-i18n>End to end encrypted. This page can read this one emergency share and
   nothing else.</span>
 </footer>
 </body>

@@ -50,7 +50,7 @@ for (const f of JS_FILES) {
 }
 
 // Static page: data-i18n text nodes and data-i18n-attr attributes.
-const html = read("app/index.html");
+const html = read("app/index.html") + read("app/help.html");
 for (const m of html.matchAll(/<([a-z0-9]+)[^>]*\bdata-i18n\b[^>]*>([^<]*)</g)) add(m[2]);
 for (const m of html.matchAll(/<[^>]*\bdata-i18n-attr="([^"]+)"[^>]*>/g)) {
   const tag = m[0];

@@ -255,7 +255,7 @@ export const EMOJI = [
 export function emojiGrid(initial) {
   const grid = el("div", "emoji-grid");
   grid.setAttribute("role", "radiogroup");
-  grid.setAttribute("aria-label", "Avatar");
+  grid.setAttribute("aria-label", t("Avatar"));
   let selected = EMOJI.includes(initial) ? initial : EMOJI[0];
   const cells = new Map();
   for (const em of EMOJI) {
@@ -496,7 +496,7 @@ export function safetyBlock(number, testid) {
   wrap.classList.add("safety-tappable");
   wrap.setAttribute("role", "button");
   wrap.tabIndex = 0;
-  wrap.setAttribute("aria-label", "Show this safety number large for comparing in person");
+  wrap.setAttribute("aria-label", t("Show this safety number large for comparing in person"));
   const openBig = () => {
     const digits = [...wrap.querySelectorAll(".safety-g")].map((g) => g.textContent).join(" ");
     if (!/\d/.test(digits)) return;
@@ -528,7 +528,7 @@ export function setSafety(wrap, number) {
   if (!groups.length) {
     wrap.classList.add("safety-wait");
     wrap.append(el("span", "safety-g", "-----"));
-    wrap.setAttribute("aria-label", "Safety number loading");
+    wrap.setAttribute("aria-label", t("Safety number loading"));
     return wrap;
   }
   wrap.classList.remove("safety-wait");
@@ -780,19 +780,19 @@ function memberRow(api, id, { onChanged }) {
     // Marking somebody verified while their keys are in question would be
     // verifying the wrong thing, so that action is not offered until the
     // change is answered.
-    pill.textContent = ch ? "Keys changed" : verified ? "Verified" : "Not verified";
+    pill.textContent = ch ? t("Keys changed") : verified ? t("Verified") : t("Not verified");
     pill.className = `verify-pill ${ch ? "vp-alert" : verified ? "vp-on" : "vp-off"}`;
     verifyBtn.hidden = !!ch;
-    verifyBtn.textContent = verified ? "Mark not verified" : "Mark verified";
-    confirmText.textContent = `Everyone else gets new keys. ${who} can read nothing this circle sends from now on, and is not told. What they already saw, they keep.`;
+    verifyBtn.textContent = verified ? t("Mark not verified") : t("Mark verified");
+    confirmText.textContent = t("Everyone else gets new keys. {who} can read nothing this circle sends from now on, and is not told. What they already saw, they keep.", { who });
     if (ch) {
       node.classList.add("mem-changed");
       change.hidden = false;
       safety.hidden = true;
-      changeText.textContent = `${who} is answering with different keys. That is a reinstall, or somebody else in their place, and this phone cannot tell which. Their location stays off your map until you accept.`;
+      changeText.textContent = t("{who} is answering with different keys. That is a reinstall, or somebody else in their place, and this phone cannot tell which. Their location stays off your map until you accept.", { who });
       setSafety(wasBlock, ch.oldSafety);
       setSafety(nowBlock, ch.newSafety);
-      hint.textContent = `Ask ${who} to read out the number on their screen. If it is the new one, accept it. If it is the old one, or they did not reinstall, remove them.`;
+      hint.textContent = t("Ask {who} to read out the number on their screen. If it is the new one, accept it. If it is the old one, or they did not reinstall, remove them.", { who });
     } else {
       node.classList.remove("mem-changed");
       change.hidden = true;
@@ -800,7 +800,7 @@ function memberRow(api, id, { onChanged }) {
       setSafety(safety, number);
       hint.textContent = verified
         ? t("You have checked this number with {who}.", { who })
-        : `Read this out to ${who} on a call or in person. The same digits on both screens means nobody is in between.`;
+        : t("Read this out to {who} on a call or in person. The same digits on both screens means nobody is in between.", { who });
     }
   }
 
@@ -860,7 +860,7 @@ export function openMembersSheet({ api, onClose }) {
 
   function refresh() {
     const meId = api.state.identity?.memberId;
-    youName.textContent = api.state.profile?.name || "You";
+    youName.textContent = api.state.profile?.name || t("You");
     if (meId) {
       need(meId);
       setSafety(youSafety, numbers.get(meId));
@@ -942,15 +942,15 @@ function viewerRow(v, { onRevoke, onChanged }) {
 
   function update(next) {
     link = next.link || "";
-    label.textContent = next.label || "Help link";
+    label.textContent = next.label || t("Help link");
     node.classList.toggle("viewer-dead", !!next.revoked);
     if (next.revoked) {
-      when.textContent = "Revoked";
+      when.textContent = t("Revoked");
       linkRow.hidden = true;
       actions.hidden = true;
     } else {
       const left = fmtCountdown(next.expiresAt - Date.now());
-      when.textContent = next.failing ? "Not reaching the relay" : t("Expires in {left}", { left });
+      when.textContent = next.failing ? t("Not reaching the relay") : t("Expires in {left}", { left });
       when.classList.toggle("viewer-failing", !!next.failing);
       linkText.textContent = link;
       linkRow.hidden = !link;
@@ -1227,7 +1227,7 @@ export function openInviteSheet({ api, getLink, qrSvgFor, onClose }) {
       qrCard.innerHTML = qrSvgFor(link);
       const svg = qrCard.querySelector("svg");
       svg?.setAttribute("role", "img");
-      svg?.setAttribute("aria-label", "Invite QR code");
+      svg?.setAttribute("aria-label", t("Invite QR code"));
       linkText.textContent = link;
     }
     const inv = api.invite();
@@ -1355,7 +1355,7 @@ export function openPlacesSheet({ api, onAdd, onPick, onRename, onRadius, onRemo
     nameIn.type = "text";
     nameIn.maxLength = MAX_NAME_LEN;
     nameIn.value = place.name;
-    nameIn.setAttribute("aria-label", "Place name");
+    nameIn.setAttribute("aria-label", t("Place name"));
     nameIn.addEventListener("change", () => {
       const v = nameIn.value.trim().slice(0, MAX_NAME_LEN);
       if (v) onRename(place.id, v);
@@ -2248,7 +2248,7 @@ export function updateMemberList(container, items, { now, mePos, statusOf, onTap
     card.className = `member-card mc-${status}`;
     card.style.setProperty("--m-hue", String(rec.hue ?? 0));
     $(".ava-emoji", card).textContent = rec.emoji || "";
-    $(".mc-name", card).textContent = rec.name || "Member";
+    $(".mc-name", card).textContent = rec.name || t("Member");
     $(".mc-sub", card).textContent = memberSubLine(rec, now, mePos, placeOf?.(rec.id), status);
     const chip = $(".chip", card);
     chip.textContent = t(CHIP_TEXT[status]);
@@ -2338,10 +2338,10 @@ export function renderFocusCard(root, rec, ctx) {
   root.className = `focus-card fc-${status}`;
   root.style.setProperty("--m-hue", String(rec.hue ?? 0));
   $(".ava-emoji", root).textContent = rec.emoji || "";
-  $(".fc-name", root).textContent = rec.name || "Member";
+  $(".fc-name", root).textContent = rec.name || t("Member");
   $(".fc-sub", root).textContent = `${t(CHIP_TEXT[status])} · ${memberSubLine(rec, now, mePos, place, status)}`;
   const hasPos = Number.isFinite(rec.lat) && Number.isFinite(rec.lon);
-  const latlon = hasPos ? `${rec.lat.toFixed(5)}, ${rec.lon.toFixed(5)}` : "no position yet";
+  const latlon = hasPos ? `${rec.lat.toFixed(5)}, ${rec.lon.toFixed(5)}` : t("no position yet");
   $(".fc-latlon", root).textContent = latlon;
   const copyBtn = $(".fc-copy", root);
   copyBtn.onclick = async () => {

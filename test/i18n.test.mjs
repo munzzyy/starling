@@ -4,6 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -59,4 +60,41 @@ test("every translation keeps its placeholders and carries no em dashes", () => 
       assert.ok(v.includes(`{${m[1]}}`), `placeholder {${m[1]}} lost in: ${k} -> ${v}`);
     }
   }
+});
+
+test("substituted values are never re-scanned for other placeholders", () => {
+  setLocale("en");
+  // A member who names themselves "{gone}" must not have the removed
+  // member's name substituted into their slot.
+  assert.equal(
+    t("{who} removed {gone}", { who: "{gone}", gone: "Bob" }),
+    "{gone} removed Bob",
+  );
+  assert.equal(t("{a}{b}", { a: "{b}", b: "X" }), "{b}X");
+  assert.equal(t("{a} and {missing}", { a: "ok" }), "ok and {missing}");
+});
+
+test("no user-visible literal bypasses the translator", () => {
+  // The class the verifier caught: English assigned straight to textContent
+  // or a spoken attribute, invisible to both the chokepoints and the
+  // extractor. Anything matching here must be wrapped in t() or allowlisted
+  // with a reason.
+  const files = ["app/js/main.js", "app/js/ui.js", "app/js/helpview.js"];
+  const allow = new Set([
+    // product name + version, language-invariant
+  ]);
+  const hits = [];
+  for (const f of files) {
+    const src = readFileSync(path.join(ROOT, f), "utf8");
+    for (const m of src.matchAll(/\.textContent = "([^"]{6,})"/g)) {
+      if (!allow.has(m[1])) hits.push(`${f}: textContent "${m[1]}"`);
+    }
+    for (const m of src.matchAll(/setAttribute\(\s*"(?:aria-label|placeholder|title)",\s*"([^"]{6,})"/g)) {
+      if (!allow.has(m[1])) hits.push(`${f}: attr "${m[1]}"`);
+    }
+    for (const m of src.matchAll(/\.textContent = \w+ \? "([^"]{6,})" : "([^"]{6,})"/g)) {
+      hits.push(`${f}: ternary "${m[1]}"`);
+    }
+  }
+  assert.deepEqual(hits, [], hits.slice(0, 6).join("\n"));
 });

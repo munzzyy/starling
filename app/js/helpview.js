@@ -12,11 +12,13 @@
 import { parseBeaconFragment, deriveHelpChannelId, deriveHelpEncKey } from "./crypto.js";
 import { createRoster, createPoller, statusOf, STALE_MS, epochAt } from "./net.js";
 import { createMapView } from "./map.js";
-import { t, setLocale, resolveLocale } from "./i18n.js";
+import { t, setLocale, resolveLocale, translateDom } from "./i18n.js";
 import { fmtRelTime } from "./fmt.js";
 
-// A helper opening this in an emergency gets their browser's language.
+// A helper opening this in an emergency gets their browser's language, and
+// the page's static copy translates before anything else runs.
 setLocale(resolveLocale("auto"));
+translateDom();
 
 const $ = (s) => document.querySelector(s);
 

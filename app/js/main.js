@@ -644,7 +644,7 @@ function renderYou() {
   const checkBtn = byTestid("checkin-button");
   checkBtn.setAttribute(
     "aria-label",
-    state.sosActive ? "Cancel SOS and check in with your circle" : "Check in with your circle",
+    state.sosActive ? t("Cancel SOS and check in with your circle") : t("Check in with your circle"),
   );
   checkBtn.classList.toggle("check-attn", state.sosActive);
   byTestid("sos-button").classList.toggle("sos-active", state.sosActive);
