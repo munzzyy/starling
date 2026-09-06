@@ -432,6 +432,10 @@ if (debugHooks()) window.__starlingFit = () => {
 
 function showScreen(name) {
   state.screen = name;
+  // A pending map-tap pick must not outlive the map screen it was armed on:
+  // an unlock, a wipe, or a circle change later, a stray tap would still add
+  // a place under whatever name was typed before the world changed.
+  if (name !== "map") mapView?.cancelPick();
   $("#screen-lock").hidden = name !== "lock";
   $("#screen-onboarding").hidden = name !== "onboarding";
   $("#screen-map").hidden = name !== "map";
@@ -1104,6 +1108,15 @@ async function enterCircle() {
   // the alert the teardown raised is already on screen.
   if (!state.gen) return;
   await loadPlaces();
+  // A watch-only member is exactly who an SOS notification exists for, and
+  // they may never touch the share toggle that used to be the only thing
+  // that asked. Ask when a circle becomes real instead. Android silently
+  // stops re-prompting after repeated denials; below API 33 this is a no-op.
+  try {
+    native()?.ensureNotifyPermission?.();
+  } catch {
+    // an older wrapper without the method
+  }
   setupNet();
   startRekeyTimer();
   startInviteWatch();
@@ -4341,11 +4354,26 @@ function openHelpLink() {
 // story there. Never fires while the app is visibly on screen: the toast
 // already said it.
 function notifyEvent(title, body, tag) {
+  // The demo is a scripted story. Its fake SOS must never reach the phone's
+  // real notification tray, where nothing marks it as fiction.
+  if (state.demo) return;
   if (document.visibilityState === "visible") return;
   const n = native();
   if (!n?.notify) return;
   try {
     n.notify(title, body, tag);
+  } catch {
+    // an older wrapper without the method
+  }
+}
+
+// Take a posted event notification back down, visibility regardless: an "SOS
+// from X" sitting on the lock screen after X checked in is a false alarm
+// standing. The visible-app path never posted one, and cancel is idempotent.
+function cancelEventNotification(tag) {
+  if (state.demo) return;
+  try {
+    native()?.cancelNotify?.(tag);
   } catch {
     // an older wrapper without the method
   }
@@ -4371,6 +4399,7 @@ function openPlaces() {
       onPick: (name) => {
         ui.toast(`Tap the map where ${name} is.`);
         mapView.startPick(async ({ lat, lon }) => {
+          if (state.locked || state.demo) return;
           await addPlace(name, lat, lon);
           ui.toast(`${name} saved. Only this phone knows it exists.`);
           openPlaces();
@@ -4409,6 +4438,7 @@ function checkAlerts() {
       notifyEvent(`SOS from ${who}`, "Open Starling to see their live position.", `sos-${rec.id}`);
     } else if (st === "checkin" && prev === "sos") {
       ui.toast(`${who} checked in`);
+      cancelEventNotification(`sos-${rec.id}`);
       notifyEvent(`${who} checked in`, "The SOS is cleared.", `sos-${rec.id}`);
     }
     prevStatus.set(rec.id, st);
@@ -4440,7 +4470,7 @@ function checkAlerts() {
         ui.toast(msg, "warn");
         notifyEvent(msg, "Their dot may go dark soon.", `bat-${rec.id}`);
       } else if (rec.bat > 0.25) {
-        batWarned.delete(rec.id);
+        if (batWarned.delete(rec.id)) cancelEventNotification(`bat-${rec.id}`);
       }
     }
   }
@@ -4450,6 +4480,7 @@ function checkAlerts() {
 
 function startDemo() {
   if (state.demo) return;
+  mapView?.cancelPick();
   if (state.sharing) setSharing(false);
   state.demo = true;
   state.sharing = true;

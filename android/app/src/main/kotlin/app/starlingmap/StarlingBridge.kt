@@ -32,6 +32,21 @@ class StarlingBridge(private val activity: MainActivity) {
         activity.runOnUiThread { activity.postEventNotification(title.take(80), body.take(160), tag.take(64)) }
     }
 
+    // Take a posted event notification back down (an SOS that cleared while
+    // the app was open would otherwise stand on the lock screen forever).
+    @JavascriptInterface
+    fun cancelNotify(tag: String) {
+        activity.runOnUiThread { activity.cancelEventNotification(tag.take(64)) }
+    }
+
+    // Ask for POST_NOTIFICATIONS outside the share flow: a member who only
+    // ever watches never starts a share, and they are exactly who an SOS
+    // notification is for. No-op where already granted or below API 33.
+    @JavascriptInterface
+    fun ensureNotifyPermission() {
+        activity.runOnUiThread { activity.requestNotifyPermissionIfNeeded() }
+    }
+
     // The full-device panic wipe: Keystore wrap key, notification channels,
     // then clearApplicationUserData, which kills the process. Same wipe the
     // PanicKit trigger runs. The page's own storage wipe still runs in

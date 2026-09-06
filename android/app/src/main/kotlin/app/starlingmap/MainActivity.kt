@@ -216,12 +216,16 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    private fun startShareService() {
+    fun requestNotifyPermissionIfNeeded() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
             notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+    }
+
+    private fun startShareService() {
+        requestNotifyPermissionIfNeeded()
         try {
             LocationService.start(this)
         } catch (e: SecurityException) {
@@ -267,6 +271,11 @@ class MainActivity : FragmentActivity() {
             .setAutoCancel(true)
             .build()
         nm.notify(tag.ifEmpty { "event" }, EVENTS_NOTIF_ID, n)
+    }
+
+    fun cancelEventNotification(tag: String) {
+        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+        nm.cancel(tag.ifEmpty { "event" }, EVENTS_NOTIF_ID)
     }
 
     private fun deliverFix(json: String) {
