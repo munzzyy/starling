@@ -90,11 +90,14 @@ import {
   openPasscodeRecord,
   makeBioRecord,
   openBioRecord,
+  makeDuressRecord,
+  matchesDuress,
   sealUnderVault,
   openUnderVault,
   bioAvailable,
   zero,
 } from "./lock.js";
+import { createPlaceTracker, sanitizePlaces, newPlaceId, DEFAULT_RADIUS } from "./places.js";
 import { debugHooks, apiUrl, isWrapped, native, shareUrlBase, normalizeRelay, setApiBase, shareCapable } from "./env.js";
 import {
   isSealedRecordError,
@@ -173,7 +176,12 @@ const state = {
     wakeLock: false,
     history: "default", // an id from ratchet.js HISTORY_CHOICES
     steady: false, // post on a fixed cadence whether or not you have moved
+    placeAlerts: true, // say when a member arrives at or leaves a saved place
+    batAlerts: true, // say when a member's battery runs low
   },
+  // Named spots that live only on this device; never sent anywhere. Loaded by
+  // loadPlaces() under the same at-rest rule as the chain key.
+  places: [],
   circleName: "My circle",
   me: null,
   geoDenied: false,
@@ -305,6 +313,21 @@ let shareTimer = 0;
 let lastSentPos = null;
 let wakeLock = null;
 const prevStatus = new Map();
+// Arrive/leave tracking against the device's saved places, plus which members
+// have already been called out for a low battery. Memory only, like prevStatus.
+const placeTracker = createPlaceTracker();
+const batWarned = new Set();
+// The tracker key for this device's own position. Member ids are 32 hex chars,
+// so this can never collide with one.
+const SELF_KEY = "self";
+
+// Cleared together wherever the member set changes out from under the alert
+// loop: circle switch, leave, demo enter and exit, re-key adoption.
+function resetMemberAlerts() {
+  prevStatus.clear();
+  placeTracker.clear();
+  batWarned.clear();
+}
 
 const insecureContext =
   !window.isSecureContext && !["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
@@ -486,6 +509,7 @@ function ensureMapUI() {
   $("#nudge-invite").addEventListener("click", openInvite);
   $("#sos-help").addEventListener("click", openHelpLink);
   byTestid("members-open").addEventListener("click", openMembers);
+  byTestid("places-open").addEventListener("click", openPlaces);
   $("#banner-keys-open").addEventListener("click", openMembers);
 }
 
@@ -510,6 +534,7 @@ function render() {
     mePos: state.me,
     statusOf,
     onTap: focusMember,
+    placeOf: (id) => placeTracker.placeFor(id)?.name || null,
   });
   ui.updateAvaStrip($("#ava-strip"), list, { statusOf, now });
   renderMarkers(list, now);
@@ -550,6 +575,8 @@ function renderYou() {
   else if (state.sosActive) sub = hasFix ? "SOS armed · Sharing live" : "SOS armed · Locating...";
   else if (!hasFix) sub = state.geoFailed ? "No location fix yet. Still trying..." : "Locating...";
   else sub = state.settings.precision === "coarse" ? "Live · Neighborhood" : "Live · Precise";
+  const myPlace = placeTracker.placeFor(SELF_KEY);
+  if (myPlace && hasFix) sub = `At ${myPlace.name} · ${sub}`;
   // No background execution on this platform, so sharing runs only while the
   // app is in front. It belongs on the line that claims you are live, not in a
   // help page nobody opens mid-emergency.
@@ -850,6 +877,13 @@ function renderTools() {
   badge.hidden = !count;
   badge.textContent = String(count);
   badge.classList.toggle("tool-badge-alert", changed > 0);
+  const placesSub = $("#places-tool-sub");
+  if (placesSub) {
+    const n = state.places.length;
+    placesSub.textContent = n
+      ? `${n} ${n === 1 ? "place" : "places"} saved on this phone`
+      : "Get told when your people arrive";
+  }
 }
 
 // The onboarding screen carries the join wait, because a device with no circle
@@ -982,6 +1016,7 @@ function renderFocus(list, now) {
     now,
     mePos: state.me,
     statusOf,
+    place: placeTracker.placeFor(rec.id)?.name || null,
     trailOn: focusTrailOn && state.settings.trail,
     onTrailToggle: () => {
       focusTrailOn = !focusTrailOn;
@@ -1065,6 +1100,7 @@ async function enterCircle() {
   // generation with it. There is nothing left here to point a poller at, and
   // the alert the teardown raised is already on screen.
   if (!state.gen) return;
+  await loadPlaces();
   setupNet();
   startRekeyTimer();
   startInviteWatch();
@@ -1139,7 +1175,7 @@ async function onChainDestroyed() {
   // Positions decrypted from a circle this device can no longer read do not
   // get to sit on the map looking current.
   lastSentPos = null;
-  prevStatus.clear();
+  resetMemberAlerts();
   mapView?.clearAll();
   // And the circle itself goes, because there is no longer one here.
   //
@@ -1698,7 +1734,7 @@ async function doRekey({ removed = [], admit = null, reason = "manual" } = {}) {
   state.missedRekey = false;
   state.lastRekey = null;
   lastSentPos = null;
-  prevStatus.clear();
+  resetMemberAlerts();
   mapView?.clearAll();
   await commitGeneration(prev);
   await enterCircle();
@@ -1783,7 +1819,7 @@ async function adoptRekey(applied, senderId) {
   state.missedRekey = false;
   state.lastRekey = { byName: senderName, removedNames, at: Date.now() };
   lastSentPos = null;
-  prevStatus.clear();
+  resetMemberAlerts();
   mapView?.clearAll();
   await commitGeneration(prev);
   await enterCircle();
@@ -1863,6 +1899,84 @@ async function writeChainKey(lock, ck) {
     await dbSet("secret", ck);
     await dbDel("vaultSecret");
   }
+}
+
+// Places follow the chain key's at-rest rule: sealed under the vault key
+// while the lock is on, plaintext otherwise, exactly one form on disk. They
+// are location data (someone's home, someone's school), so a lock that
+// protects the chain key while leaving these readable would be a lock with a
+// window next to it.
+async function writePlacesAtRest() {
+  const form = atRestForm(lockCtx());
+  if (!form.ok) throw new Error("locked: refusing to write places");
+  if (form.sealed) {
+    await dbSet(
+      "vaultPlaces",
+      await sealUnderVault(form.vaultKey, te.encode(JSON.stringify(state.places))),
+    );
+    await dbDel("places");
+  } else {
+    await dbSet("places", state.places);
+    await dbDel("vaultPlaces");
+  }
+}
+
+// Load places for this session, sweeping residue from interrupted lock
+// transitions: a plaintext copy found while the lock is on is adopted and
+// resealed (it was honest data before the lock flipped, and leaving it
+// readable is the one wrong answer), and a sealed copy found with the lock
+// off is unreadable forever and deleted.
+async function loadPlaces() {
+  const form = atRestForm(lockCtx());
+  if (!form.ok) return;
+  let list = null;
+  if (form.sealed) {
+    const blob = await dbGet("vaultPlaces");
+    if (blob) {
+      const bytes = await openUnderVault(form.vaultKey, blob);
+      if (bytes) {
+        try {
+          list = JSON.parse(new TextDecoder().decode(bytes));
+        } catch {
+          list = null;
+        }
+      }
+    }
+    const stray = await dbGet("places");
+    if (stray !== undefined && stray !== null) {
+      if (!list) list = stray;
+      state.places = sanitizePlaces(list);
+      await writePlacesAtRest();
+    } else {
+      state.places = sanitizePlaces(list);
+    }
+  } else {
+    list = await dbGet("places");
+    state.places = sanitizePlaces(list);
+    if (await dbGet("vaultPlaces")) await dbDel("vaultPlaces");
+  }
+  placeTracker.setPlaces(state.places);
+  mapView?.setPlaces(state.places);
+}
+
+// Persist and repaint after any edit to the list.
+async function savePlaces() {
+  placeTracker.setPlaces(state.places);
+  mapView?.setPlaces(state.places);
+  try {
+    await writePlacesAtRest();
+  } catch (e) {
+    window.__starlingErrors.push(`places: ${String(e)}`);
+  }
+  render();
+}
+
+function addPlace(name, lat, lon) {
+  state.places = [
+    ...state.places,
+    { id: newPlaceId(), name, lat, lon, radius: DEFAULT_RADIUS },
+  ];
+  return savePlaces();
 }
 
 // The members this generation opened with, as written down with it, read out
@@ -2032,6 +2146,12 @@ async function enableLock(passcode) {
     state.vaultKey = K;
     state.lock = lockRecord;
     storedCkEpoch = rec.ckEpoch;
+    // Places flip to the sealed form with the rest. A crash before this line
+    // leaves a plaintext copy behind; loadPlaces sweeps that up at the next
+    // unlock by adopting and resealing it.
+    await writePlacesAtRest().catch((e) => {
+      window.__starlingErrors.push(`places: ${String(e)}`);
+    });
     return true;
   } finally {
     releaseCircleGuard();
@@ -2061,6 +2181,11 @@ async function disableLock(passcode) {
     zero(state.vaultKey);
     state.vaultKey = null;
     state.lock = null;
+    // Back to the plaintext form, and the sealed copy off the disk: with the
+    // lock gone it could never be opened again anyway.
+    await writePlacesAtRest().catch((e) => {
+      window.__starlingErrors.push(`places: ${String(e)}`);
+    });
     return true;
   } finally {
     releaseCircleGuard();
@@ -2070,10 +2195,39 @@ async function disableLock(passcode) {
 async function changePasscode(oldPc, newPc) {
   const K = await openPasscodeRecord(state.lock.pass, oldPc);
   if (!K) return false;
+  // A new passcode that collides with the duress code would wipe the device
+  // at the next unlock. Refused here, where the person can still pick again.
+  if (state.lock.duress && (await matchesDuress(state.lock.duress, newPc))) {
+    zero(K);
+    ui.toast("That is your duress passcode. Pick a different one.", "warn");
+    return false;
+  }
   state.lock = { ...state.lock, pass: await makePasscodeRecord(newPc, K) };
   await dbSet("lock", state.lock);
   zero(K);
   return true;
+}
+
+// The duress passcode: a second code that, entered on the lock screen, runs
+// the panic wipe instead of unlocking. Setting one that also unlocks is
+// refused: the two must never be the same keystrokes.
+async function setDuress(pc) {
+  if (!state.lock?.enabled) return false;
+  const K = await openPasscodeRecord(state.lock.pass, pc);
+  if (K) {
+    zero(K);
+    ui.toast("That is your unlock passcode. A duress code has to be different.", "warn");
+    return false;
+  }
+  state.lock = { ...state.lock, duress: await makeDuressRecord(pc) };
+  await dbSet("lock", state.lock);
+  return true;
+}
+
+async function clearDuress() {
+  if (!state.lock) return;
+  state.lock = { ...state.lock, duress: null };
+  await dbSet("lock", state.lock);
 }
 
 async function enableBiometric() {
@@ -2381,7 +2535,7 @@ function lockNow() {
   storedCkEpoch = -1;
   state.me = null;
   focusedId = null;
-  prevStatus.clear();
+  resetMemberAlerts();
   state.locked = true;
   // Drop decrypted member positions from the map and dismiss any open sheet so
   // nothing sensitive sits behind the lock screen.
@@ -2440,6 +2594,22 @@ function ensureLockUI() {
     } catch (e) {
       ok = false;
       damagedAtRest = isSealedRecordError(e);
+    }
+    // The duress path: not an unlock, an erase. It runs the same panic wipe
+    // the settings sheet offers and reloads into a fresh install, with
+    // nothing shown in between: the screen someone is forced to type on must
+    // never flash a hint that a second code exists.
+    if (!ok && !damagedAtRest && state.lock?.duress) {
+      let hit = false;
+      try {
+        hit = await matchesDuress(state.lock.duress, pc);
+      } catch {
+        hit = false;
+      }
+      if (hit) {
+        await panic();
+        return;
+      }
     }
     unlockBtn.disabled = false;
     unlockBtn.textContent = "Unlock";
@@ -2577,7 +2747,7 @@ function promptCreate() {
         stopInviteWatch();
         state.me = null;
         focusedId = null;
-        prevStatus.clear();
+        resetMemberAlerts();
         sheetAutoOpened = false;
         mapView?.clearAll();
         if (state.locked) return;
@@ -3321,7 +3491,7 @@ async function completeJoin(j, welcome) {
   state.joining = null;
   state.me = null;
   focusedId = null;
-  prevStatus.clear();
+  resetMemberAlerts();
   sheetAutoOpened = false;
   mapView?.clearAll();
   // Whoever let you in is the one identity in this circle you have any way to
@@ -3447,7 +3617,7 @@ function applyActive(c) {
   state.me = null;
   lastSentPos = null;
   focusedId = null;
-  prevStatus.clear();
+  resetMemberAlerts();
   sheetAutoOpened = false;
   mapView?.clearAll();
   $("#focus-card").hidden = true;
@@ -3691,6 +3861,7 @@ async function openSettings() {
       lock: {
         enabled: !!state.lock?.enabled,
         hasBio: !!state.lock?.bio,
+        hasDuress: !!state.lock?.duress,
         bioAvailable: bioOk,
         autolockMs: state.lock?.autolockMs ?? 60000,
       },
@@ -3701,9 +3872,12 @@ async function openSettings() {
         enableBio: enableBiometric,
         disableBio: disableBiometric,
         setAutolock,
+        setDuress,
+        clearDuress,
       },
       onChange: onSettingChange,
       onInvite: openInvite,
+      onPlaces: openPlaces,
       onPanic: panic,
       onLeave: leaveCircle,
     }),
@@ -3763,6 +3937,16 @@ async function onSettingChange(key, value) {
 }
 
 async function panic() {
+  // In the wrapper the bridge runs the same full wipe the PanicKit trigger
+  // does: Keystore wrap key, notification channels, then the OS-level clear
+  // that kills the process. The web wipe below still runs in parallel; if the
+  // OS clear lands first, the process is gone before it matters, and on an
+  // older wrapper without the method it is the whole wipe, as before.
+  try {
+    native()?.panicWipe?.();
+  } catch {
+    // old wrapper
+  }
   await wipeAll();
   location.reload();
 }
@@ -4148,18 +4332,114 @@ function openHelpLink() {
   );
 }
 
+// A system notification through the wrapper, for events that matter while the
+// screen is off or another app is in front. On the open web there is nothing
+// to post through (no push tokens, by design), so the toast is the whole
+// story there. Never fires while the app is visibly on screen: the toast
+// already said it.
+function notifyEvent(title, body, tag) {
+  if (document.visibilityState === "visible") return;
+  const n = native();
+  if (!n?.notify) return;
+  try {
+    n.notify(title, body, tag);
+  } catch {
+    // an older wrapper without the method
+  }
+}
+
+// ---------------------------------------------------------------- places UI
+
+function openPlaces() {
+  mapView?.cancelPick();
+  keepLive((done) =>
+    ui.openPlacesSheet({
+      api: { places: () => state.places },
+      onClose: done,
+      onAdd: async (name) => {
+        if (!state.me || !Number.isFinite(state.me.lat)) {
+          ui.toast("No position yet. Start sharing first, or pick the spot on the map.", "warn");
+          return false;
+        }
+        await addPlace(name, state.me.lat, state.me.lon);
+        ui.toast(`${name} saved. Only this phone knows it exists.`);
+        return true;
+      },
+      onPick: (name) => {
+        ui.toast(`Tap the map where ${name} is.`);
+        mapView.startPick(async ({ lat, lon }) => {
+          await addPlace(name, lat, lon);
+          ui.toast(`${name} saved. Only this phone knows it exists.`);
+          openPlaces();
+        });
+      },
+      onRename: async (id, name) => {
+        state.places = state.places.map((p) => (p.id === id ? { ...p, name } : p));
+        await savePlaces();
+      },
+      onRadius: async (id, radius) => {
+        state.places = state.places.map((p) => (p.id === id ? { ...p, radius } : p));
+        await savePlaces();
+      },
+      onRemove: async (id) => {
+        state.places = state.places.filter((p) => p.id !== id);
+        await savePlaces();
+      },
+    }),
+  );
+}
+
 function checkAlerts() {
   const now = Date.now();
+  // Your own position feeds the tracker too, so the sheet can say where you
+  // are. It never fires an announcement: you were there.
+  if (state.me && Number.isFinite(state.me.lat)) {
+    placeTracker.update(SELF_KEY, state.me.lat, state.me.lon, { now });
+  }
   for (const rec of members()) {
     const st = statusOf(rec, now);
     const prev = prevStatus.get(rec.id);
+    const who = rec.name || "A member";
     if (st === "sos" && prev !== "sos") {
       ui.toast(`SOS from ${rec.name || "a member"}`, "sos");
       navigator.vibrate?.([160, 80, 160, 80, 240]);
+      notifyEvent(`SOS from ${who}`, "Open Starling to see their live position.", `sos-${rec.id}`);
     } else if (st === "checkin" && prev === "sos") {
-      ui.toast(`${rec.name || "A member"} checked in`);
+      ui.toast(`${who} checked in`);
+      notifyEvent(`${who} checked in`, "The SOS is cleared.", `sos-${rec.id}`);
     }
     prevStatus.set(rec.id, st);
+
+    // Place transitions are tracked whether or not announcements are on, so
+    // the "At Home" line stays truthful either way.
+    if (Number.isFinite(rec.lat) && Number.isFinite(rec.lon)) {
+      const evs = placeTracker.update(rec.id, rec.lat, rec.lon, {
+        mode: rec.mode,
+        ts: rec.ts,
+        now,
+      });
+      if (state.settings.placeAlerts) {
+        for (const ev of evs) {
+          const msg =
+            ev.type === "arrive" ? `${who} arrived at ${ev.placeName}` : `${who} left ${ev.placeName}`;
+          ui.toast(msg);
+          navigator.vibrate?.(80);
+          notifyEvent(msg, "", `place-${rec.id}`);
+        }
+      }
+    }
+
+    if (state.settings.batAlerts && typeof rec.bat === "number") {
+      if (rec.bat < 0.15 && !batWarned.has(rec.id)) {
+        batWarned.add(rec.id);
+        const pct = Math.max(1, Math.round(rec.bat * 100));
+        const msg = `${who}'s phone is at ${pct}%`;
+        ui.toast(msg, "warn");
+        notifyEvent(msg, "Their dot may go dark soon.", `bat-${rec.id}`);
+      } else if (rec.bat > 0.25) {
+        batWarned.delete(rec.id);
+      }
+    }
   }
 }
 
@@ -4172,7 +4452,7 @@ function startDemo() {
   state.sharing = true;
   state.sosActive = false;
   poller?.stop();
-  prevStatus.clear();
+  resetMemberAlerts();
   demo = createDemo({
     profile: state.profile,
     onTick: (list, me) => {
@@ -4201,7 +4481,7 @@ function exitDemo() {
   state.me = null;
   focusedId = null;
   $("#focus-card").hidden = true;
-  prevStatus.clear();
+  resetMemberAlerts();
   for (const id of mapView.markerIds()) mapView.removeMarker(id);
   mapView.setBasemap(state.settings.basemap);
   if (state.gen) {
@@ -4309,6 +4589,15 @@ if (debugHooks()) window.__starlingInternals = {
   joinWithInvite,
   boot,
   DESTROYED_KEY,
+  writePlacesAtRest,
+  loadPlaces,
+  savePlaces,
+  addPlace,
+  setDuress,
+  clearDuress,
+  checkAlerts,
+  placeTracker,
+  resetMemberAlerts,
 };
 
 // ----------------------------------------------------------------- boot

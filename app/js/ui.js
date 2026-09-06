@@ -6,6 +6,8 @@
 // anything decrypted) only ever pass through textContent, never innerHTML.
 
 import { fmtDistance, fmtRelTime, haversineMeters } from "./fmt.js";
+import { native } from "./env.js";
+import { PLACE_RADII, MAX_PLACES, MAX_NAME_LEN } from "./places.js";
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -481,9 +483,42 @@ export function fmtCountdown(ms) {
 
 // ---------------------------------------------------------- link handoff
 
+// A copied invite link is a credential sitting in the clipboard, where any
+// app the user pastes into later (or a clipboard manager) can pick it up.
+// Best effort: 90 seconds after a copy, clear the clipboard IF it still holds
+// exactly what was copied. Never touches anything the user copied since, and
+// silently does nothing where reading the clipboard would mean a permission
+// prompt out of thin air.
+const CLIP_CLEAR_MS = 90_000;
+let clipTimer = 0;
+function scheduleClipboardClear(text) {
+  clearTimeout(clipTimer);
+  clipTimer = setTimeout(async () => {
+    const n = native();
+    if (n?.clearClipboardIf) {
+      try {
+        n.clearClipboardIf(text);
+      } catch {
+        // old wrapper without the method
+      }
+      return;
+    }
+    try {
+      const perm = await navigator.permissions?.query?.({ name: "clipboard-read" });
+      if (perm?.state !== "granted") return;
+      if ((await navigator.clipboard.readText()) === text) {
+        await navigator.clipboard.writeText("");
+      }
+    } catch {
+      // no clipboard read here; leave it alone
+    }
+  }, CLIP_CLEAR_MS);
+}
+
 async function copyLink(link, msg) {
   try {
     await navigator.clipboard.writeText(link);
+    scheduleClipboardClear(link);
     toast(msg);
   } catch {
     toast("Copy failed. Long-press the link instead.", "warn");
@@ -1122,6 +1157,118 @@ export function openInviteSheet({ api, getLink, qrSvgFor, onClose }) {
 // noteFor(value) is for the settings whose note IS the setting: the history
 // window means nothing as a duration, and everything as "this is what you can
 // read, and this is what a seized phone gives up".
+// ---------------------------------------------------------------- places
+//
+// Named spots that live only on this phone. The sheet edits the local list;
+// main.js owns storage and the arrive/leave tracker. Live-refresh rebuilds
+// only when the stored list actually changed, so typing a name is never
+// clobbered by a poll tick.
+
+export function openPlacesSheet({ api, onAdd, onPick, onRename, onRadius, onRemove, onClose }) {
+  const ov = openOverlay({ title: "Places", testid: "places-sheet", className: "ov-places", onClose });
+  const b = ov.body;
+
+  b.append(
+    el(
+      "p",
+      "ov-note",
+      "Name the spots that matter, like Home or School, and Starling tells you when someone in your circle arrives or leaves. Places are stored only on this phone. They are never sent anywhere, and the relay cannot learn they exist.",
+    ),
+  );
+
+  const listEl = el("div", "place-list");
+  const addBox = el("div", "place-add");
+  b.append(listEl, addBox);
+
+  const radiusSeg = (place) => {
+    const seg = el("div", "seg seg-mini");
+    seg.setAttribute("role", "radiogroup");
+    seg.setAttribute("aria-label", `${place.name} radius`);
+    for (const r of PLACE_RADII) {
+      const cell = btn("seg-cell", r < 1000 ? `${r} m` : `${r / 1000} km`);
+      cell.setAttribute("role", "radio");
+      const sel = place.radius === r;
+      cell.classList.toggle("sel", sel);
+      cell.setAttribute("aria-checked", String(sel));
+      cell.addEventListener("click", () => onRadius(place.id, r));
+      seg.append(cell);
+    }
+    return seg;
+  };
+
+  function placeRow(place) {
+    const row = el("div", "place-row");
+    row.dataset.place = place.id;
+    const head = el("div", "place-row-head");
+    const nameIn = el("input", "text-input place-name");
+    nameIn.type = "text";
+    nameIn.maxLength = MAX_NAME_LEN;
+    nameIn.value = place.name;
+    nameIn.setAttribute("aria-label", "Place name");
+    nameIn.addEventListener("change", () => {
+      const v = nameIn.value.trim().slice(0, MAX_NAME_LEN);
+      if (v) onRename(place.id, v);
+      else nameIn.value = place.name;
+    });
+    const rm = btn("icon-btn place-remove", "✕", `Remove ${place.name}`);
+    rm.addEventListener("click", () => onRemove(place.id));
+    head.append(nameIn, rm);
+    row.append(head, radiusSeg(place));
+    return row;
+  }
+
+  let sig = null;
+  function paint() {
+    const places = api.places();
+    const nextSig = JSON.stringify(places.map((p) => [p.id, p.name, p.radius]));
+    if (nextSig === sig) return;
+    sig = nextSig;
+    listEl.replaceChildren(...places.map(placeRow));
+    addBox.replaceChildren();
+    if (places.length >= MAX_PLACES) {
+      addBox.append(el("p", "field-note", `That is the lot: ${MAX_PLACES} places is the cap.`));
+      return;
+    }
+    const nameField = el("label", "field");
+    nameField.append(el("span", "field-label", places.length ? "Add another" : "Add your first place"));
+    const nameIn = el("input", "text-input");
+    nameIn.type = "text";
+    nameIn.maxLength = MAX_NAME_LEN;
+    nameIn.placeholder = places.length ? "School" : "Home";
+    nameIn.dataset.testid = "place-name-input";
+    nameField.append(nameIn);
+    const actions = el("div", "place-add-actions");
+    const takeName = () => {
+      const v = nameIn.value.trim().slice(0, MAX_NAME_LEN);
+      if (!v) {
+        toast("Give the place a name first.", "warn");
+        nameIn.focus();
+        return null;
+      }
+      return v;
+    };
+    const hereBtn = btn("btn btn-secondary", "Save my current spot");
+    hereBtn.dataset.testid = "place-add-here";
+    hereBtn.addEventListener("click", async () => {
+      const v = takeName();
+      if (v) await onAdd(v);
+    });
+    const pickBtn = btn("btn btn-ghost", "Pick on the map");
+    pickBtn.dataset.testid = "place-add-pick";
+    pickBtn.addEventListener("click", () => {
+      const v = takeName();
+      if (!v) return;
+      ov.close();
+      onPick(v);
+    });
+    actions.append(hereBtn, pickBtn);
+    addBox.append(nameField, actions);
+  }
+  paint();
+
+  return { close: ov.close, refresh: paint };
+}
+
 function segControl({ label, note, noteFor, options, value, onChange }) {
   const field = el("div", "field");
   field.append(el("span", "field-label", label));
@@ -1258,7 +1405,7 @@ export function openPasscodeSheet({ title, intro, cta, confirm = false, current 
   return ov;
 }
 
-export function openSettingsSheet({ api, values, demo, tor, lock, lockActions, onChange, onMembers, onInvite, onPanic, onLeave, onClose }) {
+export function openSettingsSheet({ api, values, demo, tor, lock, lockActions, onChange, onMembers, onInvite, onPlaces, onPanic, onLeave, onClose }) {
   const ov = openOverlay({ title: "Settings", testid: "settings-sheet", className: "ov-settings", onClose });
   const b = ov.body;
 
@@ -1410,6 +1557,31 @@ export function openSettingsSheet({ api, values, demo, tor, lock, lockActions, o
     }),
   );
 
+  // Alerts
+  const gAlerts = group("Places and alerts");
+  const placesBtn = btn("btn btn-secondary", "Places");
+  placesBtn.dataset.testid = "places-open-settings";
+  placesBtn.addEventListener("click", () => {
+    ov.close();
+    onPlaces();
+  });
+  gAlerts.append(
+    placesBtn,
+    el("p", "field-note", "Name the spots that matter and hear about arrivals. Places never leave this phone."),
+    switchRow({
+      label: "Arrive and leave alerts",
+      note: "Tell me when someone in the circle reaches a place or leaves one",
+      value: values.settings.placeAlerts,
+      onChange: (v) => onChange("placeAlerts", v),
+    }),
+    switchRow({
+      label: "Low battery alerts",
+      note: "Tell me when a member's phone drops under 15 percent, before their dot goes dark",
+      value: values.settings.batAlerts,
+      onChange: (v) => onChange("batAlerts", v),
+    }),
+  );
+
   // Map
   const gMap = group("Map");
   gMap.append(
@@ -1529,6 +1701,47 @@ export function openSettingsSheet({ api, values, demo, tor, lock, lockActions, o
             },
           }),
         );
+      }
+
+      const duressBtn = btn(
+        "btn btn-secondary",
+        lock.hasDuress ? "Change duress passcode" : "Set a duress passcode",
+      );
+      duressBtn.dataset.testid = "duress-set";
+      duressBtn.addEventListener("click", () =>
+        openPasscodeSheet({
+          title: lock.hasDuress ? "Change duress passcode" : "Set a duress passcode",
+          intro:
+            "A second passcode for a moment when someone makes you open Starling. Entering it on the lock screen erases everything on this device, instantly and silently, and shows a fresh install. There is no undo and no way back in.",
+          cta: "Save duress passcode",
+          confirm: true,
+          onSubmit: async (pc) => {
+            const ok = await lockActions.setDuress(pc);
+            if (ok) {
+              toast("Duress passcode saved.");
+              ov.close();
+            }
+            return ok;
+          },
+        }),
+      );
+      gLock.append(
+        duressBtn,
+        el(
+          "p",
+          "field-note",
+          "Anyone who checks this phone's storage can see that a duress code exists, though not what it is. What they cannot do is tell it apart from your real passcode while typing.",
+        ),
+      );
+      if (lock.hasDuress) {
+        const duressOff = btn("btn btn-ghost", "Remove duress passcode");
+        duressOff.dataset.testid = "duress-remove";
+        duressOff.addEventListener("click", async () => {
+          await lockActions.clearDuress();
+          toast("Duress passcode removed.");
+          ov.close();
+        });
+        gLock.append(duressOff);
       }
 
       gLock.append(
@@ -1821,8 +2034,10 @@ function buildCard(id, onTap) {
   return card;
 }
 
-export function memberSubLine(rec, now, mePos) {
-  const bits = [fmtRelTime(now - rec.ts)];
+export function memberSubLine(rec, now, mePos, place) {
+  const bits = [];
+  if (place) bits.push(`At ${place}`);
+  bits.push(fmtRelTime(now - rec.ts));
   if (mePos && Number.isFinite(rec.lat) && Number.isFinite(rec.lon)) {
     bits.push(fmtDistance(haversineMeters(mePos.lat, mePos.lon, rec.lat, rec.lon)));
   }
@@ -1830,7 +2045,7 @@ export function memberSubLine(rec, now, mePos) {
   return bits.join(" · ");
 }
 
-export function updateMemberList(container, items, { now, mePos, statusOf, onTap }) {
+export function updateMemberList(container, items, { now, mePos, statusOf, onTap, placeOf }) {
   const existing = new Map();
   for (const node of container.children) existing.set(node.dataset.member, node);
   for (const rec of items) {
@@ -1842,7 +2057,7 @@ export function updateMemberList(container, items, { now, mePos, statusOf, onTap
     card.style.setProperty("--m-hue", String(rec.hue ?? 0));
     $(".ava-emoji", card).textContent = rec.emoji || "";
     $(".mc-name", card).textContent = rec.name || "Member";
-    $(".mc-sub", card).textContent = memberSubLine(rec, now, mePos);
+    $(".mc-sub", card).textContent = memberSubLine(rec, now, mePos, placeOf?.(rec.id));
     const chip = $(".chip", card);
     chip.textContent = CHIP_TEXT[status];
     chip.className = `chip chip-${status}`;
@@ -1903,7 +2118,7 @@ export function updateAvaStrip(container, items, { statusOf, now }) {
 // -------------------------------------------------------------- focus card
 
 export function renderFocusCard(root, rec, ctx) {
-  const { now, mePos, statusOf, trailOn, onTrailToggle, onClose } = ctx;
+  const { now, mePos, statusOf, trailOn, onTrailToggle, onClose, place } = ctx;
   const status = statusOf(rec, now);
   if (root.dataset.member !== rec.id) {
     root.dataset.member = rec.id;
@@ -1932,7 +2147,7 @@ export function renderFocusCard(root, rec, ctx) {
   root.style.setProperty("--m-hue", String(rec.hue ?? 0));
   $(".ava-emoji", root).textContent = rec.emoji || "";
   $(".fc-name", root).textContent = rec.name || "Member";
-  $(".fc-sub", root).textContent = `${CHIP_TEXT[status]} · ${memberSubLine(rec, now, mePos)}`;
+  $(".fc-sub", root).textContent = `${CHIP_TEXT[status]} · ${memberSubLine(rec, now, mePos, place)}`;
   const hasPos = Number.isFinite(rec.lat) && Number.isFinite(rec.lon);
   const latlon = hasPos ? `${rec.lat.toFixed(5)}, ${rec.lon.toFixed(5)}` : "no position yet";
   $(".fc-latlon", root).textContent = latlon;

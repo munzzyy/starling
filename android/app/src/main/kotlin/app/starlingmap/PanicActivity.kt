@@ -1,8 +1,6 @@
 package app.starlingmap
 
 import android.app.Activity
-import android.app.ActivityManager
-import android.app.NotificationManager
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
@@ -51,21 +49,5 @@ class PanicActivity : Activity() {
         }
     }
 
-    private fun wipeEverything() {
-        // The system clear also wipes this uid's Keystore namespace, but that
-        // half runs fire-and-forget in system_server with errors swallowed.
-        // Deleting the wrap key here is synchronous and in-process, so it is
-        // done before the nuke rather than hoped for after it.
-        KeystoreVault.deleteKey()
-        // The notification channel lives in system settings, outside app data,
-        // and its label names the location-share feature. Remove the residue.
-        runCatching {
-            getSystemService(NotificationManager::class.java)
-                .deleteNotificationChannel(LocationService.CHANNEL)
-        }
-        // Kills the process and deletes all app data, WebView storage and
-        // cookies included. Anything asynchronous queued before this line
-        // would never have run anyway.
-        (getSystemService(ACTIVITY_SERVICE) as ActivityManager).clearApplicationUserData()
-    }
+    private fun wipeEverything() = Wipe.everything(this)
 }

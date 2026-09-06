@@ -20,6 +20,42 @@ class StarlingBridge(private val activity: MainActivity) {
         activity.packageManager.getPackageInfo(activity.packageName, 0).versionName
     }.getOrNull() ?: "unknown"
 
+    // ---------------------------------------------------------------- events
+
+    // Post a system notification for a circle event (a member's SOS, an
+    // arrival at a place, a low battery). The page only calls this while it
+    // is hidden; visible, its own toast already said it. Tag replaces, so a
+    // member bouncing at a boundary edits one notification instead of
+    // stacking twenty.
+    @JavascriptInterface
+    fun notify(title: String, body: String, tag: String) {
+        activity.runOnUiThread { activity.postEventNotification(title.take(80), body.take(160), tag.take(64)) }
+    }
+
+    // The full-device panic wipe: Keystore wrap key, notification channels,
+    // then clearApplicationUserData, which kills the process. Same wipe the
+    // PanicKit trigger runs. The page's own storage wipe still runs in
+    // parallel as the fallback for wrappers that predate this method.
+    @JavascriptInterface
+    fun panicWipe() {
+        activity.runOnUiThread { Wipe.everything(activity) }
+    }
+
+    // ------------------------------------------------------------- clipboard
+
+    // Clear the clipboard only if it still holds exactly the text the app put
+    // there (an invite link is a credential; whatever the user copied since
+    // is theirs). Reading our own clip is allowed while the app has focus;
+    // without focus Android answers null and this quietly does nothing.
+    @JavascriptInterface
+    fun clearClipboardIf(expected: String) {
+        activity.runOnUiThread {
+            val cm = activity.getSystemService(android.content.ClipboardManager::class.java) ?: return@runOnUiThread
+            val current = cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
+            if (current == expected) cm.clearPrimaryClip()
+        }
+    }
+
     // ------------------------------------------------------------- location
 
     @JavascriptInterface

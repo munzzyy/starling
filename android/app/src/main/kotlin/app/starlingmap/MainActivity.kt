@@ -34,6 +34,8 @@ class MainActivity : FragmentActivity() {
         const val APP_HOST = "starlingmap.app"
         const val PREFS = "starling"
         const val PREF_TOR = "tor"
+        const val EVENTS_CHANNEL = "events"
+        const val EVENTS_NOTIF_ID = 2
     }
 
     lateinit var webView: WebView
@@ -230,6 +232,42 @@ class MainActivity : FragmentActivity() {
     }
 
     fun stopShareFlow() = LocationService.stop(this)
+
+    // Circle events the page asks to surface while it is hidden. High
+    // importance and a separate channel from the quiet sharing notification,
+    // because "SOS from Juno" and "sharing is running" are not the same kind
+    // of news. The channel is created lazily and deleted by the panic wipe
+    // along with the share channel.
+    fun postEventNotification(title: String, body: String, tag: String) {
+        if (title.isEmpty()) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
+        nm.createNotificationChannel(
+            android.app.NotificationChannel(
+                EVENTS_CHANNEL,
+                getString(R.string.notif_events_channel),
+                android.app.NotificationManager.IMPORTANCE_HIGH,
+            ),
+        )
+        val open = android.app.PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            android.app.PendingIntent.FLAG_IMMUTABLE,
+        )
+        val n = android.app.Notification.Builder(this, EVENTS_CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_starling)
+            .setContentTitle(title)
+            .apply { if (body.isNotEmpty()) setContentText(body) }
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        nm.notify(tag.ifEmpty { "event" }, EVENTS_NOTIF_ID, n)
+    }
 
     private fun deliverFix(json: String) {
         runOnUiThread {

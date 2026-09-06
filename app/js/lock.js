@@ -102,6 +102,39 @@ export async function openPasscodeRecord(record, passcode) {
   return unwrap(wrapKey, record.nonce, record.ct);
 }
 
+// -------------------------------------------------------------- duress verifier
+// A duress passcode never unlocks anything, so unlike the real passcode it
+// cannot use the GCM tag of a wrapped key as its verifier; it stores a PBKDF2
+// hash instead. That record sits on disk in the clear, which means a forensic
+// look at storage can tell a duress code EXISTS. It cannot tell what it is,
+// and someone watching a passcode being typed cannot tell the two apart, which
+// is the property the feature is for. The threat model states this honestly.
+
+export async function makeDuressRecord(passcode, iters = PBKDF2_ITERS) {
+  const salt = randomBytes(16);
+  const base = await subtle.importKey("raw", te.encode(passcode), "PBKDF2", false, ["deriveBits"]);
+  const bits = new Uint8Array(
+    await subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: iters }, base, 256),
+  );
+  return { v: 1, kdf: "pbkdf2-sha256", iters, salt, hash: bits };
+}
+
+export async function matchesDuress(record, passcode) {
+  if (!record || record.kdf !== "pbkdf2-sha256" || !(record.hash instanceof Uint8Array)) return false;
+  const base = await subtle.importKey("raw", te.encode(passcode), "PBKDF2", false, ["deriveBits"]);
+  const bits = new Uint8Array(
+    await subtle.deriveBits(
+      { name: "PBKDF2", hash: "SHA-256", salt: record.salt, iterations: record.iters },
+      base,
+      256,
+    ),
+  );
+  if (bits.length !== record.hash.length) return false;
+  let diff = 0;
+  for (let i = 0; i < bits.length; i++) diff |= bits[i] ^ record.hash[i];
+  return diff === 0;
+}
+
 // ------------------------------------------------------------ biometric wrapper
 // WebAuthn PRF: a platform authenticator (Face ID / Touch ID / fingerprint /
 // Windows Hello) mints a stable per-credential secret gated behind the user's

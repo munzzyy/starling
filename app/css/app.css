@@ -2229,3 +2229,85 @@ div.danger-zone {
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------- places */
+
+.sheet-tools {
+  display: grid;
+  gap: 8px;
+}
+
+.place-ring {
+  stroke: var(--accent);
+  stroke-opacity: 0.45;
+  stroke-dasharray: 4 5;
+  fill: var(--accent);
+  fill-opacity: 0.05;
+}
+
+.place-tag-wrap {
+  pointer-events: none;
+}
+
+.place-tag {
+  transform: translate(-50%, -50%);
+  width: max-content;
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.place-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.place-row {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--r-md);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+}
+
+.place-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.place-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.place-remove {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.seg-mini .seg-cell {
+  padding: 6px 0;
+  font-size: 12px;
+}
+
+.place-add {
+  display: grid;
+  gap: 10px;
+}
+
+.place-add-actions {
+  display: grid;
+  gap: 8px;
+}
+
+#map.picking {
+  cursor: crosshair;
+}

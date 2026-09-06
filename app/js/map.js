@@ -48,6 +48,7 @@ export function createMapView(container, { onMarkerTap } = {}) {
 
   const markers = new Map(); // id -> {marker, parts, cur, from, to, t0}
   const trails = new Map(); // id -> [polylines]
+  let placeLayers = []; // circles + labels for the device's own saved places
   let ticking = false;
 
   function drawRings() {
@@ -205,6 +206,52 @@ export function createMapView(container, { onMarkerTap } = {}) {
     trails.set(id, lines);
   }
 
+  // One-shot pick mode: the next map tap answers with its coordinates. Used
+  // by "pick a spot on the map" when saving a place.
+  let pickCb = null;
+  map.on("click", (ev) => {
+    if (!pickCb) return;
+    const cb = pickCb;
+    pickCb = null;
+    container.classList.remove("picking");
+    cb({ lat: ev.latlng.lat, lon: ev.latlng.lng });
+  });
+  function startPick(cb) {
+    pickCb = cb;
+    container.classList.add("picking");
+  }
+  function cancelPick() {
+    pickCb = null;
+    container.classList.remove("picking");
+  }
+
+  // The device's own saved places, drawn as soft rings with a name tag. These
+  // exist only in local storage; drawing them is the only thing done with them.
+  function setPlaces(places) {
+    for (const layer of placeLayers) layer.remove();
+    placeLayers = [];
+    for (const p of places || []) {
+      placeLayers.push(
+        L.circle([p.lat, p.lon], {
+          radius: p.radius,
+          className: "place-ring",
+          weight: 1.5,
+          interactive: false,
+        }).addTo(map),
+      );
+      const tag = document.createElement("div");
+      tag.className = "place-tag";
+      tag.textContent = p.name;
+      placeLayers.push(
+        L.marker([p.lat, p.lon], {
+          icon: L.divIcon({ className: "place-tag-wrap", html: tag, iconSize: [0, 0] }),
+          keyboard: false,
+          interactive: false,
+        }).addTo(map),
+      );
+    }
+  }
+
   // Fly so the target sits above the bottom sheet, not centered under it.
   function focusOn(lat, lon, zoom = 16, yOffset = 110) {
     const z = Math.max(map.getZoom(), zoom);
@@ -237,7 +284,11 @@ export function createMapView(container, { onMarkerTap } = {}) {
       for (const r of rings) r.remove();
       rings = [];
       ringCenter = null;
+      setPlaces([]);
     },
+    setPlaces,
+    startPick,
+    cancelPick,
     setTrail,
     clearTrail,
     focusOn,
