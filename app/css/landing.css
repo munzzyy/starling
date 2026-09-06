@@ -1,0 +1,625 @@
+/* Starling landing page (the public #screen-onboarding surface). Loads after
+   tokens.css and app.css and only ever adds to or overrides the "ob-*" and
+   "land-*" rules there for this one screen; nothing here reaches into the
+   map, lock, or old-web screens. New landing-only elements use the "lnd-"
+   prefix so they never collide with app.css. */
+
+#screen-onboarding .ob-wrap {
+  max-width: 1180px;
+}
+
+/* ------------------------------------------------------------------ hero */
+
+#screen-onboarding .ob-hero {
+  position: relative;
+  flex: 0 0 auto;
+  justify-content: flex-start;
+  padding-top: 8px;
+  overflow: visible;
+}
+
+.lnd-aurora {
+  position: absolute;
+  inset: -60px -20% auto;
+  height: 420px;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(closest-side, rgba(45, 212, 191, 0.22), transparent 70%) 20% 30% / 55% 100% no-repeat,
+    radial-gradient(closest-side, rgba(139, 92, 246, 0.20), transparent 70%) 80% 20% / 55% 100% no-repeat,
+    radial-gradient(closest-side, rgba(96, 165, 250, 0.14), transparent 70%) 50% 60% / 60% 100% no-repeat;
+  filter: blur(30px);
+  animation: lnd-drift 22s ease-in-out infinite alternate;
+}
+
+:root[data-theme="light"] .lnd-aurora {
+  opacity: 0.6;
+}
+
+@keyframes lnd-drift {
+  from { transform: translateY(-8px) scale(1); }
+  to { transform: translateY(10px) scale(1.05); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lnd-aurora { animation: none; }
+}
+
+#screen-onboarding .ob-hero > *:not(.lnd-aurora) {
+  position: relative;
+  z-index: 1;
+}
+
+.lnd-subline {
+  margin: 14px 0 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  max-width: 46ch;
+}
+
+.lnd-trustrow {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 480px;
+}
+
+.lnd-trustrow li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--glass-border);
+  background: var(--glass);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.lnd-trust-icon {
+  display: inline-flex;
+  color: var(--accent);
+}
+
+/* ------------------------------------------------------- state card pack */
+
+.lnd-state-stack {
+  width: 100%;
+}
+
+.lnd-state-stack .land-card:first-child {
+  margin-top: 0;
+}
+
+/* -------------------------------------------------------------- sections */
+
+.lnd-section {
+  width: 100%;
+  padding: 56px 0 0;
+}
+
+.lnd-eyebrow {
+  margin: 0 0 28px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+
+/* --------------------------------------------------------- how it works */
+
+.lnd-how-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 40px;
+  align-items: center;
+}
+
+.lnd-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.lnd-step {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.lnd-step-num {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-grad);
+  color: var(--accent-ink);
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.lnd-step-title {
+  margin: 4px 0 6px;
+  font-size: 16px;
+}
+
+.lnd-step-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.lnd-phone {
+  display: flex;
+  justify-content: center;
+}
+
+.lnd-phone-frame {
+  position: relative;
+  width: 220px;
+  height: 440px;
+  border-radius: 34px;
+  background: var(--bg-1);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-2);
+  overflow: hidden;
+  padding: 10px;
+}
+
+.lnd-phone-notch {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70px;
+  height: 16px;
+  border-radius: var(--r-full);
+  background: var(--bg-3);
+  z-index: 2;
+}
+
+.lnd-phone-map {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 24px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.lnd-map-glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 35%, rgba(45, 212, 191, 0.16), transparent 45%),
+    radial-gradient(circle at 70% 60%, rgba(139, 92, 246, 0.14), transparent 45%),
+    repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.06) 0 1px, transparent 1px 34px),
+    repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.06) 0 1px, transparent 1px 34px);
+}
+
+.lnd-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--bg-1);
+}
+
+.lnd-dot-a { top: 34%; left: 30%; }
+.lnd-dot-b { top: 52%; left: 66%; background: var(--accent-2); }
+.lnd-dot-c { top: 70%; left: 40%; background: var(--live); }
+
+.lnd-dot-halo {
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+  background: currentColor;
+  color: inherit;
+  opacity: 0.28;
+  animation: lnd-pulse 2.6s ease-out infinite;
+}
+
+.lnd-dot-a .lnd-dot-halo { animation-delay: 0s; }
+.lnd-dot-b .lnd-dot-halo { animation-delay: 0.7s; }
+.lnd-dot-c .lnd-dot-halo { animation-delay: 1.4s; }
+
+@keyframes lnd-pulse {
+  0% { transform: scale(0.4); opacity: 0.35; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lnd-dot-halo { animation: none; opacity: 0.18; }
+}
+
+.lnd-phone-sheet {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  padding: 12px 14px 16px;
+  border-radius: 18px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(6px);
+}
+
+.lnd-sheet-grabber {
+  width: 32px;
+  height: 4px;
+  border-radius: var(--r-full);
+  background: var(--line);
+  margin: 0 auto 10px;
+}
+
+.lnd-sheet-row {
+  height: 10px;
+  border-radius: var(--r-full);
+  background: var(--bg-3);
+  margin-bottom: 8px;
+}
+
+.lnd-sheet-row-short {
+  width: 55%;
+  margin-bottom: 0;
+}
+
+/* ------------------------------------------------------------- features */
+
+.lnd-feature-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.lnd-feature {
+  padding: 20px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+}
+
+.lnd-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  color: var(--accent);
+  background: radial-gradient(closest-side, rgba(45, 212, 191, 0.16), transparent 75%);
+}
+
+.lnd-feature-title {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.lnd-feature-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+/* -------------------------------------------------------------- honesty */
+
+.lnd-honesty {
+  padding-top: 48px;
+  padding-bottom: 8px;
+}
+
+.lnd-honesty-lede {
+  margin: -14px 0 26px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  max-width: 60ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.lnd-honesty-table {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.lnd-honesty-col {
+  padding: 22px 20px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+}
+
+.lnd-honesty-never {
+  background: linear-gradient(180deg, rgba(45, 212, 191, 0.09), transparent 60%), var(--bg-2);
+  border-color: rgba(45, 212, 191, 0.28);
+}
+
+.lnd-honesty-learns {
+  background: linear-gradient(180deg, rgba(251, 191, 36, 0.08), transparent 60%), var(--bg-2);
+  border-color: rgba(251, 191, 36, 0.28);
+}
+
+.lnd-honesty-col-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.lnd-honesty-never .lnd-honesty-col-title { color: var(--accent); }
+.lnd-honesty-learns .lnd-honesty-col-title { color: var(--warn); }
+
+.lnd-honesty-col ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lnd-honesty-col li {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  padding-left: 16px;
+  position: relative;
+}
+
+.lnd-honesty-never li::before,
+.lnd-honesty-learns li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.lnd-honesty-never li::before { background: var(--accent); }
+.lnd-honesty-learns li::before { background: var(--warn); }
+
+.lnd-honesty-note {
+  margin: 20px 0 0;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.lnd-honesty-note a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* ----------------------------------------------------------------- flow */
+
+.lnd-flow {
+  padding-bottom: 8px;
+}
+
+.lnd-flow-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 4px 2px 8px;
+}
+
+.lnd-flow-svg {
+  display: block;
+  width: 100%;
+  min-width: 640px;
+  height: auto;
+  overflow: visible;
+}
+
+.lnd-flow-box {
+  fill: var(--bg-2);
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+
+.lnd-flow-relay {
+  fill: var(--bg-3);
+  stroke: var(--accent);
+  stroke-opacity: 0.4;
+}
+
+.lnd-flow-icon {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lnd-flow-envelope .lnd-flow-icon {
+  stroke: var(--accent);
+}
+
+.lnd-flow-arrow {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 1.6;
+}
+
+.lnd-flow-arrowhead {
+  fill: var(--ink-3);
+}
+
+.lnd-flow-label {
+  fill: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.lnd-flow-sub {
+  font-size: 10.5px;
+}
+
+.lnd-flow-sees { fill: var(--warn); }
+.lnd-flow-never { fill: var(--accent); }
+
+/* ------------------------------------------------------------------ faq */
+
+.lnd-faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.lnd-faq-item {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--bg-2);
+  padding: 4px 18px;
+}
+
+.lnd-faq-item summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 16px 28px 16px 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink);
+  position: relative;
+}
+
+.lnd-faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.lnd-faq-item summary::after {
+  content: "+";
+  position: absolute;
+  right: 0;
+  top: 14px;
+  font-size: 20px;
+  font-weight: 400;
+  color: var(--ink-3);
+  transition: transform var(--t-fast);
+}
+
+.lnd-faq-item[open] summary::after {
+  transform: rotate(45deg);
+}
+
+.lnd-faq-item summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.lnd-faq-item p {
+  margin: 0 0 16px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.lnd-faq-item p a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* --------------------------------------------------------------- install */
+
+.lnd-install-card {
+  margin-top: 56px;
+}
+
+.lnd-store-chips {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lnd-chip {
+  padding: 6px 12px;
+  border-radius: var(--r-full);
+  border: 1px dashed var(--line);
+  color: var(--ink-3);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------- focus rings */
+
+#screen-onboarding a:focus-visible,
+#screen-onboarding button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------ desktop+ */
+
+@media (min-width: 720px) {
+  .lnd-feature-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .lnd-honesty-table {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 860px) {
+  #screen-onboarding .ob-wrap {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+
+  .lnd-how-grid {
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 56px;
+  }
+
+  .lnd-eyebrow {
+    font-size: 26px;
+  }
+}
+
+@media (min-width: 1020px) {
+  .lnd-feature-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  #screen-onboarding .ob-hero {
+    padding-top: 32px;
+  }
+
+  #screen-onboarding .ob-actions {
+    max-width: 420px;
+    margin: 0 auto;
+  }
+
+  .lnd-state-stack {
+    max-width: 560px;
+    margin: 0 auto;
+  }
+
+  .lnd-install-card {
+    max-width: 560px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
