@@ -985,8 +985,22 @@ test("a welcome survives a join that failed, because it is the only copy there i
   const unhurry = hurryTimers();
   try {
     internals.startJoinWatch();
+    // completeJoin assigns state.gen BEFORE its persist fails closed and the
+    // catch unwinds it (that ordering is the crash-safety the app wants), so
+    // a point-in-time probe can land inside an attempt's window on a slow
+    // runner and read a join that is mid-unwind as landed. Only a value that
+    // STAYS is a landed join: sample until a null is seen or patience runs
+    // out.
     await pause(150);
-    assert.equal(state.gen, null, "the join did not land");
+    let landed = true;
+    for (let i = 0; i < 20; i++) {
+      if (state.gen === null) {
+        landed = false;
+        break;
+      }
+      await pause(30);
+    }
+    assert.equal(landed, false, "the join did not land");
     assert.ok(state.joining, "and the device is still waiting to be let in");
 
     // The transition finishes and the vault key is back. Nothing new arrives:
