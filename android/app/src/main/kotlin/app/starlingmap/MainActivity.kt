@@ -188,6 +188,8 @@ class MainActivity : FragmentActivity() {
     }
 
     override fun onDestroy() {
+        torSilenceCheck?.let { webView.removeCallbacks(it) }
+        torSilenceCheck = null
         LocationService.sink = null
         LocationService.stop(this)
         OrbotStatus.stop(this)
@@ -283,16 +285,24 @@ class MainActivity : FragmentActivity() {
         // the default port with no explanation; give them the one that helps.
         if (on) {
             val asked = android.os.SystemClock.elapsedRealtime()
-            webView.postDelayed({
+            torSilenceCheck?.let { webView.removeCallbacks(it) }
+            val check = Runnable {
                 if (torEnabled() && OrbotStatus.lastAnswerAt < asked) {
                     pageNotice(
                         "Orbot did not answer. If sharing stalls, turn on Power User Mode in " +
                             "Orbot's settings, or use Orbot's per-app VPN mode instead.",
                     )
                 }
-            }, 8000)
+            }
+            torSilenceCheck = check
+            webView.postDelayed(check, 8000)
         }
     }
+
+    // The pending Orbot-silence warning, so activity teardown (including the
+    // recreation a font-scale change causes) cancels it instead of leaving a
+    // Runnable holding the dead WebView for eight seconds.
+    private var torSilenceCheck: Runnable? = null
 
     // A short, human notice into the page's toast line. Only bundled app code
     // runs in this WebView, and the string is quoted, never interpolated as

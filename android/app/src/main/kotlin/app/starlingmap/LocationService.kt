@@ -121,15 +121,10 @@ class LocationService : Service(), LocationListener {
     override fun onProviderDisabled(provider: String) {
     }
 
-    override fun onTaskRemoved(rootIntent: Intent?) {
-        // The user swiped the app away: end the share, do not linger.
-        stopSelf()
-    }
-
     // Swiping the app out of recents kills the page that encrypts and posts
     // positions, so the share is dead from that moment no matter what this
-    // service does. Keeping the "sharing" notification up over a dead pipe
-    // would be a lie the circle pays for; say what happened and stop.
+    // service does. It always ended the share here; now it also says so,
+    // because a share that ends in silence looks like a working one.
     override fun onTaskRemoved(rootIntent: Intent?) {
         Events.post(
             this,

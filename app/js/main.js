@@ -2585,6 +2585,9 @@ function lockNow() {
   }
   clearTimeout(lockTimer);
   if (state.sharing) {
+    // Caption first, so the bye goes out clean rather than carrying a stale
+    // claim into the last message anyone sees from this device.
+    clearCaption();
     sendMsg("bye").catch(() => {});
     stopSharingInternals();
   }
@@ -3146,8 +3149,11 @@ async function onJoinRequest(inv, obj, from) {
   const who = obj.name ? String(obj.name).slice(0, 24) : "Someone";
   ui.toast(`${who} wants to join. Check their safety number.`);
   // The inviter often pockets the phone right after sending the link; the
-  // request arriving is the other moment this flow hinges on.
-  notifyEvent(`${who} wants to join`, "Open Starling to check their number and let them in.", "join-req");
+  // request arriving is the other moment this flow hinges on. The name stays
+  // OUT of the notification: it is whatever the requester typed, anyone
+  // holding the link can send one, and the lock screen is no place to render
+  // an unauthenticated stranger's chosen words.
+  notifyEvent("Someone wants to join", "Open Starling to check their number and let them in.", "join-req");
   render();
 }
 
@@ -4154,10 +4160,7 @@ async function setSharing(on) {
     lastSentPos = null;
     // A caption is a claim about right now; it must not outlive the share.
     // Cleared BEFORE the bye goes out, so the bye itself carries no caption.
-    if (state.profile?.st) {
-      state.profile = { ...state.profile, st: "" };
-      dbSet("profile", state.profile).catch(() => {});
-    }
+    clearCaption();
     // Stopping the share stops every audience, helpers included.
     endBeacon().catch(() => {});
     // Returned so circle switches can wait for the departure to actually
@@ -4228,9 +4231,19 @@ function stopForeground() {
   session.stop().catch(() => {});
 }
 
+// Every path that ends a share ends the caption with it: the status sheet
+// promises "it clears when you stop sharing", and a promise with exceptions
+// for autolock, geolocation failures, and chain teardown is not a promise.
+function clearCaption() {
+  if (!state.profile?.st) return;
+  state.profile = { ...state.profile, st: "" };
+  dbSet("profile", state.profile).catch(() => {});
+}
+
 function stopSharingInternals() {
   state.sharing = false;
   state.sosActive = false;
+  clearCaption();
   endBeacon().catch(() => {});
   clearInterval(shareTimer);
   stopGeo?.();

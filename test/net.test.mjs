@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 
 import {
   createPoller,
+  pollDelay,
   createSender,
   createRoster,
   windowStart,
@@ -582,6 +583,13 @@ test("an idle poller still advances the chain: syncToClock runs on every tick", 
 // The wrapper keeps polling while hidden (an SOS must reach a pocketed
 // phone); the web stays paused as it always did. isWrapped() keys on
 // globalThis.StarlingNative, so wrapper mode is one stub away.
+test("the cadence numbers themselves: 30s hidden in the wrapper, 10s otherwise", () => {
+  assert.equal(pollDelay(true, true), 30000, "hidden wrapper listens at the relaxed cadence");
+  assert.equal(pollDelay(false, true), 10000, "visible wrapper polls at full cadence");
+  assert.equal(pollDelay(true, false), 10000, "a hidden web tab never reaches this (poll refuses first)");
+  assert.equal(pollDelay(false, false), 10000);
+});
+
 test("hidden document: web pauses, wrapper keeps listening", async () => {
   const calls = [];
   const restore = stubGlobals([{ members: [] }], calls);

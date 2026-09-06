@@ -34,6 +34,12 @@ const POLL_MS = 10000;
 const BG_POLL_MS = 30000;
 const BACKOFF_MAX_MS = 120000;
 
+// The next-poll delay as a pure decision, exported so a test can pin the
+// actual cadence numbers instead of only observing that polling happens.
+export function pollDelay(hidden, wrapped) {
+  return hidden && wrapped ? BG_POLL_MS : POLL_MS;
+}
+
 export const STALE_MS = 3 * 60 * 1000;
 
 export function statusOf(rec, now) {
@@ -289,8 +295,7 @@ export function createPoller({ channelId, roster, ratchet, onChange, onStatus, o
   }
 
   const bgCapable = isWrapped();
-  const cadence = () =>
-    document.visibilityState === "hidden" && bgCapable ? BG_POLL_MS : POLL_MS;
+  const cadence = () => pollDelay(document.visibilityState === "hidden", bgCapable);
 
   async function poll() {
     if (!running || inFlight) return;
