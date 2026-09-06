@@ -133,7 +133,7 @@ import { createPoller, createRoster, createSender, statusOf, sortMembers, STALE_
 import { startBeacon } from "./helpsession.js";
 import { startWatch, batteryLevel } from "./geo.js";
 import { haversineMeters, coarsePos, hueFromMemberId, fmtRelTime } from "./fmt.js";
-import { createDemo, DEMO_CENTER } from "./demo.js";
+import { createDemo, demoPlaces, DEMO_CENTER } from "./demo.js";
 
 // Error collector so automated checks can read back anything that went wrong.
 window.__starlingErrors = [];
@@ -4538,6 +4538,12 @@ function openStatus() {
 // ---------------------------------------------------------------- places UI
 
 function openPlaces() {
+  if (state.demo) {
+    // Editing the real list mid-demo would push it into the tracker that is
+    // currently holding the demo's invented spots. One gate closes the race.
+    ui.toast("Exit the demo to edit your places.");
+    return;
+  }
   mapView?.cancelPick();
   keepLive((done) =>
     ui.openPlacesSheet({
@@ -4643,6 +4649,11 @@ function startDemo() {
   state.sosActive = false;
   poller?.stop();
   resetMemberAlerts();
+  // The demo tours Places with its own invented spots. The tracker and the
+  // map swap to them here and back to the real list on exit; the stored
+  // list is never touched, and savePlaces cannot run mid-demo (openPlaces
+  // is demo-gated), so nothing can persist these.
+  placeTracker.setPlaces(demoPlaces());
   demo = createDemo({
     profile: state.profile,
     onTick: (list, me) => {
@@ -4656,6 +4667,7 @@ function startDemo() {
   // The demo is fully offline: no tiles, no network. Off-grid is forced and
   // the user's saved basemap comes back on exit.
   mapView.setBasemap("none");
+  mapView.setPlaces(demoPlaces());
   demo.start();
   mapView.fitAll([DEMO_CENTER, ...demoMembers]);
   render();
@@ -4674,6 +4686,9 @@ function exitDemo() {
   resetMemberAlerts();
   for (const id of mapView.markerIds()) mapView.removeMarker(id);
   mapView.setBasemap(state.settings.basemap);
+  // The real places come back exactly as stored; the demo's spots die here.
+  placeTracker.setPlaces(state.places);
+  mapView.setPlaces(state.places);
   if (state.gen) {
     poller?.start();
     showMap();

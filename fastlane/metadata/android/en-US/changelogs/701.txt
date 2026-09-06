@@ -1,0 +1,1 @@
+The demo is a real tour now: it shows Places (watch Mabel arrive at the fountain and the alert fire), status captions on every walker, a low battery warning, and an SOS arc that repeats for as long as you watch. Fully offline as always; your real places are never touched.

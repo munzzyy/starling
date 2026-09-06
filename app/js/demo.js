@@ -1,5 +1,11 @@
 // Demo flight: a fully offline simulation of a living circle. No network, no
 // persistence; everything lives in this module until stop() is called.
+//
+// The demo is the product tour, and on the hosted site it is the only tour:
+// the web never opens circles, so this is where a visitor learns what the
+// app feels like. It shows the whole 0.7 surface: live dots with trails,
+// status captions, a place arrival, a low battery, and an SOS that clears.
+// The story beats repeat on a cycle so a patient viewer sees them again.
 
 import { TRAIL_CAP } from "./wire.js";
 
@@ -18,6 +24,7 @@ const WALKERS = [
     speed: 1.35,
     bat: 0.82,
     phase: 0.5,
+    st: "coffee run",
     path: [[30, -20], [95, 15], [150, -10], [185, -75], [130, -135], [55, -145], [5, -90]],
   },
   {
@@ -28,6 +35,7 @@ const WALKERS = [
     speed: 1.5,
     bat: 0.57,
     phase: 0.35,
+    st: "",
     path: [[-60, 40], [-160, 85], [-260, 45], [-325, -40], [-260, -125], [-150, -135], [-70, -60]],
   },
   {
@@ -38,6 +46,7 @@ const WALKERS = [
     speed: 1.25,
     bat: 0.08,
     phase: 0.6,
+    st: "phone's dying",
     path: [[20, -180], [110, -235], [155, -320], [80, -400], [-40, -380], [-95, -280], [-30, -200]],
   },
   {
@@ -48,6 +57,7 @@ const WALKERS = [
     speed: 1.4,
     bat: 0.66,
     phase: 0.15,
+    st: "omw to the fountain",
     path: [[120, 80], [225, 145], [300, 220], [260, 320], [150, 335], [60, 240], [70, 140]],
   },
 ];
@@ -88,23 +98,59 @@ function posAlong(path, geom, dist) {
   return path[0];
 }
 
-// SOS storyline: Juno raises an SOS 20 s in, checks in 8 s later, clears.
+// The story runs on a cycle so its beats come back around for anyone who
+// keeps watching. Juno raises an SOS, checks in, clears; Mabel's caption
+// flips when she reaches the fountain.
+const CYCLE_S = 120;
 const SOS_AT = 20;
 const CHECKIN_AT = 28;
 const CLEAR_AT = 34;
+const MABEL_ARRIVES_S = 130;
 
-export function createDemo({ profile, onTick, onEvent }) {
-  const walkers = WALKERS.map((w) => ({ ...w, geom: segLengths(w.path), trail: [] }));
-  const youGeom = segLengths(YOU_PATH);
-  let t = 0;
-  let timer = 0;
+// The fountain, in meter space: the point Mabel reaches MABEL_ARRIVES_S
+// seconds in. Shared by demoPlaces (as a place) and by her caption (which
+// flips on the same geometry the tracker judges, so the card can never read
+// "omw" and "At The fountain" in the same breath).
+const MABEL_GEOM = segLengths(WALKERS[3].path);
+const FOUNTAIN_M = posAlong(
+  WALKERS[3].path,
+  MABEL_GEOM,
+  WALKERS[3].phase * MABEL_GEOM.total + WALKERS[3].speed * MABEL_ARRIVES_S,
+);
+const FOUNTAIN_R = 100;
 
-  function memberState(w, tSec, now) {
-    const pos = toLatLon(posAlong(w.path, w.geom, w.phase * w.geom.total + w.speed * tSec));
+// Demo-only places, derived from the same geometry the walkers use so the
+// arrival beat is guaranteed by construction: "the fountain" sits where
+// Mabel will be MABEL_ARRIVES_S seconds into the demo, far enough ahead
+// that she starts outside its circle and walks in. "Home" sits under your
+// own feet, so the you-line reads "At Home" from the first frame. These
+// never touch the real place list; the demo swaps them in and back out.
+export function demoPlaces() {
+  const fountain = toLatLon(FOUNTAIN_M);
+  const home = toLatLon([0, 0]);
+  return [
+    { id: "de30703e", name: "Home", lat: home.lat, lon: home.lon, radius: 100 },
+    { id: "de30f0f0", name: "The fountain", lat: fountain.lat, lon: fountain.lon, radius: FOUNTAIN_R },
+  ];
+}
+
+// One frame of the story, as a pure function of demo time. Exported so a
+// test can play the whole tape without timers and hold the beats to it.
+export function demoFrame(tSec, now, profile) {
+  const members = WALKERS.map((w) => {
+    const geom = segLengths(w.path);
+    const mPos = posAlong(w.path, geom, w.phase * geom.total + w.speed * tSec);
+    const pos = toLatLon(mPos);
+    const cycle = ((tSec % CYCLE_S) + CYCLE_S) % CYCLE_S;
     let type = "loc";
+    let st = w.st;
     if (w.name === "Juno") {
-      if (tSec >= SOS_AT && tSec < CHECKIN_AT) type = "sos";
-      else if (tSec >= CHECKIN_AT && tSec < CLEAR_AT) type = "checkin";
+      if (cycle >= SOS_AT && cycle < CHECKIN_AT) type = "sos";
+      else if (cycle >= CHECKIN_AT && cycle < CLEAR_AT) type = "checkin";
+    }
+    if (w.name === "Mabel") {
+      const there = Math.hypot(mPos[0] - FOUNTAIN_M[0], mPos[1] - FOUNTAIN_M[1]) <= FOUNTAIN_R;
+      st = there ? "made it" : "omw to the fountain";
     }
     return {
       id: w.id,
@@ -117,36 +163,48 @@ export function createDemo({ profile, onTick, onEvent }) {
       mode: "precise",
       ts: now,
       type,
-      trail: w.trail,
+      st,
     };
+  });
+  const youGeom = segLengths(YOU_PATH);
+  const youPos = toLatLon(posAlong(YOU_PATH, youGeom, YOU_SPEED * tSec));
+  const you = {
+    name: profile?.name || "You",
+    emoji: profile?.emoji || "\u{1F9ED}",
+    lat: youPos.lat,
+    lon: youPos.lon,
+    ts: now,
+  };
+  return { members, you };
+}
+
+export function createDemo({ profile, onTick, onEvent }) {
+  const trails = new Map(WALKERS.map((w) => [w.id, []]));
+  let t = 0;
+  let timer = 0;
+
+  function pushTrail(m) {
+    const trail = trails.get(m.id);
+    trail.push({ lat: m.lat, lon: m.lon, ts: m.ts });
+    if (trail.length > TRAIL_CAP) trail.splice(0, trail.length - TRAIL_CAP);
   }
 
-  function youState(tSec, now) {
-    const pos = toLatLon(posAlong(YOU_PATH, youGeom, YOU_SPEED * tSec));
-    return {
-      name: profile?.name || "You",
-      emoji: profile?.emoji || "\u{1F9ED}",
-      lat: pos.lat,
-      lon: pos.lon,
-      ts: now,
-    };
-  }
-
-  function pushTrail(w, m) {
-    w.trail.push({ lat: m.lat, lon: m.lon, ts: m.ts });
-    if (w.trail.length > TRAIL_CAP) w.trail.splice(0, w.trail.length - TRAIL_CAP);
+  function frameAt(tSec, now) {
+    const { members, you } = demoFrame(tSec, now, profile);
+    for (const m of members) {
+      pushTrail(m);
+      m.trail = trails.get(m.id);
+    }
+    return { members, you };
   }
 
   function tick() {
     const now = Date.now();
-    const members = walkers.map((w) => {
-      const m = memberState(w, t, now);
-      pushTrail(w, m);
-      return m;
-    });
-    if (t === SOS_AT) onEvent?.({ kind: "sos", name: "Juno" });
-    if (t === CHECKIN_AT) onEvent?.({ kind: "checkin", name: "Juno" });
-    onTick(members, youState(t, now));
+    const { members, you } = frameAt(t, now);
+    const cycle = t % CYCLE_S;
+    if (cycle === SOS_AT) onEvent?.({ kind: "sos", name: "Juno" });
+    if (cycle === CHECKIN_AT) onEvent?.({ kind: "checkin", name: "Juno" });
+    onTick(members, you);
     t += 1;
   }
 
@@ -155,11 +213,9 @@ export function createDemo({ profile, onTick, onEvent }) {
       // Seed six minutes of history so trails have something to show
       // immediately.
       const now = Date.now();
-      for (const w of walkers) {
-        for (let back = 360; back > 0; back -= 4) {
-          const m = memberState(w, -back, now - back * 1000);
-          pushTrail(w, m);
-        }
+      for (let back = 360; back > 0; back -= 4) {
+        const { members } = demoFrame(-back, now - back * 1000, profile);
+        for (const m of members) pushTrail(m);
       }
       tick();
       timer = setInterval(tick, 1000);

@@ -174,6 +174,26 @@ async function main() {
     check("web: download card still exists", v.landingApp);
     check("web: about link never shows", !v.aboutShown);
     check("web: console clean", v.errs.length === 0, JSON.stringify(v.errs));
+
+    // The demo tours Places with invented spots: two rings, off-grid, banner up.
+    await web.send("Page.navigate", { url: BASE + "/?demo=1" });
+    await waitFor(
+      () => web.evalJs("!!window.__starlingApi && window.__starlingApi.state.demo === true"),
+      "demo running",
+    );
+    await waitFor(
+      () => web.evalJs("document.querySelectorAll('.place-ring').length === 2"),
+      "two demo place rings",
+    );
+    const demoState = await web.evalJs(`(() => ({
+      offgrid: document.getElementById("map").classList.contains("offgrid"),
+      banner: !document.getElementById("banner-demo").hidden,
+      tags: [...document.querySelectorAll(".place-tag")].map((t) => t.textContent).sort().join(","),
+      errs: (window.__starlingErrors || []).slice(0, 5),
+    }))()`);
+    check("demo: forced off-grid with the banner up", demoState.offgrid && demoState.banner);
+    check("demo: the invented places are Home and The fountain", demoState.tags === "Home,The fountain", demoState.tags);
+    check("demo: console clean", demoState.errs.length === 0, JSON.stringify(demoState.errs));
     web.close();
   } finally {
     chromium.kill();

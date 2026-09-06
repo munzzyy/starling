@@ -3,6 +3,19 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [0.7.1]
+
+- **The demo grew into a real tour.** It now shows Places: two invented
+  spots, Home under your own feet and a fountain Mabel walks to, with her
+  arrival firing the same on-device alert a real circle gets. Walkers carry
+  status captions ("coffee run", "phone's dying"), Ash's battery is low
+  enough to trip the warning, and the SOS arc repeats on a two-minute cycle
+  for anyone who keeps watching. Mabel's caption flips on the same geometry
+  the place tracker judges, so her card can never say "omw" and "At The
+  fountain" at once. The demo's places are swapped in for the demo and back
+  out after; the real list is never touched, and editing places mid-demo is
+  gated. Still fully offline: no tiles, no network, nothing real.
+
 ## [0.7.0]
 
 Six critics were pointed at 0.6.1 before this release: a parent who just
