@@ -138,6 +138,62 @@ def main():
         check("B's caption reaches A's card", True)
         check("relay feed never carries the caption", "omw north gate" not in E.http_get(f"/api/v2/f/{channel}")[1])
 
+        # Privacy fence: A turns it on for her place, steps 80 m off center,
+        # and B must keep seeing the CENTER. The snap happens before sealing,
+        # so this is receiver-observable behavior, not a UI claim.
+        open_places(a)
+        turned_on = q(a,
+            "var c = document.querySelector('.place-fence-check');"
+            "if (!c.checked) c.click(); return c.checked;")
+        check("fence checkbox turns on", turned_on)
+        a.shot("22-fence-toggle.png")
+        a.escape()
+        E.wait_overlay_gone(a)
+
+        def avery():
+            for m in (bb.state() or {}).get("members", []):
+                if (m.get("name") or "").startswith("Avery"):
+                    return m
+            return None
+
+        off_lat = E.TIMES_SQ[0] + 0.0007
+        before_ts = (avery() or {}).get("ts") or 0
+        a.exec(f"window.__geoSet({off_lat}, {E.TIMES_SQ[1]})")
+        wait_for(lambda: ((avery() or {}).get("ts") or 0) > before_ts, timeout=45,
+                 desc="a post-move point reaches B", nudge=bb.nudge_poll)
+        got = avery()
+        check("fenced: B sees the place center, not the real spot",
+              got and abs(got["lat"] - E.TIMES_SQ[0]) < 1e-9, repr(got))
+
+        # The wire while the fence is ACTIVE. The indistinguishability claim
+        # is that the relay sees the same opaque post either way: its feed
+        # must carry neither the real fix nor the center in plaintext, no
+        # place name, and nothing fence-shaped. Dots cannot occur in
+        # base64url, so the coordinate needles can never false-positive
+        # inside ciphertext.
+        fenced_feed = E.http_get(f"/api/v2/f/{channel}")[1]
+        check("fenced era: relay feed carries no real fix", str(off_lat)[:9] not in fenced_feed)
+        check("fenced era: relay feed carries no center coordinate",
+              str(E.TIMES_SQ[0]) not in fenced_feed)
+        check("fenced era: relay feed carries no place name", "Front Porch" not in fenced_feed)
+        check("fenced era: relay feed carries no fence marker", '"fence"' not in fenced_feed)
+
+        # Fence off, another real move: the next point B gets is the true fix.
+        open_places(a)
+        turned_off = q(a,
+            "var c = document.querySelector('.place-fence-check');"
+            "if (c.checked) c.click(); return !c.checked;")
+        check("fence checkbox turns off", turned_off)
+        a.escape()
+        E.wait_overlay_gone(a)
+        a.exec(f"window.__geoSet({off_lat + 0.0003}, {E.TIMES_SQ[1]})")
+        wait_for(lambda: (avery() or {}).get("lat") is not None
+                 and abs((avery() or {})["lat"] - E.TIMES_SQ[0]) > 5e-4,
+                 timeout=45, desc="unfenced real position reaches B", nudge=bb.nudge_poll)
+        check("unfenced: B sees the real spot again", True)
+        # Walk A back to the center so the rest of the flow is undisturbed.
+        a.exec(f"window.__geoSet({E.TIMES_SQ[0]}, {E.TIMES_SQ[1]})")
+
         # Rename and radius edits stick, and rename flows into the card line.
         open_places(a)
         q(a,

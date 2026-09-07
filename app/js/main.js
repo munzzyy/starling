@@ -98,7 +98,7 @@ import {
   bioAvailable,
   zero,
 } from "./lock.js";
-import { createPlaceTracker, sanitizePlaces, newPlaceId, DEFAULT_RADIUS } from "./places.js";
+import { createPlaceTracker, sanitizePlaces, newPlaceId, fenceSnap, DEFAULT_RADIUS } from "./places.js";
 import { debugHooks, apiUrl, isWrapped, isBundled, native, shareUrlBase, normalizeRelay, setApiBase, shareCapable } from "./env.js";
 import {
   isSealedRecordError,
@@ -130,6 +130,8 @@ import {
 import * as ui from "./ui.js";
 import { createMapView } from "./map.js";
 import { createPoller, createRoster, createSender, statusOf, sortMembers, STALE_MS } from "./net.js";
+import { createOutbox } from "./outbox.js";
+import { buildDataExport } from "./export.js";
 import { startBeacon } from "./helpsession.js";
 import { startWatch, batteryLevel } from "./geo.js";
 import { haversineMeters, coarsePos, hueFromMemberId, fmtRelTime } from "./fmt.js";
@@ -290,6 +292,33 @@ async function activeRecord() {
 let roster = null;
 let poller = null;
 let sender = null;
+
+// The RAM-only retry line for bye, checkin and SOS: the three one-shot
+// messages whose silent loss lies to the circle. It re-seals through
+// sendMsg on every attempt and holds no storage by construction; lockNow,
+// the wipe reload and circle switches clear it.
+const outbox = createOutbox({
+  send: async (type) => {
+    if (state.demo || !sender) throw new Error("no sender");
+    await sendMsg(type);
+  },
+  onSettle: (type, ok, _err, tries) => {
+    // Only a RECOVERED delivery says anything: the first attempt's caller
+    // already spoke, and quiet retries should stay quiet.
+    if (!ok || tries < 1) return;
+    if (type === "bye") {
+      ui.toast(t("Your circle now sees you stopped sharing."));
+    } else if (type === "checkin") {
+      state.sosActive = false;
+      endBeacon().catch(() => {});
+      ui.toast(t("Check-in delivered. Your circle sees it now."));
+      mapView?.pulse("me");
+    } else if (type === "sos") {
+      ui.toast(t("SOS delivered to your circle."), "sos");
+    }
+    render();
+  },
+});
 // The invite-channel loops: one on the inviting side watching for join
 // requests, one on the joining side waiting for a welcome. Both are plain stop
 // functions, and both are memory only.
@@ -448,6 +477,7 @@ if (debugHooks()) window.__starlingFit = () => {
 // --------------------------------------------------------------- screens
 
 function showScreen(name) {
+  const was = state.screen;
   state.screen = name;
   // A pending map-tap pick must not outlive the map screen it was armed on:
   // an unlock, a wipe, or a circle change later, a stray tap would still add
@@ -458,6 +488,17 @@ function showScreen(name) {
   $("#screen-map").hidden = name !== "map";
   const notice = document.getElementById("screen-notice");
   if (notice) notice.hidden = name !== "notice";
+  // Entrance rise on a real screen change only: re-showing the same screen
+  // (every render pass does) must not replay it. One-shot, removed on end,
+  // so it can never stack with itself.
+  if (was && was !== name) {
+    const el = document.getElementById(`screen-${name}`);
+    if (el && typeof el.classList?.add === "function") {
+      el.classList.remove("screen-enter");
+      el.classList.add("screen-enter");
+      el.addEventListener("animationend", () => el.classList.remove("screen-enter"), { once: true });
+    }
+  }
   ensureWakeLock();
 }
 
@@ -523,6 +564,20 @@ function ensureMapUI() {
   sheet = ui.createSheet($("#sheet"), $("#sheet-drag"), $("#sheet-body"));
 
   byTestid("share-toggle").addEventListener("click", () => setSharing(!state.sharing));
+  const winBtns = [...document.querySelectorAll(".share-window-btn")];
+  for (const b of winBtns) {
+    b.addEventListener("click", () => setShareWindow(Number(b.dataset.win) || 0));
+  }
+  // Roving tabindex, the radiogroup contract: one tab stop, arrows to move.
+  $("#share-window")?.addEventListener?.("keydown", (e) => {
+    const delta = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+    if (!delta || !winBtns.length) return;
+    e.preventDefault();
+    const at = Math.max(0, winBtns.indexOf(document.activeElement));
+    const next = winBtns[(at + delta + winBtns.length) % winBtns.length];
+    next.focus();
+    next.click();
+  });
   byTestid("checkin-button").addEventListener("click", doCheckin);
   ui.holdToFire(byTestid("sos-button"), {
     ms: 1200,
@@ -614,6 +669,9 @@ function renderYou() {
   else sub = state.settings.precision === "coarse" ? t("Live · Neighborhood") : t("Live · Precise");
   const myPlace = placeTracker.placeFor(SELF_KEY);
   if (myPlace && hasFix) sub = `${t("At {place}", { place: myPlace.name })} · ${sub}`;
+  if (state.sharing && shareDeadline) {
+    sub += ` · ${t("stops in {left}", { left: fmtRelTime(Math.max(0, shareDeadline - Date.now())) })}`;
+  }
   if (state.sharing && state.profile?.st) sub = `"${state.profile.st}" · ${sub}`;
   // No background execution on this platform, so sharing runs only while the
   // app is in front. It belongs on the line that claims you are live, not in a
@@ -622,6 +680,12 @@ function renderYou() {
   // The relay refuses every post from a phone whose clock is out of tolerance.
   // The one thing this line may never say in that state is that you are live.
   if (state.sharing && state.clockError) sub = t("Not visible: this phone's clock is wrong");
+  // A message the circle has not received yet outranks everything else on
+  // this line: the gap between what you did and what they see IS the news.
+  const owed = outbox.pending();
+  if (owed.includes("sos")) sub = t("SOS queued. Starling keeps trying...");
+  else if (owed.includes("checkin")) sub = t("Check-in queued. Starling keeps trying...");
+  else if (owed.includes("bye")) sub = `${t("Not sharing")} · ${t("telling your circle...")}`;
   $("#you-sub").textContent = sub;
   const toggle = byTestid("share-toggle");
   toggle.classList.toggle("on", state.sharing);
@@ -635,6 +699,19 @@ function renderYou() {
         ? t("Sharing live")
         : t("Locating...")
       : t("Start sharing");
+  const win = $("#share-window");
+  if (win) {
+    win.hidden = !state.sharing || state.demo;
+    if (typeof win.querySelectorAll === "function") {
+      for (const b of win.querySelectorAll(".share-window-btn")) {
+        const sel = (Number(b.dataset.win) || 0) === shareWindowMs;
+        b.setAttribute("aria-checked", String(sel));
+        b.classList.toggle("sel", sel);
+        // Roving tabindex: the checked chip is the group's one tab stop.
+        b.setAttribute("tabindex", sel ? "0" : "-1");
+      }
+    }
+  }
   const gw = $("#geo-warn");
   gw.hidden = !state.geoDenied;
   // The static copy talks about browser site settings, which is the right
@@ -1098,6 +1175,8 @@ function renderMarkers(list, now) {
       emoji: rec.emoji || "",
       hue: rec.hue ?? hueFromMemberId(rec.id),
       status: statusOf(rec, now),
+      ts: rec.ts,
+      now,
     });
   }
   if (state.me && Number.isFinite(state.me.lat)) {
@@ -1111,6 +1190,8 @@ function renderMarkers(list, now) {
       status: state.sosActive ? "sos" : "live",
       self: true,
       sharing: state.sharing,
+      ts: state.me.ts,
+      now,
     });
   }
   for (const id of mapView.markerIds()) {
@@ -1557,6 +1638,9 @@ function persistPinned() {
 function setupNet() {
   poller?.stop();
   sender?.cancel?.();
+  // Whatever the old sender still owed dies with it: a queued retry must
+  // not cross into the channel this setup is arming.
+  outbox.clear();
   const gen = state.gen;
   roster = createRoster({
     channelId: gen.channelId,
@@ -2636,6 +2720,9 @@ function lockNow() {
     sendMsg("bye").catch(() => {});
     stopSharingInternals();
   }
+  // The retry line holds nothing across a lock: what a locked device must
+  // not act on, it forgets.
+  outbox.clear();
   poller?.stop();
   poller = null;
   sender?.cancel?.();
@@ -3767,6 +3854,9 @@ function teardownNet() {
   sender?.cancel();
   sender = null;
   roster = null;
+  // A retry still waiting was meant for the channel this teardown is
+  // rotating away from; it must never chase the next one.
+  outbox.clear();
   stopInviteWatch();
 }
 
@@ -4059,6 +4149,21 @@ async function openSettings() {
       onPlaces: openPlaces,
       onPanic: panic,
       onLeave: leaveCircle,
+      onExport: () => {
+        if (state.locked) return;
+        const json = JSON.stringify(
+          buildDataExport({
+            profile: state.profile,
+            settings: state.settings,
+            places: state.places,
+            circles: state.circles.map((c) => ({ name: c.name })),
+            pinned: [...state.pinned.values()],
+          }),
+          null,
+          2,
+        );
+        ui.openExportSheet(json);
+      },
     }),
   );
 }
@@ -4121,6 +4226,10 @@ async function onSettingChange(key, value) {
 }
 
 async function panic() {
+  // Nothing may race the wipe: a queued retry firing between the store's
+  // death and the reload would be this device's last word, sent by a ghost.
+  outbox.clear();
+  sender?.cancel?.();
   // In the wrapper the bridge runs the same full wipe the PanicKit trigger
   // does: Keystore wrap key, notification channels, then the OS-level clear
   // that kills the process. The web wipe below still runs in parallel; if the
@@ -4208,6 +4317,12 @@ async function setSharing(on) {
     state.sharing = false;
     state.sosActive = false;
     state.geoFailed = false;
+    // Stopping by hand also ends the countdown; a timer must never outlive
+    // the share it was counting for.
+    clearTimeout(shareDeadlineTimer);
+    shareDeadlineTimer = 0;
+    shareDeadline = null;
+    shareWindowMs = 0;
     clearInterval(shareTimer);
     stopGeo?.();
     stopGeo = null;
@@ -4220,10 +4335,39 @@ async function setSharing(on) {
     endBeacon().catch(() => {});
     // Returned so circle switches can wait for the departure to actually
     // reach the old channel before the sender is cancelled; every other
-    // caller ignores it and keeps the old fire-and-forget behavior.
-    const bye = sendMsg("bye").catch(() => {});
+    // caller ignores it. A bye that misses gets retried from RAM until it
+    // lands, because the alternative is a "live" dot pointing at nobody.
+    const bye = outbox.enqueue("bye");
     render();
     return bye;
+  }
+  render();
+}
+
+// A share that ends by itself. RAM only, like sharing itself: neither
+// survives the page, so the timer can never claim more than it holds. The
+// expiry goes through setSharing(false), which is the one honest way out:
+// authenticated bye, beacon ended, every audience told.
+let shareDeadline = null;
+let shareDeadlineTimer = 0;
+let shareWindowMs = 0;
+
+function setShareWindow(ms) {
+  clearTimeout(shareDeadlineTimer);
+  shareDeadlineTimer = 0;
+  shareWindowMs = ms || 0;
+  shareDeadline = ms ? Date.now() + ms : null;
+  if (ms) {
+    shareDeadlineTimer = setTimeout(async () => {
+      shareDeadline = null;
+      shareDeadlineTimer = 0;
+      shareWindowMs = 0;
+      if (state.sharing) {
+        await setSharing(false);
+        ui.toast(t("Timed share ended. Your circle sees you stopped sharing."));
+      }
+      render();
+    }, ms);
   }
   render();
 }
@@ -4301,6 +4445,12 @@ function stopSharingInternals() {
   clearCaption();
   endBeacon().catch(() => {});
   clearInterval(shareTimer);
+  // Every stop path kills the countdown, not just the toggle: a deadline
+  // that survived a lock or a geo failure would silently end the NEXT share.
+  clearTimeout(shareDeadlineTimer);
+  shareDeadlineTimer = 0;
+  shareDeadline = null;
+  shareWindowMs = 0;
   stopGeo?.();
   stopGeo = null;
 }
@@ -4360,10 +4510,26 @@ async function sendMsg(type) {
   };
   if (state.me) {
     let { lat, lon } = state.me;
-    if (state.settings.precision === "coarse") ({ lat, lon } = coarsePos(lat, lon));
+    // Privacy fences: inside a fenced place the circle sees the place's
+    // center, never the spot within it. Snapped BEFORE sealing, exactly
+    // like coarse mode, so the wire carries the same fields either way and
+    // the relay learns nothing, including that fences exist. The SOS and
+    // coarse exemptions live inside fenceSnap, where the tests hold them.
+    const fence = fenceSnap(state.places, lat, lon, {
+      sos: state.sosActive || type === "sos",
+      precision: state.settings.precision,
+    });
+    if (state.settings.precision === "coarse") {
+      ({ lat, lon } = coarsePos(lat, lon));
+    } else if (fence) {
+      lat = fence.lat;
+      lon = fence.lon;
+    }
     fields.lat = lat;
     fields.lon = lon;
-    if (state.settings.precision === "precise" && Number.isFinite(state.me.acc)) {
+    // A real accuracy radius describes the real fix; sent next to a snapped
+    // point it would say how far the center is from the truth.
+    if (!fence && state.settings.precision === "precise" && Number.isFinite(state.me.acc)) {
       fields.acc = state.me.acc;
     }
   }
@@ -4385,14 +4551,23 @@ async function doCheckin() {
   }
   try {
     await sendMsg("checkin");
-    // Checking in safe is exactly the moment helpers should stop seeing you.
+    // Checking in safe cancels a queued SOS retry and is exactly the moment
+    // helpers should stop seeing you.
+    outbox.drop("sos");
     await endBeacon();
     ui.toast(okMsg);
+    // The safest action earns the one felt reward on the map.
+    mapView?.pulse("me");
   } catch (e) {
     // The circle still sees the SOS, so keep showing it here too.
     state.sosActive = wasSos;
     await noteSendFailure(e);
-    if (!state.clockError) ui.toast("Check-in failed. Reconnecting...", "warn");
+    if (!state.clockError) {
+      // A clock rejection retries forever pointlessly; anything else is
+      // worth chasing from RAM until it lands.
+      outbox.enqueue("checkin");
+      ui.toast("Check-in not delivered yet. Starling keeps trying.", "warn");
+    }
   }
   render();
 }
@@ -4400,6 +4575,8 @@ async function doCheckin() {
 async function fireSos() {
   navigator.vibrate?.([120, 60, 120]);
   state.sosActive = true;
+  // A queued check-in retry is from before this moment; the SOS overrides it.
+  outbox.drop("checkin");
   // The armed-SOS card, with the cancel instructions and the help-link
   // button, lives in the sheet body; surface it rather than leave it
   // behind a drag gesture at exactly the wrong moment.
@@ -4416,7 +4593,10 @@ async function fireSos() {
     ui.toast("SOS sent to your circle. Tap the check mark to cancel.", "sos");
   } catch (e) {
     await noteSendFailure(e);
-    if (!state.clockError) ui.toast("SOS failed to send. Reconnecting...", "warn");
+    if (!state.clockError) {
+      outbox.enqueue("sos");
+      ui.toast("SOS not delivered yet. Starling keeps trying.", "warn");
+    }
   }
   // Your circle is who you chose in advance. An emergency is often the
   // moment that turns out to be the wrong list: the people who can reach you
@@ -4630,6 +4810,10 @@ function openPlaces() {
         state.places = state.places.map((p) => (p.id === id ? { ...p, radius } : p));
         await savePlaces();
       },
+      onFence: async (id, on) => {
+        state.places = state.places.map((p) => (p.id === id ? { ...p, fence: !!on } : p));
+        await savePlaces();
+      },
       onRemove: async (id) => {
         state.places = state.places.filter((p) => p.id !== id);
         await savePlaces();
@@ -4643,7 +4827,7 @@ function checkAlerts() {
   // Your own position feeds the tracker too, so the sheet can say where you
   // are. It never fires an announcement: you were there.
   if (state.me && Number.isFinite(state.me.lat)) {
-    placeTracker.update(SELF_KEY, state.me.lat, state.me.lon, { now });
+    placeTracker.update(SELF_KEY, state.me.lat, state.me.lon, { now, acc: state.me.acc });
   }
   for (const rec of members()) {
     const st = statusOf(rec, now);
@@ -4667,6 +4851,7 @@ function checkAlerts() {
         mode: rec.mode,
         ts: rec.ts,
         now,
+        acc: rec.acc,
       });
       if (state.settings.placeAlerts) {
         for (const ev of evs) {
@@ -4912,6 +5097,10 @@ if (debugHooks()) window.__starlingInternals = {
   toggleDemoMap,
   loadDemoMap,
   cancelDemoMap,
+  outbox,
+  setShareWindow,
+  stopSharingInternals,
+  shareStatus: () => ({ deadline: shareDeadline, windowMs: shareWindowMs }),
 };
 
 // ----------------------------------------------------------------- boot
@@ -4920,6 +5109,9 @@ window.addEventListener("online", () => {
   state.offline = false;
   syncRatchet().catch(() => {});
   poller?.pollNow();
+  // A working network just showed itself: anything still owed to the
+  // circle goes now.
+  outbox.flush();
   render();
 });
 

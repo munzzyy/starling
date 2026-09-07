@@ -31,6 +31,8 @@ const PRECACHE = [
   "/js/lock.js",
   "/js/atrest.js",
   "/js/places.js",
+  "/js/outbox.js",
+  "/js/export.js",
   "/js/i18n.js",
   "/js/strings-es.js",
   "/vendor/leaflet/leaflet.js",

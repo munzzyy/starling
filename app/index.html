@@ -57,6 +57,8 @@
 <link rel="modulepreload" href="js/crypto.js">
 <link rel="modulepreload" href="js/store.js">
 <link rel="modulepreload" href="js/net.js">
+<link rel="modulepreload" href="js/outbox.js">
+<link rel="modulepreload" href="js/export.js">
 <link rel="modulepreload" href="js/map.js">
 <link rel="modulepreload" href="js/ui.js">
 <link rel="modulepreload" href="js/geo.js">
@@ -105,7 +107,7 @@
 <section id="screen-onboarding" class="screen" hidden>
   <div class="ob-wrap">
     <div class="ob-hero">
-      <div class="lnd-aurora" aria-hidden="true"></div>
+      <div class="lnd-aurora" aria-hidden="true"><span class="lnd-bird"></span><span class="lnd-bird"></span><span class="lnd-bird"></span><span class="lnd-bird"></span><span class="lnd-bird"></span><span class="lnd-bird"></span><span class="lnd-bird"></span></div>
       <div class="ob-logo-ring">
         <img class="ob-logo" src="icons/starling.svg" alt="" width="84" height="84">
       </div>
@@ -522,6 +524,13 @@
         <span class="share-dot" aria-hidden="true"></span>
         <span id="share-label" data-i18n>Start sharing</span>
       </button>
+      <div class="share-window" id="share-window" role="radiogroup" aria-label="Share timer" data-i18n-attr="aria-label" hidden>
+        <span class="share-window-cap" data-i18n>Stop by itself:</span>
+        <button type="button" class="share-window-btn" data-win="0" role="radio" aria-checked="true" data-i18n>never</button>
+        <button type="button" class="share-window-btn" data-win="3600000" role="radio" aria-checked="false">1 h</button>
+        <button type="button" class="share-window-btn" data-win="7200000" role="radio" aria-checked="false">2 h</button>
+        <button type="button" class="share-window-btn" data-win="14400000" role="radio" aria-checked="false">4 h</button>
+      </div>
       <div class="ava-strip" id="ava-strip" aria-hidden="true"></div>
     </div>
     <div class="sheet-body" id="sheet-body">

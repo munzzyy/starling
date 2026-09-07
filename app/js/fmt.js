@@ -34,6 +34,26 @@ export function fmtRelTime(msAgo) {
   return `${Math.floor(h / 24)} d`;
 }
 
+// Initial great-circle bearing from point 1 toward point 2, degrees
+// clockwise from north, 0..360. Pure math: finding a person by compass is
+// the one direction feature that needs no tile, no network, nothing.
+export function bearingDeg(lat1, lon1, lat2, lon2) {
+  const rad = Math.PI / 180;
+  const dLon = (lon2 - lon1) * rad;
+  const y = Math.sin(dLon) * Math.cos(lat2 * rad);
+  const x =
+    Math.cos(lat1 * rad) * Math.sin(lat2 * rad) -
+    Math.sin(lat1 * rad) * Math.cos(lat2 * rad) * Math.cos(dLon);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+// The bearing as a word a person can walk by. Eight ways is what humans
+// actually use; degrees are for the decorative arrow.
+export function compassWord(deg) {
+  const words = [t("north"), t("northeast"), t("east"), t("southeast"), t("south"), t("southwest"), t("west"), t("northwest")];
+  return words[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
+}
+
 // Rounds a position onto a ~1 km grid (0.01 degrees).
 export function coarsePos(lat, lon) {
   return {
