@@ -3,7 +3,7 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
-## [Unreleased]
+## [0.9.0]
 
 - **The demo can show a real map.** A "Real map" button in the demo banner
   offers street tiles of the demo's Central Park stage, behind a consent
