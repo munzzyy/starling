@@ -196,8 +196,10 @@ Being clear about the edges is part of the point.
   but it sees IP addresses, timing, and how many members a channel has. On top
   of a VPN or Tor this drops to the exit's IP. Firing an SOS is its own
   correlation signal: the beacon channel and the circle channel update from
-  the same IP at the same instant, even though their keys are unlinkable. See
-  the threat model.
+  the same IP at the same instant, even though their keys are unlinkable. And
+  the beacon viewer page opens on a street map immediately, so each helper's
+  browser fetches OpenStreetMap tiles of the emergency's area: the tile host
+  sees the helper's IP and that viewport. See the threat model.
 - **Forward secrecy is bounded by the history window, not absolute.** Content
   keys advance every 10 minutes and the old key is destroyed; how much trail
   stays readable on a device is a setting (10 minutes to 24 hours), and that
@@ -217,9 +219,10 @@ Being clear about the edges is part of the point.
   hashes that make a targeted swap detectable rather than invisible; see
   [docs/WEB-INTEGRITY.md](docs/WEB-INTEGRITY.md) for exactly what that does
   and does not buy. The structural fix is that circles only exist in the
-  store-distributed app, which bundles its code and never loads any from the
-  network. There is no iOS app; the hosted site refuses to open circles on
-  iOS too, for the same reason.
+  apps, which bundle their code and never load any from the network: the
+  Android APK, and the iOS wrapper in `ios/` (build-from-source today, see
+  [docs/IOS.md](docs/IOS.md)). The hosted site still refuses to open circles
+  in any browser tab, on every platform, for the same reason.
 - **No independent security review.** The design is documented before the
   code, 500-plus unit tests replay committed test vectors, and two rounds of
   adversarial review plus a cross-model audit have found and fixed real bugs.
@@ -271,9 +274,15 @@ reason.
 - Argon2id (memory-hard) app-lock KDF via a vetted WASM build
 - One-time guest links as short-lived side circles
 
-There is no iOS app on this roadmap and no plan to wrap the hosted web page
-into one. See "What it does not do" above for why circles do not belong in a
-browser tab on any platform, iOS included.
+There is an iOS app now: a WKWebView wrapper around the same bundled app,
+in `ios/`, that holds a real circle. It is build-from-source only today - a
+Mac with Xcode, and a free Apple ID re-signs every 7 days - and background
+sharing does not exist on it, because iOS offers no equivalent of the
+Android foreground service. [docs/IOS.md](docs/IOS.md) carries the full
+capability table and the build steps; TestFlight distribution waits on a
+paid developer account. What has not changed: circles still do not belong
+in a browser tab on any platform, and the hosted site still refuses to
+open them.
 
 ## License
 

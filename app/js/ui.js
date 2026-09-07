@@ -230,15 +230,26 @@ export function holdToFire(button, { ms = 1200, onFire, onShortTap }) {
     cancel();
   });
 
+  // Assistive tech's activation cannot hold anything, so for it the hold
+  // becomes two activations: the first arms a window and tells the user so
+  // (onShortTap hears atArmed=true and speaks the right copy), the second
+  // fires. The window is long enough to re-find the button by ear.
+  let atArmedUntil = 0;
   button.addEventListener("click", (e) => {
-    // Untrusted clicks come from automation; they fire directly. A trusted
-    // click with no pointer behind it is assistive tech's double-tap, which
-    // cannot hold anything; answer with the instruction instead of silence.
+    // Untrusted clicks come from automation; they fire directly.
     if (!e.isTrusted && !armed) {
       onFire();
       return;
     }
-    if (e.isTrusted && !sawPointer && !armed) onShortTap?.();
+    if (e.isTrusted && !sawPointer && !armed) {
+      if (performance.now() < atArmedUntil) {
+        atArmedUntil = 0;
+        onFire();
+      } else {
+        atArmedUntil = performance.now() + 10000;
+        onShortTap?.(true);
+      }
+    }
     sawPointer = false;
   });
 }
@@ -2249,7 +2260,8 @@ export function updateMemberList(container, items, { now, mePos, statusOf, onTap
     card.style.setProperty("--m-hue", String(rec.hue ?? 0));
     $(".ava-emoji", card).textContent = rec.emoji || "";
     $(".mc-name", card).textContent = rec.name || t("Member");
-    $(".mc-sub", card).textContent = memberSubLine(rec, now, mePos, placeOf?.(rec.id), status);
+    const subLine = memberSubLine(rec, now, mePos, placeOf?.(rec.id), status);
+    $(".mc-sub", card).textContent = subLine;
     const chip = $(".chip", card);
     chip.textContent = t(CHIP_TEXT[status]);
     chip.className = `chip chip-${status}`;
@@ -2263,7 +2275,16 @@ export function updateMemberList(container, items, { now, mePos, statusOf, onTap
     } else {
       bat.hidden = true;
     }
-    card.setAttribute("aria-label", `${rec.name || t("Member")}, ${t(CHIP_TEXT[status])}`);
+    // The label carries what the eyes get: name, status, then the same sub
+    // line (caption, place, age, distance) the card paints. A label of just
+    // name-and-status erases the information the card exists to give.
+    const batBit = typeof rec.bat === "number"
+      ? `, ${t("Battery {pct} percent", { pct: Math.round(Math.min(1, Math.max(0, rec.bat)) * 100) })}`
+      : "";
+    card.setAttribute(
+      "aria-label",
+      `${rec.name || t("Member")}, ${t(CHIP_TEXT[status])}${subLine ? `, ${subLine}` : ""}${batBit}`,
+    );
     container.append(card);
   }
   for (const node of existing.values()) node.remove();

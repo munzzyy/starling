@@ -788,12 +788,25 @@ def flow_help_beacon(b):
 
 def zero_knowledge_dump(channels):
     _, body = http_get("/debug/dump")
-    for needle in ["Avery", "Blair", "40.7", "73.9", "lat", "name"]:
-        if needle in body:
-            idx = body.index(needle)
-            raise E2EError(
-                f"dump leaks {needle!r} at offset {idx}: ...{body[max(0, idx - 40):idx + 44]}...")
     dump = json.loads(body)
+    # Scan for plaintext canaries with the opaque fields blanked first: a
+    # short needle like "lat" lands inside random base64url ciphertext every
+    # few runs, and a leak hidden INSIDE valid b64u would not be caught by a
+    # substring scan anyway. The b64u shape of those fields is asserted below;
+    # everything else in the dump must be free of the canaries.
+    scrubbed = json.loads(body)
+    for p in scrubbed.get("points", []):
+        for k in ("c", "n"):
+            p[k] = ""
+    for row in scrubbed.get("members", []):
+        for k in ("pk", "epk"):
+            row[k] = ""
+    flat = json.dumps(scrubbed)
+    for needle in ["Avery", "Blair", "40.7", "73.9", "lat", "name"]:
+        if needle in flat:
+            idx = flat.index(needle)
+            raise E2EError(
+                f"dump leaks {needle!r} at offset {idx}: ...{flat[max(0, idx - 40):idx + 44]}...")
     points = dump.get("points", [])
     members = dump.get("members", [])
     if not points or not members:
@@ -847,6 +860,40 @@ def demo_shot():
         if not st.get("members"):
             raise E2EError("demo has no members")
         c.shot("06-demo.png")
+        # The real-map switch: off-grid until consent, tiles only after "Load
+        # map", and one press turns them back off. The preconnect link is
+        # checked too: warming the tile host is already a network contact.
+        tiles_js = (
+            "return {imgs: document.querySelectorAll('#map .leaflet-tile-pane img').length,"
+            " links: document.querySelectorAll(\"link[href*='tile.openstreetmap']\").length,"
+            " consent: !document.getElementById('banner-demo-consent').hidden}")
+        pre = c.exec(tiles_js)
+        if pre["imgs"] or pre["links"] or pre["consent"]:
+            raise E2EError(f"demo not off-grid before consent: {pre}")
+        c.click('[data-testid="demo-map-toggle"]')
+        mid = c.exec(tiles_js)
+        if mid["imgs"] or mid["links"] or not mid["consent"]:
+            raise E2EError(f"the consent ask must not load tiles: {mid}")
+        c.click('[data-testid="demo-map-consent-go"]')
+        wait_for(lambda: c.exec(
+            "return document.querySelectorAll('#map .leaflet-tile-pane img').length") > 0,
+            timeout=10, desc="real tiles after consent")
+        # Give the tiles a moment to actually paint so the screenshot shows
+        # streets. Network is not guaranteed here, so a timeout is a note,
+        # not a failure: the DOM assertions above are the contract.
+        try:
+            wait_for(lambda: c.exec(
+                "return [...document.querySelectorAll('#map .leaflet-tile-pane img')]"
+                ".some(i => i.complete && i.naturalWidth > 0)"),
+                timeout=8, desc="a tile painted")
+        except E2EError:
+            log("no tile painted (offline?); DOM contract already held")
+        c.shot("06b-demo-realmap.png")
+        c.click('[data-testid="demo-map-toggle"]')
+        post = c.exec(tiles_js)
+        if post["imgs"]:
+            raise E2EError("the off-grid press left tiles behind")
+        log("demo real-map: consent-gated on, one press off")
         console_check([c])
     finally:
         c.close()

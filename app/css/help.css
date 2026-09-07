@@ -142,6 +142,6 @@ body.hv {
   background: var(--bg-1);
   border: 1px solid var(--line);
   color: var(--ink);
-  font-size: 15px;
+  font-size: 0.9375rem;
   line-height: 1.5;
 }

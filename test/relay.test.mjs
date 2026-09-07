@@ -584,6 +584,54 @@ test("the wrapper's asset origin and ALLOWED_ORIGINS entries may write", async (
   );
 });
 
+test("the iOS wrapper's scheme origin may write and gets CORS; 'null' never does", async () => {
+  const env = freshEnv();
+  const circle = await makeCircle();
+  const id = await generateIdentity();
+  const ios = "starling://localhost";
+
+  let res = await req(env, `/api/v2/f/${circle.channel}/loc`, { method: "OPTIONS", headers: { origin: ios } });
+  assert.equal(res.status, 204);
+  assert.equal(res.headers.get("access-control-allow-origin"), ios);
+
+  res = await postLoc(env, circle.channel, await validPost(circle, id, Date.now()), {
+    headers: { origin: ios },
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("access-control-allow-origin"), ios);
+
+  // A sandboxed iframe's Origin is the literal string "null". It must never
+  // ride in on the custom-scheme allowance, via APP_ORIGINS or the env list.
+  const before = snap(env);
+  await assertRejected(
+    env,
+    postLoc(env, circle.channel, await validPost(circle, id, Date.now() + 1), {
+      headers: { origin: "null" },
+    }),
+    403,
+    before,
+  );
+});
+
+test("ALLOWED_ORIGINS keeps a self-hosted wrapper's custom-scheme entry, never 'null'", async () => {
+  const env = freshEnv({ ALLOWED_ORIGINS: "myfork://localhost/, null, https://alt.example.org" });
+  const circle = await makeCircle();
+  const id = await generateIdentity();
+  let res = await postLoc(env, circle.channel, await validPost(circle, id, Date.now()), {
+    headers: { origin: "myfork://localhost" },
+  });
+  assert.equal(res.status, 200);
+  const before = snap(env);
+  await assertRejected(
+    env,
+    postLoc(env, circle.channel, await validPost(circle, id, Date.now() + 1), {
+      headers: { origin: "null" },
+    }),
+    403,
+    before,
+  );
+});
+
 test("CORS: allowed foreign origins get a preflight and echoed headers, others get nothing", async () => {
   const env = freshEnv({ ALLOWED_ORIGINS: "https://alt.example.org" });
   const circle = await makeCircle();

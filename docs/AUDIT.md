@@ -175,6 +175,11 @@ under it; the function names are the durable half.
 | Multi-circle storage (v2 shape) | `app/js/circles.js:73-129` (`packGenMeta`/`readGenMeta`, pinned roster pack/read at `circles.js:110`), `circles.js:188` (the staged generation record) | a circle record is a generation (`g`, `e0`, `ckEpoch`, `channelId`, `genRoster`) plus a pinned roster, not a flat 32-byte secret; see the file's own header comment for why the storage slot is still named `secret` |
 | Panic wipe (web) | `app/js/store.js:83` (`wipeAll`) | deletes IndexedDB, clears localStorage and Cache Storage, unregisters the service worker; the code's own comment notes the browser's HTTP tile cache is unreachable from page JS and is not wiped |
 | Panic wipe (Android, PanicKit) | `android/app/src/main/kotlin/app/starlingmap/PanicActivity.kt:54-69` (`wipeEverything`) | checks the sender is the paired app before acting (`receivedTriggerFromConnectedApp`, line 27), then `clearApplicationUserData()` |
+| iOS bundle containment | `ios/Sources/AppSchemeHandler.swift` (`webView(_:start:)`) | requests resolve inside the bundled `app/` only, on symlink-resolved paths; host must be exactly `localhost` with no port; every response ships nosniff and no-referrer |
+| iOS navigation policy | `ios/Sources/ViewController.swift` (`decidePolicyFor`, `createWebViewWith`) | only the app scheme navigates in-place; site fragments are handed to the page JSON-quoted (data, not script); everything external is gesture-gated to the system browser view, link previews off |
+| iOS wrapper identity vs capability | `app/js/env.js` (`isIOSWrapped`, `isBundled`, `debugHooks`) | the scheme grants UI identity and relay routing, never Android bridge capability; `debugHooks` requires http(s), so the dev-listed hostname `localhost` cannot switch the debug surface on inside the shipped app |
+| iOS storage stays off iCloud | `ios/Sources/App.swift` (`excludeWebKitStoreFromBackup`) | Library/WebKit is marked excluded from backups at every launch, the platform's version of Android's `allowBackup="false"` |
+| iOS app-switcher shield | `ios/Sources/App.swift` (`applicationWillResignActive`) | the window is covered before the system snapshots it; unconditional, like Android's FLAG_SECURE |
 
 ## Key lifetime table
 

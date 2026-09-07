@@ -3,7 +3,7 @@
 body {
   background: var(--bg, #0a0d14);
   color: var(--text, #e8ebf2);
-  font: 16px/1.6 system-ui, sans-serif;
+  font: 1rem/1.6 system-ui, sans-serif;
   max-width: 40rem;
   margin: 0 auto;
   padding: 2rem 1.25rem 4rem;

@@ -9,7 +9,7 @@
      intersection of both policies, so the site keeps its strict posture. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https:; manifest-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="theme-color" content="#0a0d14">
-<meta name="description" content="Private, end to end encrypted location sharing for your circle. No accounts, no tracking. Free Android app and web app by Munzzyy.">
+<meta name="description" content="Private, end to end encrypted location sharing for your circle. No accounts, no tracking. Free Android app, live demo in the browser.">
 <!-- iOS reads the web manifest's display mode on recent versions but has
      relied on these two meta tags for full-screen, no-Safari-chrome launch
      since Add to Home Screen existed; keeping both is what makes install
@@ -23,7 +23,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Starling">
 <meta property="og:title" content="Starling: private location sharing">
-<meta property="og:description" content="End to end encrypted location sharing for your circle. No accounts, no tracking. Android app and web app.">
+<meta property="og:description" content="End to end encrypted location sharing for your circle. No accounts, no tracking. Free Android app, live demo in the browser.">
 <meta property="og:url" content="https://starlingmap.app/">
 <meta property="og:image" content="https://starlingmap.app/icons/og.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -36,7 +36,7 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "Starling",
-  "operatingSystem": "Android, Web",
+  "operatingSystem": "Android",
   "applicationCategory": "UtilitiesApplication",
   "description": "Private, end to end encrypted location sharing for your circle. No accounts, no tracking.",
   "url": "https://starlingmap.app/",
@@ -113,11 +113,12 @@
       <p class="ob-tagline" data-i18n>Your people, on your map. Nobody else.</p>
       <p class="lnd-subline">Create a circle, send one link, and watch each other arrive.
         Nothing about where you are ever leaves your phone in a form anyone else can read.
-        The app is Android-only today.</p>
+        <span class="web-only">The app lives on Android today; iPhone owners can build the
+        iOS app from source, or watch the demo below.</span></p>
       <ul class="lnd-trustrow">
         <li><span class="lnd-trust-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 3 4.5 6v6c0 4.4 3 7.9 7.5 9 4.5-1.1 7.5-4.6 7.5-9V6L12 3Z"/></svg></span>End-to-end encrypted</li>
         <li><span class="lnd-trust-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4.5 20.5v-1a6.5 6.5 0 0 1 13 0v1M11 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="m17 9 1.6 1.6L22 7"/></svg></span>No accounts</li>
-        <li><span class="lnd-trust-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 7.5V12l3 2"/></svg></span>Forgets in 24 hours</li>
+        <li><span class="lnd-trust-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 7.5V12l3 2"/></svg></span>Server keeps nothing past 24h</li>
         <li><span class="lnd-trust-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m8 9 4-5 4 5M6.5 12h11l1 8h-13l1-8Z"/></svg></span>Open source</li>
       </ul>
     </div>
@@ -125,9 +126,11 @@
     <div class="lnd-state-stack">
       <div class="land-card land-note" id="landing-invite" hidden>
         <h2 class="land-card-title">You have an invite</h2>
-        <p class="land-card-sub">Invites open in the Android app, where your circle's secret lives
-          outside the browser. Install the app below, then tap your invite link again and it will
-          join there. The secret in your link never left this device.</p>
+        <p class="land-card-sub">Invites open in the app, where your circle's secret lives
+          outside the browser. On Android: install the app below, then tap your invite link again
+          and it will join there. On an iPhone: there is no store app yet, so this link only works
+          if you build the iOS app yourself (see the iPhone question below) and paste the link
+          inside its Join screen. The secret in your link never left this device.</p>
       </div>
 
       <div class="land-card land-note" id="landing-legacy" hidden>
@@ -140,8 +143,9 @@
 
       <div class="land-card land-note" id="join-waiting" data-testid="join-waiting" hidden>
         <h2 class="land-card-title">Waiting to be let in</h2>
-        <p class="land-card-sub" id="join-waiting-text">Your request is sitting on the relay. Somebody already in the circle has to
-          accept it before you can see anyone. They do not have to be online right now.</p>
+        <p class="land-card-sub" id="join-waiting-text">Your request is sitting on the relay. It waits
+          until the person who invited you next opens Starling and accepts it; read them the number
+          below when they do.</p>
         <span class="safety-cap">Your number</span>
         <div class="safety" id="join-waiting-safety" data-testid="join-waiting-safety"></div>
         <p class="land-card-note">Read these digits out to whoever invited you. The same number shows next to your
@@ -229,8 +233,9 @@
         <div class="lnd-feature">
           <span class="lnd-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.7"/><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" d="M12 7.5V12l3 2"/></svg></span>
           <h3 class="lnd-feature-title">Forward secrecy</h3>
-          <p class="lnd-feature-text">Keys retire every ten minutes. A relay seizure yields at
-            most one day of ciphertext, and less for any epoch already passed.</p>
+          <p class="lnd-feature-text">Keys retire every ten minutes and the old ones are
+            destroyed, so even a seized server or a stolen phone cannot read far into the past:
+            a day of scrambled data at most, less for any ten-minute window already gone.</p>
         </div>
         <div class="lnd-feature">
           <span class="lnd-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M4 11 12 4l8 7M6 10v9h5v-5h2v5h5v-9"/></svg></span>
@@ -261,8 +266,9 @@
         <div class="lnd-feature">
           <span class="lnd-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.7"/><path fill="none" stroke="currentColor" stroke-width="1.7" d="M4 12h16M12 4a12 12 0 0 1 0 16 12 12 0 0 1 0-16Z"/><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" d="m4 20 16-16"/></svg></span>
           <h3 class="lnd-feature-title">Off-grid and Orbot</h3>
-          <p class="lnd-feature-text">Switch the basemap off and the app makes zero requests
-            beyond the relay. Route it through Orbot and the relay only ever sees Tor.</p>
+          <p class="lnd-feature-text">Switch the map background off and the app makes zero
+            requests beyond the relay. Route it through Orbot, Android's Tor app, and the relay
+            never sees your real address.</p>
         </div>
         <div class="lnd-feature">
           <span class="lnd-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="m12 3 9 5-9 5-9-5 9-5Z"/><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="m3 13 9 5 9-5"/></svg></span>
@@ -302,8 +308,8 @@
             <li>IP addresses and timing. Every poll and post reveals a source IP and a cadence.</li>
             <li>How many members post to a channel. Not what they say: every message pads to the
               same length.</li>
-            <li>A correlation signal between an SOS and its circle. The keys are unlinkable; the
-              timing is not.</li>
+            <li>That an SOS and a circle updated at the same instant from the same address. The
+              keys cannot be linked; the timing can.</li>
             <li>That you use Starling at all, from the origin your device talks to.</li>
           </ul>
         </div>
@@ -370,9 +376,11 @@
         </details>
         <details class="lnd-faq-item">
           <summary>Is there an iPhone app?</summary>
-          <p>Not yet. Android is where the app lives today, but the protocol is open, so an iOS
-            client is possible. The website itself does not open circles on purpose: a browser tab
-            is the weakest place to keep a location secret.</p>
+          <p>There is an iOS app you can build yourself: the repository ships a wrapper that holds
+            a real circle, with the honest catch that iOS gives it no background sharing, and
+            installing it means a Mac with Xcode and re-signing every 7 days on a free Apple ID.
+            It is not on the App Store or TestFlight yet. The website itself still does not open
+            circles on purpose: a browser tab is the weakest place to keep a location secret.</p>
         </details>
         <details class="lnd-faq-item">
           <summary>How is this different from mainstream family trackers?</summary>
@@ -432,7 +440,7 @@
         <li class="lnd-chip">F-Droid: in review</li>
         <li class="lnd-chip">Google Play: coming</li>
       </ul>
-      <p class="land-card-note">Not ready to install anything yet? <a href="#hero-demo">Watch
+      <p class="land-card-note">Not ready to install anything yet? <a href="?demo=1">Watch
         the demo right here</a> first.</p>
     </div>
 
@@ -464,10 +472,16 @@
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Zm7.4-3.2c0 .5 0 .9-.1 1.4l2 1.6-1.9 3.3-2.4-1a7.5 7.5 0 0 1-2.4 1.4l-.4 2.6h-3.8l-.4-2.6a7.5 7.5 0 0 1-2.4-1.4l-2.4 1-1.9-3.3 2-1.6a8 8 0 0 1 0-2.8l-2-1.6 1.9-3.3 2.4 1a7.5 7.5 0 0 1 2.4-1.4l.4-2.6h3.8l.4 2.6a7.5 7.5 0 0 1 2.4 1.4l2.4-1 1.9 3.3-2 1.6c.1.5.1.9.1 1.4Z"/></svg>
       </button>
     </div>
-    <div class="banners" id="banners">
+    <div class="banners" id="banners" role="status" aria-live="polite">
       <div class="banner banner-demo" id="banner-demo" data-testid="demo-banner" hidden>
         <span data-i18n>Demo flight - nothing is real</span>
+        <button type="button" class="banner-btn" id="banner-demo-map" data-testid="demo-map-toggle" data-i18n>Real map</button>
         <button type="button" class="banner-btn" id="banner-demo-exit" data-i18n>Exit</button>
+      </div>
+      <div class="banner banner-demo" id="banner-demo-consent" data-testid="demo-map-consent" hidden>
+        <span data-i18n>Show the demo on a real map? Tiles of its Central Park stage load from openstreetmap.org - the demo's only network use.</span>
+        <button type="button" class="banner-btn" id="banner-demo-consent-go" data-testid="demo-map-consent-go" data-i18n>Load map</button>
+        <button type="button" class="banner-btn" id="banner-demo-consent-cancel" data-i18n>Cancel</button>
       </div>
       <div class="banner banner-keys" id="banner-keys" data-testid="keys-banner" hidden>
         <span id="banner-keys-text" data-i18n>A member's keys changed</span>
@@ -486,7 +500,7 @@
     <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.6"/><path d="M12 1.8v3M12 19.2v3M1.8 12h3M19.2 12h3"/></g></svg>
   </button>
 
-  <div class="focus-card" id="focus-card" hidden></div>
+  <div class="focus-card" id="focus-card" role="region" aria-live="polite" aria-label="Member details" data-i18n-attr="aria-label" hidden></div>
 
   <div class="sheet" data-testid="sheet" id="sheet">
     <div class="sheet-drag" id="sheet-drag">

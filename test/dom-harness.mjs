@@ -139,6 +139,9 @@ export function installDom({ hostname = "127.0.0.1" } = {}) {
   globalThis.self = globalThis;
   globalThis.L = makeLeaflet();
   globalThis.location = {
+    // The protocol matters now: debugHooks() treats a dev hostname as a dev
+    // server only over http(s), so the fake page has to say which it is.
+    protocol: "http:",
     hostname,
     href: `http://${hostname}/`,
     origin: `http://${hostname}`,
