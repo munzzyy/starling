@@ -45,6 +45,43 @@
   .lnd-aurora { animation: none; }
 }
 
+/* The murmuration: seven birds banking through the aurora together. The
+   name, the logo, and the gradient finally mean something in motion. Pure
+   decoration inside an aria-hidden layer, pointer-events off with its
+   parent, gone entirely under reduced motion. */
+.lnd-bird {
+  position: absolute;
+  top: 30%;
+  left: 18%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50% 60% 50% 60%;
+  background: rgba(45, 212, 191, 0.55);
+  box-shadow: 0 0 6px rgba(45, 212, 191, 0.35);
+  animation: lnd-murmur 16s ease-in-out infinite;
+}
+
+.lnd-bird:nth-child(2) { top: 34%; left: 24%; animation-delay: -1.2s; animation-duration: 17s; background: rgba(96, 165, 250, 0.5); }
+.lnd-bird:nth-child(3) { top: 26%; left: 30%; animation-delay: -2.6s; animation-duration: 15s; }
+.lnd-bird:nth-child(4) { top: 40%; left: 34%; animation-delay: -4s; animation-duration: 18s; background: rgba(139, 92, 246, 0.45); }
+.lnd-bird:nth-child(5) { top: 22%; left: 42%; animation-delay: -5.5s; animation-duration: 16.5s; }
+.lnd-bird:nth-child(6) { top: 36%; left: 50%; animation-delay: -7s; animation-duration: 17.5s; background: rgba(96, 165, 250, 0.45); }
+.lnd-bird:nth-child(7) { top: 30%; left: 58%; animation-delay: -8.5s; animation-duration: 15.5s; }
+
+@keyframes lnd-murmur {
+  0% { transform: translate(0, 0) scale(1); opacity: 0; }
+  10% { opacity: 0.9; }
+  25% { transform: translate(90px, -34px) scale(0.85); }
+  45% { transform: translate(150px, 22px) scale(1.1); opacity: 0.7; }
+  65% { transform: translate(70px, 54px) scale(0.9); }
+  85% { transform: translate(-30px, 16px) scale(1.05); opacity: 0.8; }
+  100% { transform: translate(0, 0) scale(1); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lnd-bird { display: none; }
+}
+
 #screen-onboarding .ob-hero > *:not(.lnd-aurora) {
   position: relative;
   z-index: 1;

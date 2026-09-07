@@ -144,17 +144,40 @@ export function createMapView(container, { onMarkerTap } = {}) {
     }
   }
 
-  // data: {lat, lon, name, emoji, hue, status, self, sharing}
+  // One-shot animation class on a marker root, removed when its own
+  // animation ends so it can replay next time. Keyed by animation name
+  // because the halo and SOS loops never end and must not clear it.
+  function flashClass(m, cls, animName) {
+    const root = m.parts.root;
+    if (typeof root.classList?.add !== "function") return;
+    root.classList.remove(cls);
+    root.classList.add(cls);
+    // animationcancel too: a reduced-motion flip mid-flight cancels the
+    // animation without ever ending it, and the class must not outlive
+    // either exit.
+    const done = (e) => {
+      if (e?.animationName && e.animationName !== animName) return;
+      root.classList.remove(cls);
+      root.removeEventListener?.("animationend", done);
+      root.removeEventListener?.("animationcancel", done);
+    };
+    root.addEventListener?.("animationend", done);
+    root.addEventListener?.("animationcancel", done);
+  }
+
+  // data: {lat, lon, name, emoji, hue, status, self, sharing, ts, now}
   function upsert(id, data) {
     let m = markers.get(id);
+    let born = false;
     if (!m) {
       const parts = buildMarkerEl();
       const icon = L.divIcon({ className: "mk-wrap", html: parts.root, iconSize: [0, 0] });
       const marker = L.marker([data.lat, data.lon], { icon, keyboard: false });
       marker.on("click", () => onMarkerTap?.(id));
       marker.addTo(map);
-      m = { marker, parts, cur: [data.lat, data.lon], to: null };
+      m = { marker, parts, cur: [data.lat, data.lon], to: null, lastTs: 0 };
       markers.set(id, m);
+      born = true;
     }
     const { root, emoji, name } = m.parts;
     emoji.textContent = data.emoji || "";
@@ -164,9 +187,30 @@ export function createMapView(container, { onMarkerTap } = {}) {
     root.classList.toggle("mk-sharing", !!data.self && !!data.sharing);
     root.classList.toggle("mk-sos", data.status === "sos");
     root.classList.toggle("mk-stale", data.status === "stale" || data.status === "stopped");
+    // Information age you can see: 0 fresh, 1 at the stale line. The
+    // discrete mk-stale class stays the truth the tests hold; this only
+    // shades the road between.
+    if (Number.isFinite(data.ts) && Number.isFinite(data.now)) {
+      const age = Math.min(1, Math.max(0, (data.now - data.ts) / (3 * 60 * 1000)));
+      root.style.setProperty("--age", age.toFixed(2));
+    }
+    if (!reduced.matches) {
+      if (born) flashClass(m, "mk-drop", "mk-drop-in");
+      else if (Number.isFinite(data.ts) && data.ts > m.lastTs && m.lastTs > 0) {
+        flashClass(m, "mk-ping", "mk-ping-ring");
+      }
+    }
+    if (Number.isFinite(data.ts)) m.lastTs = Math.max(m.lastTs, data.ts);
     m.marker.setZIndexOffset(data.status === "sos" ? 900 : data.self ? 500 : 0);
     moveMarker(m, data.lat, data.lon);
     if (data.self) setRingCenter(data.lat, data.lon);
+  }
+
+  // The felt reward for a deliberate act (a check-in): the marker blooms
+  // once. A no-op under reduced motion.
+  function pulse(id) {
+    const m = markers.get(id);
+    if (m && !reduced.matches) flashClass(m, "mk-bloom", "mk-bloom-pop");
   }
 
   function removeMarker(id) {
@@ -279,6 +323,7 @@ export function createMapView(container, { onMarkerTap } = {}) {
     map,
     setBasemap,
     upsert,
+    pulse,
     removeMarker,
     markerIds: () => [...markers.keys()],
     clearAll: () => {

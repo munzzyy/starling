@@ -11,6 +11,10 @@ import {
   MIN_FLIP_MS,
   POINT_MAX_AGE_MS,
   MAX_PLACES,
+  MAX_ACC_M,
+  ACC_CONFIDENCE_CAP_M,
+  MAX_SPEED_MS,
+  fenceSnap,
 } from "../app/js/places.js";
 
 // About 1 degree of latitude = 111,320 m; walk north by meters from a base.
@@ -157,4 +161,122 @@ test("forget drops a member's state", () => {
   t.forget("m1");
   // Re-seen inside: adopted silently again, not announced.
   assert.deepEqual(t.update("m1", BASE.lat, BASE.lon, { now: 2000 }), []);
+});
+
+test("a fence flag is a valid optional place field, junk is not", () => {
+  assert.ok(validPlace({ ...HOME, fence: true }));
+  assert.ok(validPlace({ ...HOME, fence: false }));
+  assert.ok(!validPlace({ ...HOME, fence: "yes" }));
+});
+
+test("fenceSnap: inside a fenced place snaps to its center, outside does not", () => {
+  const fenced = { ...HOME, fence: true };
+  const hit = fenceSnap([fenced, SCHOOL], north(100).lat, BASE.lon);
+  assert.equal(hit.id, HOME.id);
+  assert.equal(hit.lat, HOME.lat);
+  assert.equal(fenceSnap([fenced, SCHOOL], north(5000).lat, BASE.lon), null);
+});
+
+test("fenceSnap: an unfenced place never snaps, and truthy junk is not a fence", () => {
+  assert.equal(fenceSnap([HOME], BASE.lat, BASE.lon), null);
+  assert.equal(fenceSnap([{ ...HOME, fence: 1 }], BASE.lat, BASE.lon), null);
+});
+
+test("fenceSnap: an SOS never snaps, even dead center in a fenced place", () => {
+  const fenced = { ...HOME, fence: true };
+  assert.equal(fenceSnap([fenced], BASE.lat, BASE.lon, { sos: true }), null);
+});
+
+test("a hopeless accuracy radius says nothing about a place", () => {
+  const t = createPlaceTracker([HOME]);
+  let now = 1000;
+  t.update("m1", north(5000).lat, BASE.lon, { now });
+  now += MIN_FLIP_MS + 1000;
+  // Dead center of Home, but the fix could be anywhere in a 200 m circle.
+  assert.deepEqual(t.update("m1", BASE.lat, BASE.lon, { now, acc: MAX_ACC_M + 50 }), []);
+  assert.equal(t.placeFor("m1"), null);
+});
+
+test("an uncertain fix at the rim neither enters nor leaves", () => {
+  const t = createPlaceTracker([HOME]);
+  let now = 1000;
+  t.update("m1", north(5000).lat, BASE.lon, { now });
+
+  // 230 m out with 40 m of slop: touching the 250 m circle is not being in it.
+  now += MIN_FLIP_MS + 1000;
+  assert.deepEqual(t.update("m1", north(230).lat, BASE.lon, { now, acc: 40 }), []);
+  assert.equal(t.placeFor("m1"), null);
+
+  // The same walk with a sharp fix enters.
+  now += MIN_FLIP_MS + 1000;
+  assert.equal(t.update("m1", north(230).lat, BASE.lon, { now, acc: 10 }).length, 1);
+
+  // Just past the exit line with 40 m of slop: not clearly out, still home.
+  now += MIN_FLIP_MS + 1000;
+  assert.deepEqual(t.update("m1", north(exitAt(HOME) + 20).lat, BASE.lon, { now, acc: 40 }), []);
+  assert.equal(t.placeFor("m1").name, "Home");
+
+  // Clearly past it even after subtracting the slop: left.
+  now += MIN_FLIP_MS + 1000;
+  assert.equal(t.update("m1", north(exitAt(HOME) + ACC_CONFIDENCE_CAP_M + 30).lat, BASE.lon, { now, acc: 400 / 4 }).length, 1);
+});
+
+test("accuracy confidence is capped so big slop cannot wall off a place forever", () => {
+  const t = createPlaceTracker([HOME]);
+  let now = 1000;
+  t.update("m1", north(5000).lat, BASE.lon, { now });
+  // 100 m of slop capped to ACC_CONFIDENCE_CAP_M: dead center still enters.
+  now += MIN_FLIP_MS + 1000;
+  assert.equal(t.update("m1", BASE.lat, BASE.lon, { now, acc: 100 }).length, 1);
+});
+
+test("a teleport is a glitch until a second fix agrees", () => {
+  const t = createPlaceTracker([HOME, SCHOOL]);
+  let now = 1000;
+  t.update("m1", BASE.lat, BASE.lon, { now });
+  assert.equal(t.placeFor("m1").name, "Home");
+
+  // 2 km in 2 seconds: impossible. No leave, no arrive.
+  now += 2000;
+  assert.deepEqual(t.update("m1", SCHOOL.lat, SCHOOL.lon, { now }), []);
+  assert.equal(t.placeFor("m1").name, "Home");
+
+  // The next fix is back on the old track: glitch discarded, still home.
+  now += 2000;
+  assert.deepEqual(t.update("m1", BASE.lat, BASE.lon, { now }), []);
+  assert.equal(t.placeFor("m1").name, "Home");
+});
+
+test("a confirmed relocation fires the transitions for real", () => {
+  const t = createPlaceTracker([HOME, SCHOOL]);
+  let now = 1000;
+  t.update("m1", BASE.lat, BASE.lon, { now });
+
+  // Impossible jump to School: held as a glitch.
+  now += 2000;
+  assert.deepEqual(t.update("m1", SCHOOL.lat, SCHOOL.lon, { now }), []);
+
+  // A second fix agrees with the jump: the move was real, and the cooldown
+  // has passed, so leave-and-arrive fire from the confirmed point.
+  now += MIN_FLIP_MS + 1000;
+  const evs = t.update("m1", SCHOOL.lat, SCHOOL.lon, { now });
+  assert.deepEqual(
+    evs.map((e) => e.type),
+    ["leave", "arrive"],
+  );
+  assert.equal(t.placeFor("m1").name, "School");
+});
+
+test("plausible speed never trips the glitch gate", () => {
+  const t = createPlaceTracker([HOME, SCHOOL]);
+  let now = 1000;
+  t.update("m1", BASE.lat, BASE.lon, { now });
+  // 2 km at just under the cap: a fast train, not a glitch.
+  const dt = Math.ceil(2000 / (MAX_SPEED_MS - 5)) * 1000;
+  now += Math.max(dt, MIN_FLIP_MS + 1000);
+  const evs = t.update("m1", SCHOOL.lat, SCHOOL.lon, { now });
+  assert.deepEqual(
+    evs.map((e) => e.type),
+    ["leave", "arrive"],
+  );
 });

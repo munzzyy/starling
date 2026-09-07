@@ -1740,3 +1740,103 @@ test("a pinned roster read back off the disk comes back in one spelling", async 
   assert.equal(rec.pk, b64uEncode(member.pk), "in the one encoding, whatever was written there");
   assert.equal(rec.epk, b64uEncode(member.epk), "both keys");
 });
+
+test("the outbox is RAM only and a lock empties it", async () => {
+  const { outbox } = internals;
+  // A relay that refuses the post: the enqueue fails and stays queued,
+  // exactly the offline shape the retry line exists for.
+  harness.onFetch(async () => ({ ok: false, status: 503, json: async () => ({}) }));
+  await outbox.enqueue("bye");
+  harness.onFetch(null);
+  assert.deepEqual(outbox.pending(), ["bye"], "undelivered bye is waiting");
+
+  // The fail-closed invariant, integration-grade: locking clears the line.
+  state.lock = { enabled: true, rounds: 1 };
+  state.locked = false;
+  internals.lockNow();
+  assert.deepEqual(outbox.pending(), [], "locking forgot the queued intent");
+  assert.equal(state.locked, true);
+});
+
+// ---------------------------------------------------------- the upgrade wave
+
+const { coarsePos: gridPos } = await import("../app/js/fmt.js");
+
+// Decrypt a captured location POST the way a circle member would.
+async function openOwnPost(body) {
+  const p = JSON.parse(body);
+  const key = await state.gen.ratchet.keyFor(p.e, state.identity.memberId, p.ts);
+  return openMessage(key, state.gen.channelId, state.identity.memberId, p.e, p.ts, b64uDecode(p.n), b64uDecode(p.c));
+}
+
+test("fences at the send boundary: precise snaps to the center, coarse never does", async () => {
+  await freshCircle();
+  await internals.enterCircle();
+  await settle();
+
+  const FENCED = { id: "fe000001", name: "Home", lat: 40.0, lon: -75.0, radius: 250, fence: true };
+  state.places = [FENCED];
+  // ~80 m north of the center, well inside the 250 m circle.
+  state.me = { lat: 40.0007, lon: -75.0, acc: 12, ts: Date.now() };
+  state.settings = { ...state.settings, precision: "precise" };
+
+  const posts = [];
+  harness.onFetch(async (url, init) => {
+    if (url.includes("/loc")) posts.push(init.body);
+    return undefined;
+  });
+
+  await internals.outbox.enqueue("checkin");
+  assert.equal(posts.length, 1, "one sealed post left the device");
+  const precise = await openOwnPost(posts[0]);
+  assert.equal(precise.lat, FENCED.lat, "the center went out, not the fix");
+  assert.equal(precise.lon, FENCED.lon);
+  assert.equal(precise.acc, undefined, "no accuracy radius rides beside a snapped point");
+
+  // Same spot, coarse mode: the grid point goes out, never the center. A
+  // fence that fired here would SHARPEN a deliberately vague position.
+  state.settings = { ...state.settings, precision: "coarse" };
+  await internals.outbox.enqueue("checkin");
+  assert.equal(posts.length, 2);
+  const coarse = await openOwnPost(posts[1]);
+  const grid = gridPos(40.0007, -75.0);
+  assert.equal(coarse.lat, grid.lat, "coarse sends the grid point");
+  assert.equal(coarse.lon, grid.lon);
+  assert.notEqual(coarse.lat, FENCED.lat === grid.lat ? NaN : FENCED.lat, "and not the fence center");
+
+  harness.onFetch(null);
+  state.settings = { ...state.settings, precision: "precise" };
+});
+
+test("a timed share expires through the real stop path, bye and all", async () => {
+  const posts = [];
+  harness.onFetch(async (url, init) => {
+    if (url.includes("/loc")) posts.push(init.body);
+    return undefined;
+  });
+
+  state.sharing = true;
+  internals.setShareWindow(40);
+  assert.ok(internals.shareStatus().deadline, "the deadline is armed");
+  assert.equal(internals.shareStatus().windowMs, 40);
+
+  await settle(150);
+  assert.equal(state.sharing, false, "expiry stopped the share");
+  assert.equal(internals.shareStatus().deadline, null, "and cleared its own deadline");
+  const byes = [];
+  for (const b of posts) byes.push(await openOwnPost(b));
+  assert.ok(byes.some((m) => m.t === "bye"), "the circle was told with an authenticated bye");
+
+  harness.onFetch(null);
+});
+
+test("every stop path kills the countdown: a stale deadline must not end the next share", async () => {
+  state.sharing = true;
+  internals.setShareWindow(60_000);
+  assert.ok(internals.shareStatus().deadline, "armed");
+  // The geo-denied and lock paths stop through stopSharingInternals, which
+  // never went near setShareWindow before this wave's fix.
+  internals.stopSharingInternals();
+  assert.equal(internals.shareStatus().deadline, null, "stop killed the deadline");
+  assert.equal(internals.shareStatus().windowMs, 0);
+});

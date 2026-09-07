@@ -123,6 +123,18 @@ database) gets ciphertext and metadata only:
   secret, and a plaintext copy left behind by an interrupted lock
   transition is adopted and resealed at the next unlock rather than left
   readable.
+- A place can carry a privacy fence. While your precise position falls
+  inside a fenced place, the position that gets sealed and sent is the
+  place's center, not the fix, and the accuracy field is withheld; your
+  circle sees that you are there, never where within. The snap happens
+  before encryption on your own device, the message is padded to the same
+  fixed size as every other, and the relay sees the same opaque post either
+  way, so neither the relay nor a member's client can tell a fence exists.
+  Two honest edges: an SOS always sends your real position, because someone
+  coming to help needs it, and fences apply to precise mode only, since the
+  neighborhood grid is already coarser than any fence. Circle members DO
+  receive the fence center while you are inside, which is exactly the
+  point: treat a fenced place's center as shared the way any position is.
 - An optional duress passcode runs the full panic wipe from the lock screen
   and comes back up as a fresh install. It can never equal the unlock
   passcode, in either direction of change.

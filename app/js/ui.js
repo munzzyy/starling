@@ -5,7 +5,8 @@
 // Hard rule respected throughout: user-controlled strings (names, statuses,
 // anything decrypted) only ever pass through textContent, never innerHTML.
 
-import { fmtDistance, fmtRelTime, haversineMeters } from "./fmt.js";
+import { bearingDeg, compassWord, fmtDistance, fmtRelTime, haversineMeters } from "./fmt.js";
+import { HISTORY_CHOICES } from "./ratchet.js";
 import { t, LOCALE_CHOICES } from "./i18n.js";
 import { native } from "./env.js";
 import { PLACE_RADII, MAX_PLACES, MAX_NAME_LEN } from "./places.js";
@@ -843,10 +844,18 @@ export function openMembersSheet({ api, onClose }) {
     el("p", "field-note", "This is the number your circle should hear from you."),
   );
 
+  // The access ledger: what the pinned keys MEAN, said as capability. The
+  // wording is deliberate: keys that could decrypt, never "who saw" - this
+  // screen cannot know who looked, only who holds keys that open what you
+  // send.
+  const ledger = el("section", "mem-ledger");
+  const ledgerNow = el("p", "mem-ledger-line");
+  const ledgerHist = el("p", "mem-ledger-line mem-ledger-history");
+  ledger.append(el("span", "safety-cap", "Who could read you"), ledgerNow, ledgerHist);
   const list = el("div", "mem-list");
   const empty = el("p", "ov-note", "Nobody else is in this circle yet. Invite someone from the map.");
   empty.hidden = true;
-  ov.body.append(you, list, empty);
+  ov.body.append(you, ledger, list, empty);
 
   const rows = new Map();
   const numbers = new Map();
@@ -880,6 +889,21 @@ export function openMembersSheet({ api, onClose }) {
     const live = new Map(api.members().map((r) => [r.id, r]));
     const people = api.pinnedList();
     empty.hidden = people.length > 0;
+    const others = people.filter((r) => r.memberId !== meId);
+    const checked = others.filter((r) => r.verified).length;
+    const unchecked = others.length - checked;
+    ledgerNow.textContent =
+      others.length === 0
+        ? t("Only your own keys can decrypt what you send. The relay stores ciphertext it cannot open.")
+        : t("{n} sets of keys besides yours can decrypt what you send: {checked} checked by a person, {unchecked} trusted on first use.", {
+            n: others.length,
+            checked,
+            unchecked,
+          });
+    const win = HISTORY_CHOICES.find((c) => c.id === api.state.settings.history) || HISTORY_CHOICES[1];
+    ledgerHist.textContent = t("A newly admitted key can also read back {window} of history. That window is yours to set in Settings.", {
+      window: t(win.label),
+    });
     const seen = new Set();
     for (const rec of people) {
       const id = rec.memberId;
@@ -1326,7 +1350,46 @@ export function openStatusSheet({ current, onSet, onClose }) {
 // only when the stored list actually changed, so typing a name is never
 // clobbered by a poll tick.
 
-export function openPlacesSheet({ api, onAdd, onPick, onRename, onRadius, onRemove, onClose }) {
+// The complete-export sheet. Copy works on every platform; the download
+// link only appears where a blob anchor genuinely lands a file (http and
+// https pages), because a Save button that silently does nothing is worse
+// than no button.
+export function openExportSheet(json, { onClose } = {}) {
+  const ov = openOverlay({ title: "Your data", testid: "export-sheet", className: "ov-export", onClose });
+  ov.body.append(
+    el(
+      "p",
+      "ov-note",
+      "Everything Starling keeps about you, on this device and nowhere else. Positions are absent because they are never stored; keys are absent on purpose.",
+    ),
+  );
+  const pre = el("pre", "export-json");
+  pre.textContent = json;
+  const actions = el("div", "place-add-actions");
+  const copyBtn = btn("btn btn-secondary", "Copy it all");
+  copyBtn.dataset.testid = "export-copy";
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(json);
+      toast("Copied. Paste it anywhere you keep your records.");
+    } catch {
+      toast("Copy failed", "warn");
+    }
+  });
+  actions.append(copyBtn);
+  if (globalThis.location?.protocol === "https:" || globalThis.location?.protocol === "http:") {
+    const dl = el("a", "btn btn-ghost");
+    dl.textContent = t("Download as a file");
+    dl.download = "starling-data.json";
+    dl.href = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+    ov.node.addEventListener?.("close", () => URL.revokeObjectURL(dl.href));
+    actions.append(dl);
+  }
+  ov.body.append(pre, actions);
+  return ov;
+}
+
+export function openPlacesSheet({ api, onAdd, onPick, onRename, onRadius, onFence, onRemove, onClose }) {
   const ov = openOverlay({ title: "Places", testid: "places-sheet", className: "ov-places", onClose });
   const b = ov.body;
 
@@ -1335,6 +1398,11 @@ export function openPlacesSheet({ api, onAdd, onPick, onRename, onRadius, onRemo
       "p",
       "ov-note",
       "Name the spots that matter, like Home or School, and Starling tells you when someone in your circle arrives or leaves. Places are stored only on this phone. They are never sent anywhere, and the relay cannot learn they exist.",
+    ),
+    el(
+      "p",
+      "ov-note",
+      "A place with the privacy fence on shares only its center while you are inside it, never your exact spot within. Your circle still sees you are there; what they stop seeing is where in there. An SOS always sends your real position.",
     ),
   );
 
@@ -1375,14 +1443,22 @@ export function openPlacesSheet({ api, onAdd, onPick, onRename, onRadius, onRemo
     const rm = btn("icon-btn place-remove", "✕", t("Remove {name}", { name: place.name }));
     rm.addEventListener("click", () => onRemove(place.id));
     head.append(nameIn, rm);
-    row.append(head, radiusSeg(place));
+    const fence = el("label", "place-fence");
+    const fenceIn = document.createElement("input");
+    fenceIn.type = "checkbox";
+    fenceIn.className = "place-fence-check";
+    fenceIn.checked = !!place.fence;
+    fenceIn.setAttribute("aria-label", t("Privacy fence for {name}", { name: place.name }));
+    fenceIn.addEventListener("change", () => onFence?.(place.id, fenceIn.checked));
+    fence.append(fenceIn, el("span", "place-fence-text", "Privacy fence"));
+    row.append(head, radiusSeg(place), fence);
     return row;
   }
 
   let sig = null;
   function paint() {
     const places = api.places();
-    const nextSig = JSON.stringify(places.map((p) => [p.id, p.name, p.radius]));
+    const nextSig = JSON.stringify(places.map((p) => [p.id, p.name, p.radius, !!p.fence]));
     if (nextSig === sig) return;
     sig = nextSig;
     listEl.replaceChildren(...places.map(placeRow));
@@ -1567,7 +1643,7 @@ export function openPasscodeSheet({ title, intro, cta, confirm = false, current 
   return ov;
 }
 
-export function openSettingsSheet({ api, values, demo, tor, lock, lockActions, onChange, onMembers, onInvite, onPlaces, onPanic, onLeave, onClose }) {
+export function openSettingsSheet({ api, values, demo, tor, lock, lockActions, onChange, onMembers, onInvite, onPlaces, onPanic, onLeave, onExport, onClose }) {
   const ov = openOverlay({ title: "Settings", testid: "settings-sheet", className: "ov-settings", onClose });
   const b = ov.body;
 
@@ -1974,6 +2050,21 @@ export function openSettingsSheet({ api, values, demo, tor, lock, lockActions, o
   }
 
   // Danger
+  if (onExport && !demo) {
+    const gData = group("Your data");
+    const expBtn = btn("btn btn-secondary", "See everything Starling has");
+    expBtn.dataset.testid = "settings-export";
+    expBtn.addEventListener("click", onExport);
+    gData.append(
+      el(
+        "p",
+        "field-note",
+        "One readable file: profile, settings, places, circle names, who you trust. No positions, because Starling stores none, and no keys, ever.",
+      ),
+      expBtn,
+    );
+  }
+
   const gDanger = group("Danger zone");
   gDanger.classList.add("danger-zone");
   if (onLeave && !demo) {
@@ -2348,13 +2439,21 @@ export function renderFocusCard(root, rec, ctx) {
     const copyBtn = btn("btn-mini", "Copy", "Copy coordinates");
     copyBtn.classList.add("fc-copy");
     coords.append(code, copyBtn);
+    // The rendezvous line: which way and how far, as words first. Pure
+    // local math from two already-decrypted points; asking for a route
+    // would hand a mapping service both of you.
+    const compass = el("div", "fc-compass");
+    const arrow = el("span", "fc-compass-arrow", "↑");
+    arrow.setAttribute("aria-hidden", "true");
+    compass.append(arrow, el("span", "fc-compass-text"));
+    compass.hidden = true;
     const actions = el("div", "fc-actions");
     const trailBtn = btn("btn-mini fc-trail", "Trail");
     const dir = el("a", "btn-mini fc-directions", "Directions");
     dir.target = "_blank";
     dir.rel = "noopener noreferrer";
     actions.append(trailBtn, dir);
-    root.append(head, coords, actions);
+    root.append(head, coords, compass, actions);
   }
   root.className = `focus-card fc-${status}`;
   root.style.setProperty("--m-hue", String(rec.hue ?? 0));
@@ -2364,6 +2463,22 @@ export function renderFocusCard(root, rec, ctx) {
   const hasPos = Number.isFinite(rec.lat) && Number.isFinite(rec.lon);
   const latlon = hasPos ? `${rec.lat.toFixed(5)}, ${rec.lon.toFixed(5)}` : t("no position yet");
   $(".fc-latlon", root).textContent = latlon;
+  const compass = $(".fc-compass", root);
+  const meHere = mePos && Number.isFinite(mePos.lat) && Number.isFinite(mePos.lon);
+  if (compass) {
+    if (hasPos && meHere) {
+      const deg = bearingDeg(mePos.lat, mePos.lon, rec.lat, rec.lon);
+      const dist = haversineMeters(mePos.lat, mePos.lon, rec.lat, rec.lon);
+      compass.hidden = false;
+      $(".fc-compass-text", compass).textContent = t("{dist} to the {way} of you", {
+        dist: fmtDistance(dist),
+        way: compassWord(deg),
+      });
+      $(".fc-compass-arrow", compass).style.transform = `rotate(${Math.round(deg)}deg)`;
+    } else {
+      compass.hidden = true;
+    }
+  }
   const copyBtn = $(".fc-copy", root);
   copyBtn.onclick = async () => {
     try {
