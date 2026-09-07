@@ -3,6 +3,31 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [0.10.0]
+
+- **Private zones.** Mark a place as a fence and your dot snaps to its
+  center before anything is sealed: your circle sees you at the place,
+  never which corner of it. Precise mode only (snapping a coarse point
+  would sharpen it), SOS always sends the real spot, and the traffic is
+  byte-identical - the e2e now reads the relay's own feed while a fence
+  is active to prove it cannot tell.
+- **Messages that arrive.** A memory-only outbox retries byes, check-ins,
+  and SOS with fresh seals until they land. Locks and the panic path
+  empty it first, and a test proves it never touches storage.
+- **Sharing that stops by itself.** One hour, two, or four, through the
+  same authenticated goodbye a manual stop uses.
+- **Smarter arrivals.** Place detection reads fix accuracy and holds
+  impossible jumps until a second fix agrees, so arrival alerts stop
+  crying wolf.
+- **The rendezvous compass.** "188 m to the southeast of you" on a
+  member's card, computed entirely on the device.
+- **The access ledger.** The members sheet counts the keys that could
+  decrypt you, in exactly those words, and a complete export shows every
+  byte the app holds.
+- **A living map.** Markers drop in, fresh fixes ping, staleness breathes,
+  check-ins bloom, screens rise, and the landing hero has its
+  murmuration. All of it sits out under reduced motion.
+
 ## [0.9.0]
 
 - **The demo can show a real map.** A "Real map" button in the demo banner
