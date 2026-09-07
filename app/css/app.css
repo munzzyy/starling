@@ -102,14 +102,14 @@ input {
 
 .lock-title {
   margin: 0;
-  font-size: 24px;
+  font-size: 1.5rem;
   font-weight: 750;
   letter-spacing: -0.02em;
 }
 
 .lock-sub {
   margin: 8px 0 24px;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.45;
   color: var(--ink-2);
 }
@@ -125,7 +125,7 @@ input {
   width: 100%;
   height: 52px;
   text-align: center;
-  font-size: 20px;
+  font-size: 1.25rem;
   letter-spacing: 0.3em;
   border-radius: var(--r-md);
   background: var(--bg-2);
@@ -135,13 +135,12 @@ input {
 }
 
 .lock-input:focus {
-  outline: none;
   border-color: var(--accent);
 }
 
 .lock-error {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--sos);
   min-height: 1em;
 }
@@ -163,7 +162,7 @@ input {
 
 .lock-wipe {
   margin-top: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 #screen-lock.shake .lock-wrap {
@@ -229,7 +228,7 @@ input {
 
 .ob-wordmark {
   margin: 0;
-  font-size: 44px;
+  font-size: 2.75rem;
   font-weight: 800;
   letter-spacing: -0.035em;
   line-height: 1.1;
@@ -241,7 +240,7 @@ input {
 
 .ob-tagline {
   margin: 10px 0 0;
-  font-size: 16px;
+  font-size: 1rem;
   line-height: 1.45;
   color: var(--ink-2);
   max-width: 26ch;
@@ -257,7 +256,7 @@ input {
 
 .ob-footer {
   margin: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   letter-spacing: 0.01em;
   color: var(--ink-3);
   text-align: center;
@@ -284,7 +283,7 @@ input {
 
 .land-card-title {
   margin: 0 0 8px;
-  font-size: 17px;
+  font-size: 1.0625rem;
 }
 
 a.land-download {
@@ -301,14 +300,14 @@ a.land-download {
 .land-card-sub,
 .land-card-note {
   margin: 0 0 14px;
-  font-size: 13.5px;
+  font-size: 0.8438rem;
   line-height: 1.55;
   color: var(--ink-2);
 }
 
 .land-card-note {
   margin: 12px 0 0;
-  font-size: 12.5px;
+  font-size: 0.7812rem;
   color: var(--ink-3);
 }
 
@@ -319,7 +318,7 @@ a.land-download {
 
 .land-title {
   margin: 0 0 14px;
-  font-size: 17px;
+  font-size: 1.0625rem;
   text-align: center;
 }
 
@@ -333,7 +332,7 @@ a.land-download {
 }
 
 .land-features li {
-  font-size: 13.5px;
+  font-size: 0.8438rem;
   line-height: 1.55;
   color: var(--ink-2);
   padding-left: 18px;
@@ -359,7 +358,7 @@ a.land-download {
 
 .land-how {
   margin: 18px 0 0;
-  font-size: 13.5px;
+  font-size: 0.8438rem;
   line-height: 1.6;
   color: var(--ink-2);
 }
@@ -376,7 +375,7 @@ a.land-download {
   padding: 16px 0 4px;
   border-top: 1px solid var(--line);
   text-align: center;
-  font-size: 12.5px;
+  font-size: 0.7812rem;
   color: var(--ink-3);
 }
 
@@ -406,7 +405,7 @@ a.land-download {
   min-height: 52px;
   padding: 14px 20px;
   border-radius: var(--r-full);
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: -0.01em;
   transition: transform var(--t-fast), filter var(--t-fast), background-color var(--t-fast);
@@ -441,7 +440,7 @@ a.land-download {
 
 .btn-small {
   min-height: 44px;
-  font-size: 14px;
+  font-size: 0.875rem;
   width: auto;
   padding: 10px 20px;
 }
@@ -467,7 +466,7 @@ a.land-download {
   background: var(--bg-2);
   border: 1px solid var(--line);
   color: var(--ink);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 650;
   text-decoration: none;
   cursor: pointer;
@@ -492,7 +491,7 @@ a.land-download {
   height: 44px;
   border-radius: 50%;
   color: var(--ink-2);
-  font-size: 16px;
+  font-size: 1rem;
 }
 
 .icon-btn:hover {
@@ -520,7 +519,7 @@ a.land-download {
 .leaflet-control-attribution {
   background: var(--glass);
   color: var(--ink-3);
-  font-size: 10px;
+  font-size: 0.625rem;
   padding: 3px 8px;
   border-radius: var(--r-sm);
   border: 1px solid var(--glass-border);
@@ -624,7 +623,7 @@ a.land-download {
 }
 
 .pill-name {
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 650;
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -690,7 +689,7 @@ a.land-download {
 
 .circle-row-mark {
   flex: none;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--accent);
 }
@@ -709,8 +708,16 @@ a.land-download {
   height: 36px;
   min-width: 36px;
   border-radius: 50%;
+  /* 36px visual, 44px touch: the hit area extends past the circle. */
+  position: relative;
   color: var(--ink-2);
   background: var(--bg-2);
+}
+
+.pill-gear::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
 }
 
 .banners {
@@ -734,7 +741,7 @@ a.land-download {
   backdrop-filter: blur(18px) saturate(1.5);
   -webkit-backdrop-filter: blur(18px) saturate(1.5);
   box-shadow: var(--shadow-1);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--ink);
 }
@@ -761,9 +768,17 @@ a.land-download {
   padding: 4px 14px;
   border-radius: var(--r-full);
   background: var(--bg-2);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--accent);
+  /* The visual pill stays compact; the touch target does not. */
+  position: relative;
+}
+
+.banner-btn::after {
+  content: "";
+  position: absolute;
+  inset: -8px -4px;
 }
 
 @keyframes blink {
@@ -884,7 +899,7 @@ a.land-download {
 }
 
 .you-name {
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -893,7 +908,7 @@ a.land-download {
 }
 
 .you-sub {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink-2);
   margin-top: 1px;
 }
@@ -912,7 +927,7 @@ a.land-download {
   background: var(--bg-2);
   border: 1px solid var(--line);
   color: var(--ink-2);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 800;
   letter-spacing: 0.02em;
   position: relative;
@@ -973,7 +988,7 @@ a.land-download {
   border-radius: var(--r-full);
   background: var(--bg-2);
   border: 1px solid var(--line);
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--ink);
@@ -1046,7 +1061,7 @@ a.land-download {
   background: var(--bg-2);
   border: 2px solid hsl(var(--m-hue) 70% 55%);
   box-shadow: 0 0 0 3px color-mix(in srgb, hsl(var(--m-hue) 70% 55%) 18%, transparent);
-  font-size: 20px;
+  font-size: 1.25rem;
   line-height: 1;
   -webkit-user-select: none;
   user-select: none;
@@ -1060,7 +1075,7 @@ a.land-download {
   width: 32px;
   height: 32px;
   min-width: 32px;
-  font-size: 15px;
+  font-size: 0.9375rem;
   border-width: 2px;
   box-shadow: none;
   margin-right: -6px;
@@ -1077,7 +1092,7 @@ a.land-download {
 }
 
 .ava-more {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   color: var(--ink-2);
   border-color: var(--line);
@@ -1087,7 +1102,7 @@ a.land-download {
   width: 54px;
   height: 54px;
   min-width: 54px;
-  font-size: 26px;
+  font-size: 1.625rem;
 }
 
 /* ---------------------------------------------------------- member cards */
@@ -1133,7 +1148,7 @@ a.land-download {
 }
 
 .mc-name {
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 650;
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -1142,7 +1157,7 @@ a.land-download {
 }
 
 .mc-sub {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink-2);
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
@@ -1156,7 +1171,7 @@ a.land-download {
 }
 
 .chip {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   padding: 3px 9px;
@@ -1231,7 +1246,7 @@ a.land-download {
 .sheet-foot {
   margin: 20px 0 8px;
   text-align: center;
-  font-size: 11px;
+  font-size: 0.6875rem;
   letter-spacing: 0.02em;
   color: var(--ink-3);
 }
@@ -1260,14 +1275,14 @@ a.land-download {
 
 .notice-title {
   margin: 0;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
   color: var(--warn);
 }
 
 .notice-text {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.45;
   color: var(--ink-2);
 }
@@ -1284,14 +1299,14 @@ a.land-download {
 
 .nudge-title {
   margin: 0;
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
 .nudge-text {
   margin: 4px 0 12px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--ink-2);
 }
@@ -1330,13 +1345,13 @@ a.land-download {
 }
 
 .fc-name {
-  font-size: 17px;
+  font-size: 1.0625rem;
   font-weight: 750;
   letter-spacing: -0.015em;
 }
 
 .fc-sub {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink-2);
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
@@ -1346,7 +1361,7 @@ a.land-download {
   align-self: flex-start;
   width: 36px;
   height: 36px;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .fc-coords {
@@ -1363,7 +1378,7 @@ a.land-download {
 
 .fc-latlon {
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
   overflow: hidden;
@@ -1374,7 +1389,7 @@ a.land-download {
 .fc-copy {
   min-height: 32px;
   padding: 5px 12px;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .fc-actions {
@@ -1414,7 +1429,7 @@ a.land-download {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 20px;
+  font-size: 1.25rem;
   line-height: 1;
   background: var(--bg-1);
   border: 2.5px solid hsl(var(--m-hue) 70% 55%);
@@ -1424,7 +1439,7 @@ a.land-download {
 }
 
 .mk-name {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0;
   color: var(--ink);
@@ -1503,7 +1518,7 @@ a.land-download {
   backdrop-filter: blur(18px) saturate(1.5);
   -webkit-backdrop-filter: blur(18px) saturate(1.5);
   box-shadow: var(--shadow-2);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 650;
   color: var(--ink);
   opacity: 0;
@@ -1584,7 +1599,7 @@ a.land-download {
 
 .ov-title {
   margin: 0;
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 750;
   letter-spacing: -0.02em;
 }
@@ -1604,14 +1619,14 @@ a.land-download {
 
 .ov-note {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--ink-2);
 }
 
 .ov-warn-note {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--warn);
   padding: 10px 12px;
@@ -1631,7 +1646,7 @@ a.land-download {
 /* Sentence case at 13px so field labels read apart from the uppercase
    group titles above them. */
 .field-label {
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
@@ -1640,7 +1655,7 @@ a.land-download {
 
 .field-note {
   margin: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.5;
   color: var(--ink-3);
 }
@@ -1653,8 +1668,7 @@ a.land-download {
   border: 1px solid var(--line);
   background: var(--bg-2);
   color: var(--ink);
-  font-size: 16px;
-  outline: none;
+  font-size: 1rem;
   transition: border-color var(--t-fast);
 }
 
@@ -1684,7 +1698,7 @@ a.land-download {
   border-radius: var(--r-sm);
   display: grid;
   place-items: center;
-  font-size: 22px;
+  font-size: 1.375rem;
   background: var(--bg-2);
   border: 1.5px solid transparent;
   transition: border-color var(--t-fast), background-color var(--t-fast);
@@ -1709,7 +1723,7 @@ a.land-download {
   min-height: 38px;
   padding: 8px 6px;
   border-radius: var(--r-full);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 650;
   color: var(--ink-2);
   transition: background-color var(--t-fast), color var(--t-fast);
@@ -1736,7 +1750,7 @@ a.land-download {
 }
 
 .switch-label {
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 600;
 }
 
@@ -1786,7 +1800,7 @@ a.land-download {
 
 .set-title {
   margin: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1801,7 +1815,7 @@ a.land-download {
 
 .about-version {
   margin: 0;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
 }
 
@@ -1811,7 +1825,7 @@ a.land-download {
 
 .danger-title {
   margin: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1879,7 +1893,7 @@ div.danger-zone {
 
 .invite-link {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1902,7 +1916,7 @@ div.danger-zone {
   background: var(--bg-2);
   border: 1px solid var(--line);
   font-family: var(--mono);
-  font-size: 17px;
+  font-size: 1.0625rem;
   line-height: 1.4;
   letter-spacing: 0.06em;
   color: var(--ink);
@@ -1919,7 +1933,7 @@ div.danger-zone {
 }
 
 .safety-cap {
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1943,7 +1957,7 @@ div.danger-zone {
 
 .safety-pair .safety {
   grid-template-columns: repeat(2, auto);
-  font-size: 14px;
+  font-size: 0.875rem;
   gap: 2px 10px;
 }
 
@@ -2006,13 +2020,13 @@ div.danger-zone {
 }
 
 .tool-label {
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
 }
 
 .tool-sub {
   grid-column: 1;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-3);
 }
 
@@ -2025,7 +2039,7 @@ div.danger-zone {
   background: color-mix(in srgb, var(--warn) 18%, transparent);
   border: 1px solid rgba(251, 191, 36, 0.45);
   color: var(--warn);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   text-align: center;
 }
@@ -2071,7 +2085,7 @@ div.danger-zone {
 }
 
 .mem-name {
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 700;
   letter-spacing: -0.01em;
   overflow: hidden;
@@ -2083,7 +2097,7 @@ div.danger-zone {
   flex: none;
   padding: 3px 10px;
   border-radius: var(--r-full);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -2147,7 +2161,7 @@ div.danger-zone {
 
 .review-title {
   margin: 0;
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
@@ -2182,7 +2196,7 @@ div.danger-zone {
 }
 
 .viewer-label {
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2191,7 +2205,7 @@ div.danger-zone {
 
 .viewer-when {
   flex: none;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-3);
 }
 
@@ -2217,7 +2231,7 @@ div.danger-zone {
 /* A dead end is not a brand moment: the title is a sentence, in plain ink,
    not the gradient wordmark. */
 #screen-notice .ob-wordmark {
-  font-size: 28px;
+  font-size: 1.75rem;
   letter-spacing: -0.02em;
   background: none;
   -webkit-background-clip: border-box;
@@ -2274,7 +2288,7 @@ div.danger-zone {
   background: var(--glass);
   border: 1px solid var(--glass-border);
   color: var(--ink-2);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.01em;
 }
@@ -2312,7 +2326,7 @@ div.danger-zone {
 
 .seg-mini .seg-cell {
   padding: 6px 0;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .place-add {
@@ -2338,7 +2352,7 @@ div.danger-zone {
 }
 
 .ob-about .btn {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink-3);
 }
 
@@ -2366,7 +2380,7 @@ button.you-info {
   flex: 0 0 auto;
   width: auto;
   padding: 8px 14px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 /* ------------------------------------------------------------ a11y floor */
@@ -2411,7 +2425,7 @@ button.you-info {
 
 .safety-huge-g {
   font-family: var(--mono);
-  font-size: clamp(28px, 11vw, 44px);
+  font-size: clamp(1.75rem, 11vw, 2.75rem);
   font-weight: 700;
   letter-spacing: 0.06em;
 }

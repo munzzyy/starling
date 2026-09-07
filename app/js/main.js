@@ -99,7 +99,7 @@ import {
   zero,
 } from "./lock.js";
 import { createPlaceTracker, sanitizePlaces, newPlaceId, DEFAULT_RADIUS } from "./places.js";
-import { debugHooks, apiUrl, isWrapped, native, shareUrlBase, normalizeRelay, setApiBase, shareCapable } from "./env.js";
+import { debugHooks, apiUrl, isWrapped, isBundled, native, shareUrlBase, normalizeRelay, setApiBase, shareCapable } from "./env.js";
 import {
   isSealedRecordError,
   GEN_SLOT,
@@ -315,6 +315,11 @@ let mapView = null;
 let sheet = null;
 let demo = null;
 let demoMembers = [];
+// The demo's own basemap switch. It starts off-grid every time; real tiles
+// load only after the consent banner is accepted, and the choice is never
+// persisted - the next demo starts off-grid again.
+let demoMapOn = false;
+let demoMapAsk = false;
 let focusedId = null;
 let focusTrailOn = false;
 let stopGeo = null;
@@ -508,7 +513,10 @@ function showMap() {
 function ensureMapUI() {
   if (mapView) return;
   mapView = createMapView($("#map"), { onMarkerTap: focusMember });
-  mapView.setBasemap(state.settings.basemap);
+  // A demo entered before the map ever existed (the hosted tour's whole
+  // path) must not touch the street basemap even for a frame: a saved
+  // "dark" here would warm the tile host before startDemo forces "none".
+  mapView.setBasemap(state.demo ? "none" : state.settings.basemap);
   // Places load before the map exists on a fresh launch (enterCircle runs
   // loadPlaces first); the freshly built map has to catch up on them.
   mapView.setPlaces(state.places);
@@ -519,12 +527,16 @@ function ensureMapUI() {
   ui.holdToFire(byTestid("sos-button"), {
     ms: 1200,
     onFire: fireSos,
-    onShortTap: () => ui.toast("Press and hold to send SOS"),
+    onShortTap: (atArmed) =>
+      ui.toast(atArmed ? "Tap once more to send SOS" : "Press and hold to send SOS"),
   });
   byTestid("settings-open").addEventListener("click", openSettings);
   byTestid("circle-open").addEventListener("click", openCircles);
   $("#fab-locate").addEventListener("click", locateMe);
   $("#banner-demo-exit").addEventListener("click", exitDemo);
+  $("#banner-demo-map").addEventListener("click", toggleDemoMap);
+  $("#banner-demo-consent-go").addEventListener("click", loadDemoMap);
+  $("#banner-demo-consent-cancel").addEventListener("click", cancelDemoMap);
   $("#nudge-invite").addEventListener("click", openInvite);
   $("#sos-help").addEventListener("click", openHelpLink);
   byTestid("members-open").addEventListener("click", openMembers);
@@ -585,6 +597,8 @@ function renderChrome() {
   }
   $("#banner-insecure").hidden = !insecureContext;
   $("#banner-demo").hidden = !state.demo;
+  $("#banner-demo-consent").hidden = !(state.demo && demoMapAsk);
+  if (state.demo) $("#banner-demo-map").textContent = demoMapOn ? t("Off-grid") : t("Real map");
 }
 
 function renderYou() {
@@ -612,32 +626,40 @@ function renderYou() {
   const toggle = byTestid("share-toggle");
   toggle.classList.toggle("on", state.sharing);
   toggle.setAttribute("aria-pressed", String(state.sharing));
-  $("#share-label").textContent = state.sharing
-    ? hasFix
-      ? t("Sharing live")
-      : t("Locating...")
-    : t("Start sharing");
+  // The demo's loudest control must say it is fiction; the banner alone is
+  // easy to miss under a pressed "Sharing live" toggle.
+  $("#share-label").textContent = state.demo
+    ? t("Sharing (pretend)")
+    : state.sharing
+      ? hasFix
+        ? t("Sharing live")
+        : t("Locating...")
+      : t("Start sharing");
   const gw = $("#geo-warn");
   gw.hidden = !state.geoDenied;
   // The static copy talks about browser site settings, which is the right
   // story on the web and nonsense inside the wrapper, where the fix is the
   // app's own system permission page, one intent away.
-  if (state.geoDenied && isWrapped() && !gw.dataset.wrapped) {
+  if (state.geoDenied && isBundled() && !gw.dataset.wrapped) {
     gw.dataset.wrapped = "1";
     $(".notice-text", gw).textContent = t(
       "Location permission is off for Starling. Open the app's settings, allow location, then come back and tap Start sharing.",
     );
-    const openBtn = ui.el("button", "btn btn-secondary btn-small");
-    openBtn.type = "button";
-    openBtn.textContent = t("Open app settings");
-    openBtn.addEventListener("click", () => {
-      try {
-        native()?.openAppSettings?.();
-      } catch {
-        // an older wrapper without the method
-      }
-    });
-    gw.append(openBtn);
+    // The shortcut button needs the bridge; the iOS wrapper has none, and a
+    // button that does nothing is worse than the sentence alone.
+    if (native()?.openAppSettings) {
+      const openBtn = ui.el("button", "btn btn-secondary btn-small");
+      openBtn.type = "button";
+      openBtn.textContent = t("Open app settings");
+      openBtn.addEventListener("click", () => {
+        try {
+          native()?.openAppSettings?.();
+        } catch {
+          // an older wrapper without the method
+        }
+      });
+      gw.append(openBtn);
+    }
   }
   $("#sos-notice").hidden = !state.sosActive;
   $("#sos-help").hidden = !(state.sosActive && beacon);
@@ -927,8 +949,23 @@ function alertItems() {
   return items;
 }
 
+let announcedAlerts = new Set();
+
 function renderAlerts() {
-  ui.updateAlerts($("#alerts"), alertItems());
+  const items = alertItems();
+  ui.updateAlerts($("#alerts"), items);
+  // The alert cards live in the sheet body, which is aria-hidden and inert
+  // while the sheet sits at peek, so their role=alert never reaches a screen
+  // reader there. Each new alert speaks once through the toast live region,
+  // which is never hidden.
+  const seen = new Set();
+  for (const item of items) {
+    seen.add(item.id);
+    if (announcedAlerts.has(item.id)) continue;
+    announcedAlerts.add(item.id);
+    if (item.kind !== "info" && item.title && sheet && sheet.getSnap() === "peek") ui.toast(item.title);
+  }
+  announcedAlerts = seen;
 }
 
 // The way in to the members screen, and the only place the app says out loud
@@ -995,11 +1032,11 @@ function renderOnboarding() {
 
   const install = document.getElementById("install-card");
   const canPrompt = canPromptInstall();
-  // Never in the wrapper, whatever events a WebView might invent: the app
+  // Never in a wrapper, whatever events a WebView might invent: the app
   // does not offer to install itself.
   const wantInstall =
     shareCapable() &&
-    !isWrapped() &&
+    !isBundled() &&
     !state.demo &&
     !state.installDismissed &&
     ((isIOS() && !isInstalled()) || canPrompt);
@@ -2753,7 +2790,12 @@ function forgotPasscode() {
   );
   const hold = ui.el("button", "btn btn-danger btn-hold", "Hold to erase this device");
   hold.type = "button";
-  ui.holdToFire(hold, { ms: 1500, onFire: panic });
+  ui.holdToFire(hold, {
+    ms: 1500,
+    onFire: panic,
+    onShortTap: (atArmed) =>
+      ui.toast(atArmed ? "Tap once more to erase everything" : "Press and hold to erase"),
+  });
   ov.body.append(hold);
 }
 
@@ -3987,11 +4029,11 @@ async function openSettings() {
         circleName: state.circleName,
         profile: state.profile || { name: "", emoji: "\u{1F9ED}" },
         settings: state.settings,
-        // The relay choice is wrapper-only: the web deployment's CSP pins
-        // connect-src to its own origin, so a cross-origin relay set there
-        // could never be reached. Web self-hosters serve app and relay from
-        // one origin and need no setting.
-        relay: isWrapped() ? state.relay || "" : null,
+        // The relay choice is for the wrappers only: the web deployment's
+        // CSP pins connect-src to its own origin, so a cross-origin relay
+        // set there could never be reached. Web self-hosters serve app and
+        // relay from one origin and need no setting.
+        relay: isBundled() ? state.relay || "" : null,
       },
       demo: state.demo,
       tor,
@@ -4055,9 +4097,9 @@ async function onSettingChange(key, value) {
       ui.toast(t("Language saved. Reopen settings to see them translated too."));
     }
     if (key === "basemap" && mapView) {
-      // The demo promises zero network traffic; the choice is saved and
-      // applied when the demo exits.
-      if (state.demo) ui.toast("The demo stays off-grid. Your choice applies when you exit.");
+      // The demo runs its own basemap through the banner's consent flow;
+      // the choice made here is saved and applied when the demo exits.
+      if (state.demo) ui.toast(t("The demo has its own Real map button. Your choice here applies when you exit."));
       else mapView.setBasemap(value);
     }
     if (key === "history") {
@@ -4677,8 +4719,11 @@ function startDemo() {
     },
   });
   showMap();
-  // The demo is fully offline: no tiles, no network. Off-grid is forced and
-  // the user's saved basemap comes back on exit.
+  // The demo starts off-grid: no tiles, no network. Real tiles load only
+  // through the banner's consent flow, and the user's saved basemap comes
+  // back on exit.
+  demoMapOn = false;
+  demoMapAsk = false;
   mapView.setBasemap("none");
   mapView.setPlaces(demoPlaces());
   demo.start();
@@ -4686,10 +4731,39 @@ function startDemo() {
   render();
 }
 
+// The toggle only ever asks on the way in; turning tiles off is one press.
+function toggleDemoMap() {
+  if (demoMapOn) {
+    demoMapOn = false;
+    mapView.setBasemap("none");
+    render();
+    return;
+  }
+  demoMapAsk = true;
+  render();
+  // The consent just appeared out of the button's own row; put focus on its
+  // accept so a keyboard or screen-reader user lands on the question.
+  $("#banner-demo-consent-go").focus?.();
+}
+
+function loadDemoMap() {
+  demoMapAsk = false;
+  demoMapOn = true;
+  mapView.setBasemap(matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+  render();
+}
+
+function cancelDemoMap() {
+  demoMapAsk = false;
+  render();
+}
+
 function exitDemo() {
   demo?.stop();
   demo = null;
   state.demo = false;
+  demoMapOn = false;
+  demoMapAsk = false;
   state.sharing = false;
   state.sosActive = false;
   demoMembers = [];
@@ -4698,7 +4772,10 @@ function exitDemo() {
   $("#focus-card").hidden = true;
   resetMemberAlerts();
   for (const id of mapView.markerIds()) mapView.removeMarker(id);
-  mapView.setBasemap(state.settings.basemap);
+  // The saved basemap comes back only when there is a circle to show. A
+  // hosted-site visitor who never consented to tiles exits to onboarding,
+  // and restoring the default street basemap here would fetch them anyway.
+  mapView.setBasemap(state.gen ? state.settings.basemap : "none");
   // The real places come back exactly as stored; the demo's spots die here.
   placeTracker.setPlaces(state.places);
   mapView.setPlaces(state.places);
@@ -4830,6 +4907,11 @@ if (debugHooks()) window.__starlingInternals = {
   checkAlerts,
   placeTracker,
   resetMemberAlerts,
+  startDemo,
+  exitDemo,
+  toggleDemoMap,
+  loadDemoMap,
+  cancelDemoMap,
 };
 
 // ----------------------------------------------------------------- boot
@@ -4902,7 +4984,7 @@ async function boot() {
   // site for the long version. Removal, not hiding: no screen this app can
   // show should carry a "Download the APK" button. Nothing has painted yet
   // (every screen starts hidden), so there is no flash to race.
-  if (isWrapped()) {
+  if (isBundled()) {
     for (const n of document.querySelectorAll(".web-only")) n.remove();
     const about = document.getElementById("ob-about");
     if (about) about.hidden = false;
@@ -4925,10 +5007,10 @@ async function boot() {
     wrap.insertBefore($("#landing-app"), $("#screen-onboarding .ob-actions"));
   }
 
-  // Ask the OS not to evict our store under storage pressure. Wrapper only:
-  // the WebView grants or denies silently, while desktop Firefox turns a bare
+  // Ask the OS not to evict our store under storage pressure. Wrappers only:
+  // a WebView grants or denies silently, while desktop Firefox turns a bare
   // persist() into a permission prompt the web app never used to show.
-  if (isWrapped()) navigator.storage?.persist?.().catch(() => {});
+  if (isBundled()) navigator.storage?.persist?.().catch(() => {});
 
   // The landing's download card is for browser visitors; an installed PWA
   // does not advertise itself to itself. In the wrapper the card is not
@@ -5148,9 +5230,10 @@ async function boot() {
     if (state.screen === "map" && !state.demo) render();
   }, 5000);
 
-  // The wrapper serves assets locally already and WebView never wires up
-  // service worker interception, so registration is web-only.
-  if (!insecureContext && !isWrapped() && "serviceWorker" in navigator) {
+  // The wrappers serve assets locally already and neither WebView nor a
+  // custom WKWebView scheme wires up service worker interception, so
+  // registration is web-only.
+  if (!insecureContext && !isBundled() && "serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch((e) => {
       window.__starlingErrors.push(`sw: ${String(e)}`);
     });

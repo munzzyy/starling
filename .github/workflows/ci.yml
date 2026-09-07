@@ -42,6 +42,36 @@ jobs:
       - name: No em/en dashes or AI attribution
         run: bash tools/check-clean.sh
 
+  ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+      - name: Vendor sync
+        run: npm ci && bash tools/sync-vendor.sh
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          cd ios && xcodegen generate
+      - name: Build for the simulator
+        run: |
+          cd ios && xcodebuild -project Starling.xcodeproj -target Starling \
+            -configuration Release -sdk iphonesimulator \
+            CODE_SIGNING_ALLOWED=NO SYMROOT="$PWD/build" build
+      - name: Only the location prompt, no ATS holes
+        run: |
+          plist=ios/build/Release-iphonesimulator/Starling.app/Info.plist
+          out=$(plutil -p "$plist")
+          echo "$out"
+          if echo "$out" | grep -E "UsageDescription" | grep -v "NSLocationWhenInUseUsageDescription"; then
+            echo "an unexpected permission prompt crept into the manifest"; exit 1
+          fi
+          if echo "$out" | grep "NSAppTransportSecurity"; then
+            echo "an ATS exception crept into the manifest"; exit 1
+          fi
+
   android:
     runs-on: ubuntu-latest
     steps:

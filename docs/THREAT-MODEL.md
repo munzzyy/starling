@@ -217,18 +217,22 @@ database) gets ciphertext and metadata only:
     passcode recovery by design: a forgotten passcode means erasing the
     device and rejoining from an invite, because the secret is genuinely
     unrecoverable without it.
-13. **There is no iOS app, and that is a deliberate omission, not a gap to
-    fill with the web page.** The hosted site deliberately does not open
-    circles on any platform, iOS included: see "The hosted web page does not
-    open circles" below and [docs/WEB-INTEGRITY.md](WEB-INTEGRITY.md). Every
-    integrity mechanism Safari ships (Subresource Integrity, the new
-    Integrity-Policy header) checks served bytes against a reference the
-    origin itself supplies, so none of them help against a hostile or
-    coerced origin, and the tools that make a targeted swap detectable on
-    other platforms, browser extensions that diff served code against a
-    published manifest, do not exist on iOS at all. An iOS user has no way to
-    hold a long-lived circle secret that a store-distributed app gives them
-    on Android.
+13. **The iOS app is a bundled wrapper, not the web page, and the web page
+    still does not open circles.** The old form of this limit said there was
+    no iOS app at all, because a browser tab cannot hold a long-lived circle
+    secret: every integrity mechanism Safari ships (Subresource Integrity,
+    the new Integrity-Policy header) checks served bytes against a reference
+    the origin itself supplies, so none of them help against a hostile or
+    coerced origin, and the extensions that make a targeted swap detectable
+    elsewhere do not exist on iOS. All of that still holds, and the hosted
+    site still refuses circles on every platform: see "The hosted web page
+    does not open circles" below and [WEB-INTEGRITY.md](WEB-INTEGRITY.md).
+    What changed is that `ios/` now ships what that argument actually calls
+    for: a wrapper whose page comes out of a signed app bundle, never off
+    the network, and holds a real circle. Its deltas against the Android app
+    are enumerated in "The iOS app's deltas" below; the largest is that
+    background sharing does not exist, because iOS has no equivalent of the
+    Android foreground service.
 14. **F-Droid has never actually built Starling.** Reproducible F-Droid
     packaging is configured in an open merge request
     (`docs/fdroid/app.starlingmap.yml`) that has not been merged. Until it
@@ -315,6 +319,13 @@ Its properties, as wired:
   emergency, in exchange for not controlling who ends up watching a link
   once it is sent. Revocation stops a specific viewer's *channel*; it does
   not un-send a link that person already forwarded again before you revoked.
+- The viewer page **loads street tiles immediately**. It is an emergency
+  page for someone with no app, so it opens on a real map with no off-grid
+  option, which means every helper's browser fetches
+  `tile.openstreetmap.org` tiles of the shared position's area: the tile
+  host sees each helper's IP and the emergency's street-level viewport, on
+  top of the relay metadata above. A helper who cannot accept that should
+  not open the link from a network they need to protect.
 
 ## Multiple circles
 
@@ -344,8 +355,8 @@ duplicate a crash strands.
 
 The page at starlingmap.app is a landing plus the demo. It hides the create
 and join paths, never decrypts a stored circle, and points invite links at
-the app, on every platform including iOS, which has no other Starling app to
-point at. Rationale: the web delivery channel is the weakest link in this
+the apps - the Android APK, or on iOS the build-from-source wrapper, whose
+paste-join flow is the hand-off until universal links exist. Rationale: the web delivery channel is the weakest link in this
 design, and the browser offers no OS-keystore-backed storage for a long-lived
 circle secret. Removing circles from the hosted surface removes its value as
 a target. The full app still runs on localhost for development, and the test
@@ -369,8 +380,11 @@ same trade.
 - **F-Droid.** Not live. The submission is an open, unmerged merge request;
   see "F-Droid has never actually built Starling" above.
 - **Google Play.** In progress, not live as of this writing.
-- **iOS.** No app exists and none is planned as a wrapper around the web
-  page; see the iOS limit above.
+- **iOS.** Build-from-source only: the wrapper in `ios/` compiles with Xcode
+  and runs on your own device, re-signed every 7 days on a free Apple ID.
+  No App Store, no TestFlight (both wait on a paid developer account). It is
+  a wrapper around the bundled app, not the web page; see the iOS limit
+  above and "The iOS app's deltas" below.
 
 ## Android app deltas
 
@@ -434,3 +448,44 @@ and why none of it weakens the core claim (the relay never sees a position).
   default relay does; those are availability and metadata-retention risks,
   not confidentiality risks, and are the user's own choice when they pick a
   relay to trust.
+
+## The iOS app's deltas
+
+The iOS app is the same `app/` code inside a WKWebView wrapper (`ios/`),
+served from the bundle on `starling://localhost`. Everything above still
+applies: same protocol, same relay visibility, same encryption boundary.
+What changes, honestly:
+
+- **No background sharing, ever, in this build.** iOS offers nothing like
+  the Android foreground service, and the wrapper deliberately ships no
+  `StarlingNative` bridge, so `canShareInBackground()` reads false and the
+  UI keeps saying sharing runs only while the app is open with the screen
+  on. A wrapper that claimed more would be lying; this one does not.
+- **No PanicKit, no OS-level wipe, no keystore vault, no Orbot awareness.**
+  The in-app wipe (and the duress code that triggers it) clears everything
+  the page can reach: IndexedDB, localStorage, and its own state. What it
+  cannot reach from JS is WebKit's HTTP cache, where map tiles of viewed
+  areas can persist until iOS evicts them; the in-app wipe confirmation
+  already discloses this residual, and the Off-grid basemap never creates
+  it. A native cache-clear bridge is roadmap; until it ships, the honest
+  statement is "the wipe leaves cached tiles behind on iOS".
+- **Backups.** The wrapper marks WebKit's data store excluded from iCloud
+  and device backups at every launch, the same decision Android makes with
+  `allowBackup="false"`: a circle secret that rode into a cloud backup
+  would outlive the phone it was scoped to.
+- **Tile fetches behave exactly as they do everywhere else.** Street
+  basemaps and the beacon helper page load tiles from
+  `tile.openstreetmap.org` on iOS the same way the web and Android builds
+  do, viewport and all, and the helper page loads them immediately because
+  an emergency page that waited on a map consent would be worse than the
+  disclosure. The Off-grid basemap's zero-request alternative works here
+  too. No iOS-specific mitigation exists or is pretended.
+- **Invite links do not open the app.** No universal links yet (they need a
+  paid team's association file), so a tapped invite opens Safari's landing
+  page; joining means copying the link and pasting it inside the app. The
+  landing copy says so on iOS rather than pointing at an APK.
+- **Distribution is the weakest link.** Build-from-source, self-signed,
+  7-day re-sign on a free Apple ID. No store review, no TestFlight, and no
+  reproducible-build story yet on this platform; the APK's verification
+  path does not exist here. Treat the iOS build as something you compile
+  and vouch for yourself.

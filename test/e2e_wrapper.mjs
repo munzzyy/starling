@@ -170,7 +170,8 @@ async function main() {
 
     const web = await newTab();
     const v = await bootAndRead(web, { wrapper: false });
-    check("web: all seven web-only sections still present", v.webOnly === 7, String(v.webOnly));
+    // Seven sections plus the subline's platform-note span.
+    check("web: all eight web-only nodes still present", v.webOnly === 8, String(v.webOnly));
     check("web: download card still exists", v.landingApp);
     check("web: about link never shows", !v.aboutShown);
     check("web: console clean", v.errs.length === 0, JSON.stringify(v.errs));

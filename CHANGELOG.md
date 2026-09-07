@@ -3,6 +3,23 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [Unreleased]
+
+- **The demo can show a real map.** A "Real map" button in the demo banner
+  offers street tiles of the demo's Central Park stage, behind a consent
+  note that names the one network request it would make. The demo still
+  starts off-grid, cancel still means zero requests for the whole visit,
+  and exiting without a circle goes back to off-grid rather than quietly
+  loading the default basemap.
+- **An iOS app exists.** `ios/` holds a WKWebView wrapper around the same
+  bundled app, serving it on `starling://localhost` and holding a real
+  circle. Build-from-source only (Xcode; a free Apple ID re-signs every 7
+  days), no background sharing (iOS offers no equivalent of the Android
+  foreground service), WebKit storage excluded from iCloud backups, and
+  the full capability table lives in `docs/IOS.md`. The threat model
+  gained an "iOS app deltas" section; the relay now accepts the wrapper's
+  origin.
+
 ## [0.8.0]
 
 - **Starling habla español.** The app has a translation layer now (gettext

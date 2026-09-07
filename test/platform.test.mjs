@@ -95,6 +95,22 @@ test("canShareInBackground: only the Android wrapper, never a bare web engine", 
   cleanupGlobals();
 });
 
+test("canShareInBackground: the iOS wrapper does not get to claim it either", async () => {
+  freshGlobals();
+  // The iOS wrapper's origin: bundled, secure, and still without any
+  // background execution. The honesty UI keys off this staying false.
+  globalThis.location = {
+    protocol: "starling:",
+    hostname: "localhost",
+    origin: "starling://localhost",
+    pathname: "/index.html",
+  };
+  const { canShareInBackground } = await fresh();
+  assert.equal(canShareInBackground(), false);
+  delete globalThis.location;
+  cleanupGlobals();
+});
+
 test("hasWakeLock reflects the real API surface", async () => {
   freshGlobals({ navigator: { wakeLock: {} } });
   const { hasWakeLock } = await fresh();

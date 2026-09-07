@@ -103,12 +103,17 @@ const sweepStmts = (env, now) => [
   env.DB.prepare("DELETE FROM members_v3 WHERE srv < ?").bind(now - TTL_MS),
 ];
 
-// Origins allowed to write. The Android wrapper serves the same app from
-// bundled assets on WebView's fixed pseudo-origin, so it is allowed alongside
-// the relay's own origin; posts are signature-checked regardless, this check
-// only stops drive-by CSRF from arbitrary websites. Self-hosters can extend
-// the list with a comma-separated ALLOWED_ORIGINS var.
-const APP_ORIGINS = ["https://appassets.androidplatform.net"];
+// Origins allowed to write. The wrappers serve the same app from bundled
+// assets on fixed pseudo-origins - WebView's asset host on Android, the
+// starling: scheme on iOS - so both are allowed alongside the relay's own
+// origin; posts are signature-checked regardless, this check only stops
+// drive-by CSRF from arbitrary websites. Self-hosters can extend the list
+// with a comma-separated ALLOWED_ORIGINS var.
+//
+// WebKit serializes the iOS wrapper's origin exactly as scheme://host, and
+// nothing else can claim it: a web page's origin is always http(s), and a
+// sandboxed iframe sends the literal string "null", which matches no entry.
+const APP_ORIGINS = ["https://appassets.androidplatform.net", "starling://localhost"];
 
 function originAllowed(origin, env, url) {
   if (origin === null) return true;
@@ -118,6 +123,10 @@ function originAllowed(origin, env, url) {
 
 // Entries are normalized to canonical origin form, so a trailing slash or
 // uppercase host in the var cannot silently never-match a real Origin header.
+// Custom-scheme entries (a self-hosted wrapper's origin) have no URL.origin -
+// the parser yields the string "null" for them - so those keep their literal
+// spelling for exact matching. The string "null" itself is never allowed in:
+// that is what a sandboxed iframe sends as its Origin.
 function envOrigins(env) {
   return String(env.ALLOWED_ORIGINS || "")
     .split(",")
@@ -125,12 +134,13 @@ function envOrigins(env) {
     .filter(Boolean)
     .map((s) => {
       try {
-        return new URL(s).origin;
+        const o = new URL(s).origin;
+        return o === "null" ? s.replace(/\/+$/, "") : o;
       } catch {
         return null;
       }
     })
-    .filter(Boolean);
+    .filter((s) => s && s !== "null");
 }
 
 // CORS: the wrapper's WebView fetches the API from its own asset origin, so
