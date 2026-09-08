@@ -36,7 +36,7 @@ object Events {
             Intent(ctx, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE,
         )
-        // title/body can carry a name or place; never VISIBILITY_SECRET, that would hide an SOS.
+        // title/body never reach a notification field; see the commit message for why.
         val publicVersion = NotificationCompat.Builder(ctx, MainActivity.EVENTS_CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_starling)
             .setContentTitle(ctx.getString(R.string.app_name))
@@ -46,8 +46,8 @@ object Events {
             .build()
         val n = NotificationCompat.Builder(ctx, MainActivity.EVENTS_CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_starling)
-            .setContentTitle(title)
-            .apply { if (body.isNotEmpty()) setContentText(body) }
+            .setContentTitle(ctx.getString(R.string.app_name))
+            .setContentText(ctx.getString(R.string.notif_locked_text))
             .setContentIntent(open)
             .setAutoCancel(true)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)

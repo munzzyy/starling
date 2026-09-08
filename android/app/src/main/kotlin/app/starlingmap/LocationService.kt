@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import androidx.core.content.ContextCompat
@@ -53,6 +54,7 @@ class LocationService : Service(), LocationListener {
         if (intent?.action == ACTION_STOP) {
             // A user action, not a failure: the page turns sharing off cleanly.
             sink?.invoke(JSONObject().put("stopped", true).toString())
+            postShareEnded()
             stopSelf()
             return START_NOT_STICKY
         }
@@ -126,14 +128,19 @@ class LocationService : Service(), LocationListener {
     // service does. It always ended the share here; now it also says so,
     // because a share that ends in silence looks like a working one.
     override fun onTaskRemoved(rootIntent: Intent?) {
+        postShareEnded()
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+
+    // Shared with the Stop-button branch so both ways of ending a share leave the same trace.
+    private fun postShareEnded() {
         Events.post(
             this,
             getString(R.string.notif_swiped_title),
             getString(R.string.notif_swiped_text),
             "share-ended",
         )
-        stopSelf()
-        super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
@@ -161,13 +168,27 @@ class LocationService : Service(), LocationListener {
             Intent(this, LocationService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_IMMUTABLE,
         )
+        val stopAction = Notification.Action.Builder(null, getString(R.string.notif_stop), stop).apply {
+            // Android 12+ only, see THREAT-MODEL.md for the pre-12 gap.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setAuthenticationRequired(true)
+        }.build()
+        // Same strings both versions: already generic, nothing to redact here.
+        val publicVersion = Notification.Builder(this, CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_starling)
+            .setContentTitle(getString(R.string.notif_title))
+            .setContentText(getString(R.string.notif_text))
+            .setContentIntent(open)
+            .setOngoing(true)
+            .build()
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_starling)
             .setContentTitle(getString(R.string.notif_title))
             .setContentText(getString(R.string.notif_text))
             .setContentIntent(open)
             .setOngoing(true)
-            .addAction(Notification.Action.Builder(null, getString(R.string.notif_stop), stop).build())
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion)
+            .addAction(stopAction)
             .build()
     }
 }

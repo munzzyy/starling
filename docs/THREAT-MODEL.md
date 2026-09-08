@@ -293,22 +293,41 @@ than Cloudflare can run their own relay; see the FAQ and
     your threat includes a forensic read BEFORE coercion, do not set one.
 16. **Event notifications go through the OS, and arrive only while the app
     can listen.** On Android, an SOS, arrival, or low-battery alert posted
-    while the app is hidden is a system notification: its title and text (a
-    member's name, a place name) pass through the OS notification pipeline
-    and appear on the lock screen subject to the system's own lock-screen
-    privacy setting. Nothing is sent to any push service, there are no push
-    tokens, and the notification is built locally. Two consequences follow.
-    A shoulder surfer reading your lock screen is reading real names;
-    Android's "sensitive notification content" setting is the control for
-    that. And with no push service there is nothing that can wake a phone
-    Starling is not running on: the app polls in the background (the
-    location-sharing service keeps it alive while you share), so alerts
-    reach a pocketed phone while sharing is on, but a phone with the app
-    swiped away, frozen by the OS, or powered off sees the alert on the
-    next open. Life360-grade "the push wakes the phone no matter what" is
-    exactly the tradeoff Starling refuses, because the token that buys it
-    is an address a server holds for you.
-17. **Localization is young.** The app has a translation layer (gettext
+    while the app is hidden is a system notification. Its title and text
+    never carry a member's name or a place name: those stay inside the app,
+    and the OS-level notification always reads the same generic line, on
+    every Android version and regardless of the device's own lock-screen
+    content setting. That last part matters because the setting does not
+    default the way you would guess: a `VISIBILITY_PRIVATE` notification's
+    real content is shown on the lock screen by default on stock Android
+    (`Settings.Secure.LOCK_SCREEN_ALLOW_PRIVATE_NOTIFICATIONS` ships `true`),
+    so a design that put a name or place in the notification and relied on
+    `VISIBILITY_PRIVATE` to keep it off a locked screen would not have,
+    unless the phone's owner had separately turned on "hide sensitive
+    notification content." Nothing is sent to any push service, there are no
+    push tokens, and the notification is built locally. With no push service
+    there is nothing that can wake a phone Starling is not running on: the
+    app polls in the background (the location-sharing service keeps it alive
+    while you share), so alerts reach a pocketed phone while sharing is on,
+    but a phone with the app swiped away, frozen by the OS, or powered off
+    sees the alert on the next open. Life360-grade "the push wakes the phone
+    no matter what" is exactly the tradeoff Starling refuses, because the
+    token that buys it is an address a server holds for you.
+17. **The sharing notification itself is a leak Android requires.** While
+    you share, Android requires a visible, un-dismissable foreground
+    notification ("Sharing with your circle") for as long as the location
+    service runs; there is no code path that removes this and still keeps
+    sharing working. Anyone holding the phone, locked or not, learns from it
+    alone that Starling is installed and is transmitting your position right
+    now. That notification also carries a Stop button. On Android 12 and
+    up, tapping it from a locked screen requires the device to be unlocked
+    first (`Notification.Action.Builder.setAuthenticationRequired`); on
+    Android 11 and below there is no such gate, and Stop fires straight from
+    the lock screen. Either way, since this fix, ending a share by tapping
+    Stop posts the same "Sharing stopped" notification that swiping the app
+    away already posted, so a share someone else ended from a locked phone
+    is not silently indistinguishable from one still running.
+18. **Localization is young.** The app has a translation layer (gettext
     style: English source strings as keys, catalogs shipped with the app,
     nothing fetched) and ships Spanish as its first translation, selectable
     in settings or following the system language. Honest caveats: the
