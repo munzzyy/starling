@@ -54,7 +54,7 @@ class LocationService : Service(), LocationListener {
         if (intent?.action == ACTION_STOP) {
             // A user action, not a failure: the page turns sharing off cleanly.
             sink?.invoke(JSONObject().put("stopped", true).toString())
-            postShareEnded()
+            postShareEnded("notif")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -128,13 +128,23 @@ class LocationService : Service(), LocationListener {
     // service does. It always ended the share here; now it also says so,
     // because a share that ends in silence looks like a working one.
     override fun onTaskRemoved(rootIntent: Intent?) {
-        postShareEnded()
+        postShareEnded("swipe")
         stopSelf()
         super.onTaskRemoved(rootIntent)
     }
 
-    // Shared with the Stop-button branch so both ways of ending a share leave the same trace.
-    private fun postShareEnded() {
+    // Shared with the Stop-button branch so both ways of ending a share leave
+    // the same trace. The record goes down BEFORE the notification: that
+    // notification can be swiped away with no unlock at all below Android 12,
+    // so it is the record, not the notification, that has to survive. It
+    // lives in the same private prefs file the whole app data directory does,
+    // so a panic wipe's clearApplicationUserData takes it with everything
+    // else; nothing here writes it anywhere that outlives that call.
+    private fun postShareEnded(route: String) {
+        getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE).edit()
+            .putString(MainActivity.PREF_STOP_ROUTE, route)
+            .putLong(MainActivity.PREF_STOP_TS, System.currentTimeMillis())
+            .apply()
         Events.post(
             this,
             getString(R.string.notif_swiped_title),

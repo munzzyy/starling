@@ -35,7 +35,14 @@ class MainActivity : FragmentActivity() {
         const val PREFS = "starling"
         const val PREF_TOR = "tor"
         const val EVENTS_CHANNEL = "events"
+        // A new id, not a raised importance on EVENTS_CHANNEL: a channel's
+        // sound and vibration are as fixed after creation as its importance
+        // is, so an existing install's routine channel can never grow the
+        // SOS-specific alert this one exists for.
+        const val SOS_CHANNEL = "events_sos"
         const val EVENTS_NOTIF_ID = 2
+        const val PREF_STOP_ROUTE = "stop_route"
+        const val PREF_STOP_TS = "stop_ts"
     }
 
     lateinit var webView: WebView
@@ -251,8 +258,10 @@ class MainActivity : FragmentActivity() {
     // importance and a separate channel from the quiet sharing notification,
     // because "SOS from Juno" and "sharing is running" are not the same kind
     // of news. The channel is created lazily and deleted by the panic wipe
-    // along with the share channel.
-    fun postEventNotification(title: String, body: String, tag: String) = Events.post(this, title, body, tag)
+    // along with the share channel. `urgent` routes an active SOS to its own
+    // channel so it sounds and vibrates differently from routine chatter.
+    fun postEventNotification(title: String, body: String, tag: String, urgent: Boolean) =
+        Events.post(this, title, body, tag, urgent)
 
     fun cancelEventNotification(tag: String) = Events.cancel(this, tag)
 
