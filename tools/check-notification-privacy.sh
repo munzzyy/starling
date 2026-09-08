@@ -35,7 +35,7 @@ fi
 # leave the same "share ended" trace onTaskRemoved leaves, so a lock-screen
 # stop is not silent to the person relying on the share.
 stop_branch=$(awk '/ACTION_STOP/,/^        }/' "$service")
-if ! grep -qE 'Events\.post|postShareEnded\(\)' <<<"$stop_branch"; then
+if ! grep -qE 'Events\.post|postShareEnded\(' <<<"$stop_branch"; then
   echo "LocationService.kt's ACTION_STOP branch does not post a share-ended event"
   fail=1
 fi
