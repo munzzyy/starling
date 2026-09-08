@@ -3,11 +3,14 @@
     <string name="app_name">Starling</string>
     <string name="notif_channel">Compartir ubicación</string>
     <string name="notif_events_channel">Alertas del círculo</string>
+    <string name="notif_sos_channel">Alertas de emergencia</string>
+    <string name="notif_sos_text">Abre Starling ahora.</string>
     <string name="notif_title">Compartiendo con tu círculo</string>
     <string name="notif_text">Toca Detener para terminarlo.</string>
     <string name="notif_stop">Detener</string>
     <string name="notif_swiped_title">Dejaste de compartir</string>
     <string name="notif_swiped_text">Starling se cerró. Ábrela de nuevo para seguir compartiendo.</string>
+    <string name="notif_locked_text">Abre Starling para ver qué pasó.</string>
     <string name="bio_wrap_title">Confirma para activar el desbloqueo biométrico</string>
     <string name="bio_unwrap_title">Desbloquear Starling</string>
     <string name="bio_cancel">Usar código</string>

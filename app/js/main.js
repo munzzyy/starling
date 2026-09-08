@@ -162,6 +162,10 @@ const state = {
   demo: false,
   sharing: false,
   sosActive: false,
+  // { route, at } once the native side reports a share stopped from the
+  // notification or a task swipe, neither of which this page necessarily saw
+  // happen. Read at boot, cleared only when the person acknowledges it.
+  stopRecord: null,
   // The live generation: { g, e0, channelId, ratchet }. Everything that used to
   // hang off a circle secret that lived forever hangs off this instead, and a
   // re-key replaces the whole of it.
@@ -756,6 +760,30 @@ function renderYou() {
 function alertItems() {
   const items = [];
   if (state.demo) return items;
+
+  if (state.stopRecord) {
+    const text =
+      state.stopRecord.route === "swipe"
+        ? t("The app was closed while sharing was on, which stops it every time. If that was not you, check who has access to this phone.")
+        : t("Someone tapped Stop on the sharing notification. If that was not you, check who has access to this phone.");
+    items.push({
+      id: "stop-record",
+      kind: "warn",
+      title: t("Your last share was stopped outside the app"),
+      text,
+      actions: [
+        {
+          label: "Got it",
+          testid: "alert-stop-record-ok",
+          onClick: () => {
+            state.stopRecord = null;
+            native()?.clearStopRecord?.();
+            render();
+          },
+        },
+      ],
+    });
+  }
 
   for (const id of state.keyChanges.keys()) {
     const who = displayName(id);
@@ -4237,6 +4265,12 @@ async function panic() {
   // older wrapper without the method it is the whole wipe, as before.
   try {
     native()?.panicWipe?.();
+    // Belt and suspenders on the same reasoning as the line above: panicWipe
+    // already takes the stop record with it (it lives in the same private
+    // prefs file clearApplicationUserData empties), but that call is
+    // fire-and-forget into a process about to die, so this asks for it
+    // explicitly too rather than trusting the race.
+    native()?.clearStopRecord?.();
   } catch {
     // old wrapper
   }
@@ -4464,7 +4498,16 @@ function onGeoError(err) {
     // provider) and will not retry. Anything short of a full stop here would
     // keep the share timer republishing the last fix as if it were fresh.
     if (state.sharing) setSharing(false);
-    if (!err.stopped) ui.toast(t("Location stopped: {reason}", { reason: err.message || t("service error") }), "warn");
+    if (err.stopped) {
+      // Named, not swallowed: a stop from the notification is exactly the
+      // one a person forced to hand over a locked phone needs to see. The
+      // native side already wrote a durable record of this before it got
+      // here; seeing it now means it does not also need to wait for reopen.
+      ui.toast(t("Sharing was stopped from the notification."), "warn");
+      native()?.clearStopRecord?.();
+    } else {
+      ui.toast(t("Location stopped: {reason}", { reason: err.message || t("service error") }), "warn");
+    }
   } else if (err && err.code === 2 && !navigator.geolocation) {
     // No geolocation API at all: sharing can never work here.
     if (state.sharing) stopSharingInternals();
@@ -4720,7 +4763,7 @@ function openHelpLink() {
 // to post through (no push tokens, by design), so the toast is the whole
 // story there. Never fires while the app is visibly on screen: the toast
 // already said it.
-function notifyEvent(title, body, tag) {
+function notifyEvent(title, body, tag, urgent = false) {
   // The demo is a scripted story. Its fake SOS must never reach the phone's
   // real notification tray, where nothing marks it as fiction.
   if (state.demo) return;
@@ -4728,7 +4771,7 @@ function notifyEvent(title, body, tag) {
   const n = native();
   if (!n?.notify) return;
   try {
-    n.notify(title, body, tag);
+    n.notify(title, body, tag, urgent);
   } catch {
     // an older wrapper without the method
   }
@@ -4836,7 +4879,7 @@ function checkAlerts() {
     if (st === "sos" && prev !== "sos") {
       ui.toast(t("SOS from {who}", { who: rec.name || t("a member") }), "sos");
       navigator.vibrate?.([160, 80, 160, 80, 240]);
-      notifyEvent(t("SOS from {who}", { who }), t("Open Starling to see their live position."), `sos-${rec.id}`);
+      notifyEvent(t("SOS from {who}", { who }), t("Open Starling to see their live position."), `sos-${rec.id}`, true);
     } else if (st === "checkin" && prev === "sos") {
       ui.toast(t("{who} checked in", { who }));
       cancelEventNotification(`sos-${rec.id}`);
@@ -5101,6 +5144,9 @@ if (debugHooks()) window.__starlingInternals = {
   setShareWindow,
   stopSharingInternals,
   shareStatus: () => ({ deadline: shareDeadline, windowMs: shareWindowMs }),
+  notifyEvent,
+  panic,
+  setSharing,
 };
 
 // ----------------------------------------------------------------- boot
@@ -5407,6 +5453,21 @@ async function boot() {
     if (!state.locked) {
       if (params.get("demo") === "1") startDemo();
       else if (invite) promptJoin(invite);
+    }
+  }
+
+  // A stop that happened outside the page (notification Stop, task swipe)
+  // while nobody was here to see it. The card stays up until dismissed, so a
+  // reopen that misses this render still finds it on the next one.
+  if (isWrapped()) {
+    try {
+      const raw = native()?.readStopRecord?.();
+      if (raw) {
+        const rec = JSON.parse(raw);
+        if (rec && (rec.route === "notif" || rec.route === "swipe")) state.stopRecord = rec;
+      }
+    } catch {
+      // a malformed native record is not worth failing boot over
     }
   }
 

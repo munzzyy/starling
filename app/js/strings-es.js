@@ -467,4 +467,8 @@ export const es = {
   "1 hour": "1 hora",
   "6 hours": "6 horas",
   "24 hours": "24 horas",
+  "Your last share was stopped outside the app": "Tu último compartir se detuvo fuera de la app",
+  "Someone tapped Stop on the sharing notification. If that was not you, check who has access to this phone.": "Alguien tocó Detener en la notificación de compartir ubicación. Si no fuiste tú, revisa quién tiene acceso a este teléfono.",
+  "The app was closed while sharing was on, which stops it every time. If that was not you, check who has access to this phone.": "La app se cerró mientras compartías tu ubicación, y eso siempre la detiene. Si no fuiste tú, revisa quién tiene acceso a este teléfono.",
+  "Sharing was stopped from the notification.": "Se detuvo el compartir desde la notificación.",
 };

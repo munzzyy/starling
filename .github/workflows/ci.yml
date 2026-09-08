@@ -83,10 +83,28 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Notification privacy invariants
+        run: bash tools/check-notification-privacy.sh
       - name: Vendor sync
         run: npm ci && bash tools/sync-vendor.sh
       - name: Build release APK (unsigned)
         run: cd android && ./gradlew --no-daemon assembleRelease lint
+      - name: Assert only the expected permissions
+        run: |
+          AAPT=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | tail -1)
+          out=$("$AAPT" dump permissions android/app/build/outputs/apk/release/app-release-unsigned.apk)
+          echo "$out"
+          if echo "$out" | grep -E "uses-permission" \
+            | grep -v "android.permission.INTERNET" \
+            | grep -v "android.permission.ACCESS_FINE_LOCATION" \
+            | grep -v "android.permission.ACCESS_COARSE_LOCATION" \
+            | grep -v "android.permission.FOREGROUND_SERVICE" \
+            | grep -v "android.permission.FOREGROUND_SERVICE_LOCATION" \
+            | grep -v "android.permission.POST_NOTIFICATIONS" \
+            | grep -v "android.permission.USE_BIOMETRIC" \
+            | grep -v "DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"; then
+            echo "unexpected permission crept into the manifest"; exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: starling-release-unsigned

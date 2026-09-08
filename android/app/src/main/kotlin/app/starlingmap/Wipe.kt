@@ -20,10 +20,14 @@ object Wipe {
             val nm = ctx.getSystemService(NotificationManager::class.java)
             nm.deleteNotificationChannel(LocationService.CHANNEL)
             nm.deleteNotificationChannel(MainActivity.EVENTS_CHANNEL)
+            nm.deleteNotificationChannel(MainActivity.SOS_CHANNEL)
         }
         // Kills the process and deletes all app data, WebView storage and
         // cookies included. Anything asynchronous queued before this line
-        // would never have run anyway.
+        // would never have run anyway. That includes the share-stop trace:
+        // it lives in a SharedPreferences file under this app's own data
+        // directory, not in system settings like the channels above, so this
+        // one call is also what erases it.
         (ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).clearApplicationUserData()
     }
 }

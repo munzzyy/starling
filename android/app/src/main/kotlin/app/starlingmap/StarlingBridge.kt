@@ -1,5 +1,6 @@
 package app.starlingmap
 
+import android.content.Context
 import android.webkit.JavascriptInterface
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
@@ -26,10 +27,13 @@ class StarlingBridge(private val activity: MainActivity) {
     // arrival at a place, a low battery). The page only calls this while it
     // is hidden; visible, its own toast already said it. Tag replaces, so a
     // member bouncing at a boundary edits one notification instead of
-    // stacking twenty.
+    // stacking twenty. `urgent` is true only for an active SOS, and routes it
+    // to its own channel so it sounds different from routine chatter.
     @JavascriptInterface
-    fun notify(title: String, body: String, tag: String) {
-        activity.runOnUiThread { activity.postEventNotification(title.take(80), body.take(160), tag.take(64)) }
+    fun notify(title: String, body: String, tag: String, urgent: Boolean) {
+        activity.runOnUiThread {
+            activity.postEventNotification(title.take(80), body.take(160), tag.take(64), urgent)
+        }
     }
 
     // Take a posted event notification back down (an SOS that cleared while
@@ -37,6 +41,30 @@ class StarlingBridge(private val activity: MainActivity) {
     @JavascriptInterface
     fun cancelNotify(tag: String) {
         activity.runOnUiThread { activity.cancelEventNotification(tag.take(64)) }
+    }
+
+    // ----------------------------------------------------- share stop trace
+
+    // A share can end from the Stop button on the notification or from the
+    // task being swiped away, neither of which the page is guaranteed to be
+    // alive to see. LocationService writes this before it ever touches the
+    // notification, so the trace outlives both the process and a swipe of
+    // that notification. Read once at boot; the page decides when it is
+    // acknowledged and clears it.
+    @JavascriptInterface
+    fun readStopRecord(): String? {
+        val prefs = activity.getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE)
+        val route = prefs.getString(MainActivity.PREF_STOP_ROUTE, null) ?: return null
+        val at = prefs.getLong(MainActivity.PREF_STOP_TS, 0L)
+        return JSONObject().put("route", route).put("at", at).toString()
+    }
+
+    @JavascriptInterface
+    fun clearStopRecord() {
+        activity.getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE).edit()
+            .remove(MainActivity.PREF_STOP_ROUTE)
+            .remove(MainActivity.PREF_STOP_TS)
+            .apply()
     }
 
     // Ask for POST_NOTIFICATIONS outside the share flow: a member who only
