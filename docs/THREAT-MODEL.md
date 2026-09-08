@@ -80,6 +80,34 @@ database) gets ciphertext and metadata only:
   one, and nothing in the design closes it.
 - **That you use Starling at all** (from the origin you talk to).
 
+## Who the relay operator is
+
+The default relay, at starlingmap.app, runs on Cloudflare Workers with a
+Cloudflare D1 database. Cloudflare terminates TLS for it, so Cloudflare is
+the party seeing everything the section above describes: source IPs, channel
+ids, timing, and request sizes, for every poll and every post that goes
+through the default relay. When this document or the adversaries table below
+says "relay operator," that is who it means, for anyone who has not opted
+into a self-hosted relay.
+
+What Cloudflare does not get is the plaintext. Positions, names, and circle
+membership are encrypted on the device before anything is sent, under keys
+that ride only in an invite link's fragment and are never transmitted to any
+relay in any form. A subpoena to Cloudflare gets ciphertext and metadata, the
+same thing a full database seizure gets, described above; it does not get a
+position or an identity, because there is no key on that side to produce
+them with.
+
+A subpoena or a court order aimed at the relay is served on Cloudflare, and
+Cloudflare can be compelled to comply without our knowledge or cooperation.
+That is worth being explicit about for anyone deciding whether the default
+relay is an acceptable trust boundary: the answer does not depend on trusting
+us, since we would have nothing to comply with even if asked, but it does
+depend on trusting Cloudflare's infrastructure to keep working the way this
+document describes it. Anyone who wants that boundary to be someone other
+than Cloudflare can run their own relay; see the FAQ and
+[docs/PROTOCOL.md](PROTOCOL.md) for how.
+
 ## Adversaries considered
 
 | adversary | result |

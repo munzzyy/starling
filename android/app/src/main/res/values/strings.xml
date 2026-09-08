@@ -7,6 +7,7 @@
     <string name="notif_text">Tap Stop to end it.</string>
     <string name="notif_swiped_title">Sharing stopped</string>
     <string name="notif_swiped_text">Starling was closed. Open it again to keep sharing.</string>
+    <string name="notif_locked_text">Open Starling to see what happened.</string>
     <string name="notif_stop">Stop</string>
     <string name="bio_wrap_title">Confirm to set up biometric unlock</string>
     <string name="bio_unwrap_title">Unlock Starling</string>

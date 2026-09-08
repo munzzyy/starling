@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 
 // Circle-event notifications, shared by the activity (bridge notify calls)
@@ -35,12 +36,22 @@ object Events {
             Intent(ctx, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE,
         )
-        val n = android.app.Notification.Builder(ctx, MainActivity.EVENTS_CHANNEL)
+        // title/body can carry a name or place; never VISIBILITY_SECRET, that would hide an SOS.
+        val publicVersion = NotificationCompat.Builder(ctx, MainActivity.EVENTS_CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_starling)
+            .setContentTitle(ctx.getString(R.string.app_name))
+            .setContentText(ctx.getString(R.string.notif_locked_text))
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        val n = NotificationCompat.Builder(ctx, MainActivity.EVENTS_CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_starling)
             .setContentTitle(title)
             .apply { if (body.isNotEmpty()) setContentText(body) }
             .setContentIntent(open)
             .setAutoCancel(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion)
             .build()
         nm.notify(tag.ifEmpty { "event" }, MainActivity.EVENTS_NOTIF_ID, n)
     }
