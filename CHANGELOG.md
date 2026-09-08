@@ -3,6 +3,43 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [0.11.0]
+
+An outside review picked apart 0.10.0's lock-screen notifications, and the
+first two fixes for it didn't actually hold either.
+
+- **Notifications stopped naming anyone, for real this time.** SOS,
+  arrivals, departures, check-ins, and low battery all used to put a
+  member's name or a place straight into the notification, on the
+  assumption that Android's own "hide sensitive notification content"
+  setting would cover the lock screen. That setting ships off by default,
+  so the real name showed up on a locked phone anyway, which is the one
+  moment anyone holding the phone should learn the least. Every event
+  notification is now one generic line, on every phone, with nothing to
+  turn on first; the real detail still shows once the app itself is
+  reopened. SOS keeps its urgency without saying more: it gets its own
+  alert channel, sound, and vibration, so it still stands out from a
+  routine low battery ping even though the words on screen are the same
+  shape.
+- **Stopping a share from the lock screen now needs an unlock, and leaves
+  a trace either way.** The ongoing "Sharing with your circle"
+  notification's Stop button fired with no unlock required, and tapping
+  it left no record anywhere, while swiping the app away at least posted
+  "Sharing stopped." Stop now requires authentication on Android 12 and
+  up (there is no such gate on 11 and below, and the threat model says
+  that plainly now instead of hinting at it), and whichever way a share
+  ends, a local record survives even a swipe and turns into a card the
+  app shows the next time someone opens it.
+- Dropped the USE_FINGERPRINT permission androidx.biometric was quietly
+  declaring for phones older than this app has ever supported, and CI
+  now fails the build if the APK picks up any permission outside the
+  seven it is supposed to have.
+- The threat model names Cloudflare directly as the relay operator, says
+  plainly what it can and cannot see, and adds that Android's own
+  foreground service notification tells anyone holding the phone that
+  Starling is installed and sharing right now, which no code here can
+  hide.
+
 ## [0.10.0]
 
 - **Private zones.** Mark a place as a fence and your dot snaps to its
