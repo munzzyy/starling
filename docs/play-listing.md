@@ -67,7 +67,7 @@ WORKS WITH ORBOT
 Per-app VPN mode needs no setup. A SOCKS toggle is available if you turn on
 Power User Mode in Orbot.
 
-Source is on GitHub under the MIT license.
+Source is on GitHub under the GPL-3.0-or-later license.
 ```
 
 **Category:** Maps & Navigation. (Alternative: Tools, if Maps & Navigation

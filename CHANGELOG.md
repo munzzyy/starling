@@ -3,6 +3,10 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [Unreleased]
+
+- Relicensed to GPL-3.0-or-later. Releases up to v0.11.0 stay under MIT.
+
 ## [0.11.0]
 
 An outside review picked apart 0.10.0's lock-screen notifications, and the

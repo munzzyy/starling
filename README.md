@@ -286,5 +286,7 @@ open them.
 
 ## License
 
-MIT
+[GPL-3.0-or-later](LICENSE). You can use, study, change and share it. If you
+distribute a copy or a modified version, it has to stay under the GPL and
+come with its source. Releases up to v0.11.0 were under MIT.
 

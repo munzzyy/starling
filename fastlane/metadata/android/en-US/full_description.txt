@@ -33,4 +33,4 @@ Per-app VPN mode needs no setup. Turn on Power User Mode in Orbot and Starling p
 <b>Honest about its limits</b>
 The relay still sees IP addresses and timing, because something has to move your ciphertext around. An invite link is a bearer capability: whoever holds it is in the circle, so share it somewhere you trust and rotate it if it leaks. There is no forward secrecy ratchet yet inside a circle's lifetime, so exposure is bounded by the 24-hour relay retention rather than eliminated. All of this is written out in full, with what is and is not backed by tests, in the project's threat model.
 
-Source is on GitHub under the MIT license. Read the code, run the tests, or self-host the relay.
+Source is on GitHub under the GPL-3.0-or-later license. Read the code, run the tests, or self-host the relay.
