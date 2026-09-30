@@ -288,7 +288,7 @@
           <span class="lnd-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="m9 18-5-6 5-6M15 6l5 6-5 6"/></svg></span>
           <h3 class="lnd-feature-title">Yours to verify</h3>
           <p class="lnd-feature-text">GPL licensed, reproducible Android builds, an open protocol,
-            and a relay you can run on your own Cloudflare account.</p>
+            and a relay you can run on your own server.</p>
         </div>
       </div>
     </section>
@@ -410,10 +410,10 @@
         </details>
         <details class="lnd-faq-item">
           <summary>Can I run my own relay?</summary>
-          <p>Yes. The relay is a small Cloudflare Worker and the setup is documented. Point the app
-            at your own instance and Munzzyy's relay never sees your traffic at all. The
-            <a href="https://github.com/munzzyy/starling#deploy">deploy steps</a> come down to
-            one command.</p>
+          <p>Yes. The relay is small and open source, and runs on Cloudflare Workers or a plain
+            server behind Apache or nginx. Point the app at your own instance and Munzzyy's relay
+            never sees your traffic at all. Setup for both is documented in the
+            <a href="https://github.com/munzzyy/starling#deploy">README</a>.</p>
         </details>
         <details class="lnd-faq-item">
           <summary>What happens in an emergency?</summary>
