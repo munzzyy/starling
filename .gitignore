@@ -11,3 +11,6 @@ app/vendor/
 dist/
 app/starling.apk
 .claude/
+
+# The plain-server relay's default SQLite database and its WAL/SHM siblings.
+relay/data/

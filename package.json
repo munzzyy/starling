@@ -12,7 +12,8 @@
     "check": "bash tools/check-clean.sh",
     "vectors": "node tools/gen-vectors.mjs",
     "hashes": "node tools/asset-hashes.mjs",
-    "deploy": "bash relay/deploy.sh"
+    "deploy": "bash relay/deploy.sh",
+    "relay": "node relay/server.mjs"
   },
   "engines": {
     "node": ">=24"
