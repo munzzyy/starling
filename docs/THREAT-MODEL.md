@@ -88,7 +88,10 @@ the party seeing everything the section above describes: source IPs, channel
 ids, timing, and request sizes, for every poll and every post that goes
 through the default relay. When this document or the adversaries table below
 says "relay operator," that is who it means, for anyone who has not opted
-into a self-hosted relay.
+into a self-hosted relay. Self-hosting does not need Cloudflare either: the
+relay also runs as a plain Node server behind your own reverse proxy
+(`docs/SELF-HOSTING.md`), in which case your server, and whoever you trust
+with access to it, is the relay operator this section is about instead.
 
 What Cloudflare does not get is the plaintext. Positions, names, and circle
 membership are encrypted on the device before anything is sent, under keys

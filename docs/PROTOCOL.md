@@ -751,7 +751,9 @@ separate maps, and the separation matters, because channel ids are attacker
 chosen and unlimited: one shared map would let a sprayer evict every address
 bucket and hand itself an unlimited budget. Both are per isolate, so they bound
 a single worker instance rather than the world, and both are configurable for
-self-hosters.
+self-hosters. On the plain-server relay (`relay/server.mjs`, no Cloudflare
+account needed, see `docs/SELF-HOSTING.md`) there is exactly one process, so
+"per isolate" there means the whole relay.
 
 Writes are also origin checked: no `Origin` header, the relay's own origin, the
 Android wrapper's asset origin, or an origin a self-hoster listed. That stops

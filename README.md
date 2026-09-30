@@ -175,13 +175,10 @@ has the exact commands and what each suite covers.
 
 ## Deploy
 
-The relay and the app ship as one Cloudflare Worker with static assets, so
-self-hosting today means your own Cloudflare account (Workers and D1). A plain
-VPS or home server is not supported yet; that is
-[#9](https://github.com/munzzyy/starling/issues/9). With a
-Cloudflare API token in `CLOUDFLARE_API_TOKEN` (Workers Scripts, D1, and Account
-Settings read), one command creates the database, applies the schema, and
-deploys:
+The default relay and the app ship as one Cloudflare Worker with static
+assets. With a Cloudflare API token in `CLOUDFLARE_API_TOKEN` (Workers
+Scripts, D1, and Account Settings read), one command creates the database,
+applies the schema, and deploys:
 
 ```
 bash relay/deploy.sh
@@ -190,6 +187,12 @@ bash relay/deploy.sh
 It is idempotent, so re-running it just ships the latest code. The hosted page
 serves the landing and demo; sharing itself lives in the Android app.
 Geolocation needs a secure context, so plain HTTP will not work anywhere.
+
+A Cloudflare account is not required. The relay is plain fetch-in,
+fetch-out code over one SQL table, and `relay/server.mjs` runs that same
+code under plain Node with a file-backed SQLite database, behind Apache or
+nginx on your own VPS or home server. See
+[docs/SELF-HOSTING.md](docs/SELF-HOSTING.md).
 
 Redeploying is what actually breaks v1: the relay answers `/api/v1/*` with
 `410 Gone` rather than syncing an old client into a channel nobody else is

@@ -96,8 +96,10 @@ exit-node reputation is theirs to change, per IP, per day. If a circle's
 polls start failing only under Tor, that is the likeliest reason.
 
 The self-host escape hatch is real: the relay is one Worker anyone can
-deploy on their own zone (or port to another host; it is fetch-in,
-fetch-out with a small SQL table), and the app takes a custom relay URL in
-settings. An .onion mirror of the relay would close this gap properly and
-is worth doing; it is not done today, and this file does not pretend
-otherwise.
+deploy on their own zone, or run as a plain Node server behind Apache or
+nginx (`docs/SELF-HOSTING.md`; it is fetch-in, fetch-out with a small SQL
+table either way), and the app takes a custom relay URL in settings. Either
+one moves you off Cloudflare's exit-node treatment entirely. An .onion
+mirror of the relay would close the remaining gap, a censor blocking Tor at
+your own server instead of Cloudflare's, and is worth doing; it is not done
+today, and this file does not pretend otherwise.

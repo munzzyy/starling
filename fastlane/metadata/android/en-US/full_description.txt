@@ -25,7 +25,7 @@ Hold to fire an SOS that your circle sees immediately. Check in with a status wi
 The Android app keeps sharing your location while your screen is off, with a persistent notification the whole time so it is never silent about what it is doing. Swiping the app away ends the share and it picks back up when you reopen Starling, or turn on "Keep sharing when the app is closed" in Settings and it carries on. Turn it off with one tap; your circle sees "stopped" instead of a dot that just goes stale.
 
 <b>Self-hostable</b>
-Don't want to trust our relay? Run your own. The app has a setting for a custom relay address, and the relay is open source and small enough to read in one sitting. Today it runs on Cloudflare Workers, so hosting it yourself needs a Cloudflare account. A plain VPS or home server is not supported yet.
+Don't want to trust our relay? Run your own. The app has a setting for a custom relay address, and the relay is open source and small enough to read in one sitting. Run it on Cloudflare Workers, or as a plain server on your own VPS or home machine behind Apache or nginx. No Cloudflare account needed either way.
 
 <b>Works with Orbot</b>
 Per-app VPN mode needs no setup. Turn on Power User Mode in Orbot and Starling proxies directly through its SOCKS port instead.
