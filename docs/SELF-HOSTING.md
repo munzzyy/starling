@@ -67,8 +67,9 @@ environment variables, matching the vars a Cloudflare deploy sets in
 | `ALLOWED_ORIGINS` | unset | comma-separated origins allowed to POST, beyond the relay's own origin and the app wrapper origins |
 | `SWEEP_INTERVAL_MS` | 600000 (10 min) | how often an idle-channel sweep runs |
 
-Stop it with Ctrl-C or `kill -TERM <pid>`; it finishes in-flight requests,
-closes the database cleanly, and exits. A crash or `kill -9` is not
+Stop it with Ctrl-C or `kill -TERM <pid>`; it stops taking connections,
+drops any still open (the apps retry), closes the database cleanly, and
+exits. A crash or `kill -9` is not
 graceful, but it is not destructive: SQLite's WAL mode (on automatically for
 a file-backed database) means the file is never left half-written, only
 possibly missing the last few seconds of writes.

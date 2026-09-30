@@ -63,7 +63,7 @@ what it is doing.
 SELF-HOSTABLE
 Point the app at your own relay instead of ours. The relay is open source
 and small: run it on Cloudflare Workers, or as a plain server behind your
-own Apache or nginx, no Cloudflare account needed either way.
+own Apache or nginx with no Cloudflare account at all.
 
 WORKS WITH ORBOT
 Per-app VPN mode needs no setup. A SOCKS toggle is available if you turn on
