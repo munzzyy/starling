@@ -1,11 +1,4 @@
-// Plain-server relay: the same Worker (src/index.js) served over node:http
-// with a file-backed SQLite database standing in for D1. This is the whole
-// self-host escape hatch described in docs/TOR.md and docs/SELF-HOSTING.md:
-// fetch-in, fetch-out, one SQL table, no Cloudflare account required.
-//
-// createServer() is the part a test drives directly, in-process, on a random
-// port. main() at the bottom is the CLI entry point: env vars in, a listening
-// server out, SIGTERM/SIGINT stop it cleanly.
+// Runs relay/src/index.js under plain node:http with a file-backed SQLite database instead of D1.
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -15,10 +8,7 @@ import { TTL_MS } from "../app/js/wire.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
-// A margin over MAX_BODY (2048, enforced inside the Worker once it has
-// parsed the body): this only bounds what a slow or hostile client can make
-// the server buffer in memory before the Worker ever sees it, so it does not
-// have to track the wire constant exactly.
+// Margin over MAX_BODY (2048): bounds what a slow client can make the server buffer before the Worker sees it.
 const MAX_RAW_BODY = 65536;
 
 const sweepStmts = (env, now) => [
@@ -26,36 +16,17 @@ const sweepStmts = (env, now) => [
   env.DB.prepare("DELETE FROM members_v3 WHERE srv < ?").bind(now - TTL_MS),
 ];
 
-// The relay's own per-request sweep (relay/src/index.js) only ever touches a
-// channel someone is actively polling or posting to. A channel nobody comes
-// back to, an abandoned invite or a circle someone left, would otherwise sit
-// in the file forever on a self-host instead of expiring with the rest. This
-// timer is the plain-server equivalent of the cron trigger a Cloudflare
-// deploy could add; the default relay does not run one either, for the same
-// reason a busy relay does not need one: real traffic sweeps as it goes.
+// A self-host has no cron trigger, so an idle channel needs this to expire; a busy one sweeps on its own traffic.
 function startIdleSweep(env, intervalMs) {
   if (!(intervalMs > 0)) return null;
   const timer = setInterval(() => {
-    try {
-      env.DB.batch(sweepStmts(env, Date.now()));
-    } catch {
-      // Never let a sweep failure take the process down; the next request's
-      // own inline sweep, or the next timer tick, tries again.
-    }
+    env.DB.batch(sweepStmts(env, Date.now())).catch(() => {});
   }, intervalMs);
   timer.unref();
   return timer;
 }
 
-// Behind a reverse proxy every request otherwise arrives from the proxy's own
-// address, and the per-address rate limiter (RATE_GET_MIN) would treat an
-// entire user base as one client. TRUST_PROXY is opt-in and off by default:
-// trusting X-Forwarded-For from an untrusted client would let anyone spoof
-// their rate-limit identity by sending the header themselves. With it on,
-// only the LAST hop is used, the one the proxy in front of this process
-// appended; that is the one thing the process directly behind a single
-// reverse proxy can trust, because the proxy appends after whatever a client
-// sent.
+// TRUST_PROXY is opt-in and reads only the LAST X-Forwarded-For hop, the one the adjacent proxy itself appended.
 function clientIp(req, trustProxy) {
   if (trustProxy) {
     const xff = req.headers["x-forwarded-for"];
@@ -67,11 +38,7 @@ function clientIp(req, trustProxy) {
   return req.socket.remoteAddress || "";
 }
 
-// Draining and discarding the rest of an oversized body, rather than
-// destroying the socket mid-request, is what lets the client see a clean 413
-// instead of a connection reset: destroying the socket while the client is
-// still mid-write races their write against our RST and shows up to them as
-// a transport failure, not an HTTP response.
+// Drains and discards an oversized body instead of destroying the socket, so the client sees a clean 413, not a reset.
 function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -131,10 +98,7 @@ async function writeWebResponse(res, response) {
   res.end(Buffer.from(await response.arrayBuffer()));
 }
 
-// The pieces a test needs to drive: a listenable http.Server sharing the
-// relay's own env (so a test can inspect env.DB._raw the same way
-// relay.test.mjs does), and a close() that tears down the timer and the
-// database handle along with the socket.
+// Returns the listenable server, its env (for tests to reach env.DB._raw), and a close() that tears both down.
 export function createServer({
   dbPath = ":memory:",
   trustProxy = false,
@@ -162,12 +126,7 @@ export function createServer({
   async function close() {
     if (sweepTimer) clearInterval(sweepTimer);
     const closed = new Promise((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())));
-    // server.close() alone waits for every open socket to end on its own,
-    // which a keep-alive client (a browser, or Node's own fetch) can hold
-    // open well past the request that used it. This is a clean shutdown, not
-    // a timeout: it ends currently-idle keep-alive sockets immediately and
-    // lets any request actually in flight finish first.
-    server.closeAllConnections?.();
+    server.closeAllConnections?.(); // a keep-alive client would otherwise hold server.close()'s callback open indefinitely
     await closed;
     env.DB.close();
   }

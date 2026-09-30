@@ -1,24 +1,11 @@
-// The plain-server relay driven over real HTTP: same contract as
-// relay.test.mjs, but through node:http and a file-backed database instead of
-// calling the Worker in-process. This is what a self-hoster actually runs, so
-// it is what gets tested end to end: a real socket, a real listen(), a real
-// TCP client, restart persistence, and TRUST_PROXY with and without an
-// upstream proxy in the picture.
-//
-// The rate limiter's state lives in a module-level Map inside the Worker
-// (relay/src/index.js), shared by every test in this process the same way
-// relay.test.mjs shares it. There, each test invents a fresh fake IP string
-// to keep out of each other's way. Here, the "IP" a real socket presents is
-// always the loopback address unless a test opts into TRUST_PROXY, so every
-// test that is not itself testing the rate limiter runs with trustProxy on
-// and a fresh X-Forwarded-For value, which keeps it off the loopback bucket
-// entirely. Only the tests that exist to test TRUST_PROXY itself touch that
-// bucket, or a fixed fake one, on purpose.
+// The plain-server relay driven over real HTTP, same contract as relay.test.mjs but through a real socket and file.
+// Rate-limit state is a module-level Map inside the Worker, shared by every test here, so non-rate tests run with TRUST_PROXY on and a fresh X-Forwarded-For value to stay off the shared loopback bucket.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { createServer } from "../relay/server.mjs";
 import { openGeneration } from "../app/js/rekey.js";
 import { epochAt } from "../app/js/ratchet.js";
@@ -46,9 +33,7 @@ async function validPost(circle, identity, ts) {
   return buildPost(identity, circle.channel, e, sealed, ts);
 }
 
-// Every call through this helper carries a fresh X-Forwarded-For hop and the
-// server is started with TRUST_PROXY on, so the request lands in its own
-// rate-limit bucket regardless of what other tests in this file have done.
+// Every call here carries a fresh X-Forwarded-For hop under TRUST_PROXY, so it lands in its own rate-limit bucket.
 async function up(opts = {}) {
   const { server, env, close } = createServer({ dbPath: tmpDbPath(), trustProxy: true, ...opts });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -138,9 +123,7 @@ test("without TRUST_PROXY every request shares the socket address and trips the 
   const base = `http://127.0.0.1:${port}`;
   const circle = await makeCircle();
 
-  // Three different X-Forwarded-For claims, but the same real TCP connection
-  // (loopback), so with no trust configured they must be rate limited as one
-  // client: the header is not read at all.
+  // Three different X-Forwarded-For claims, one real loopback connection: untrusted, so they share one budget.
   let res = await fetch(`${base}/api/v2/f/${circle.channel}`, { headers: { "x-forwarded-for": "1.1.1.1" } });
   assert.equal(res.status, 200);
   res = await fetch(`${base}/api/v2/f/${circle.channel}`, { headers: { "x-forwarded-for": "2.2.2.2" } });
@@ -164,13 +147,10 @@ test("with TRUST_PROXY=1 the last X-Forwarded-For hop is what gets rate limited"
 
   let res = await fetch(`${base}/api/v2/f/${circle.channel}`, { headers: { "x-forwarded-for": "9.9.9.9, 10.0.0.5" } });
   assert.equal(res.status, 200);
-  // Same trusted last hop (the immediate proxy, 10.0.0.5) again: limited,
-  // even though the claimed client IP (9.9.9.9) changes.
   res = await fetch(`${base}/api/v2/f/${circle.channel}`, { headers: { "x-forwarded-for": "8.8.8.8, 10.0.0.5" } });
   assert.equal(res.status, 429, "the last hop is what is trusted, not the client-supplied first hop");
-  // A different last hop (a different proxy) gets its own budget.
   res = await fetch(`${base}/api/v2/f/${circle.channel}`, { headers: { "x-forwarded-for": "8.8.8.8, 10.0.0.6" } });
-  assert.equal(res.status, 200);
+  assert.equal(res.status, 200, "a different last hop gets its own budget");
   await close();
 });
 
@@ -206,6 +186,22 @@ test("the idle sweep timer clears rows nobody has polled since", async () => {
   await close();
 });
 
+test("a rejected sweep does not crash the process or raise an unhandled rejection", async () => {
+  const { env, close } = await up({ sweepIntervalMs: 15 });
+  env.DB.batch = () => Promise.reject(new Error("SQLITE_BUSY (simulated)"));
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  await close();
+});
+
+// Negative control: the same uncaught-rejection pattern crashes a bare Node process, which is what the .catch() above guards against.
+test("negative control: an uncaught rejection on this pattern is fatal to a bare Node process", () => {
+  const result = spawnSync(process.execPath, [
+    "-e",
+    "Promise.reject(new Error('SQLITE_BUSY (simulated)')); setTimeout(() => {}, 50)",
+  ]);
+  assert.notEqual(result.status, 0, "an uncaught rejection must be fatal, or the fix above guards against nothing");
+});
+
 test("data survives a restart against the same database file, and a clean shutdown closes the handle", async () => {
   const dbPath = tmpDbPath();
   const first = await up({ dbPath });
@@ -232,13 +228,10 @@ test("a body over the raw cap is refused with a clean 413, not a connection rese
   await close();
 });
 
-// Negative control: prove the "last hop" assertion above actually
-// distinguishes a correct implementation from a plausible wrong one, by
-// checking that reading the first hop instead of the last would produce a
-// different verdict from what the test requires.
+// Negative control: proves the last-hop assertions above would fail under a first-hop implementation.
 test("negative control: a first-hop implementation would fail the trust test above", async () => {
   const hops = "9.9.9.9, 10.0.0.5".split(",").map((s) => s.trim());
-  const wrongImpl = hops[0]; // what a buggy "trust the client-supplied hop" build would use
+  const wrongImpl = hops[0];
   const rightImpl = hops[hops.length - 1];
   assert.notEqual(wrongImpl, rightImpl, "the two implementations must disagree, or the real test proves nothing");
 });

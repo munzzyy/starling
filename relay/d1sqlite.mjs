@@ -1,9 +1,4 @@
-// A Cloudflare-D1-shaped shim backed by node:sqlite. Shared by the test suite
-// (in-memory) and the plain-server relay (file-backed), so both run the exact
-// same SQL from schema.sql through the exact same wrapper: prepare().bind().
-// first()/all()/run(), meta.changes, and batch() as one transaction that rolls
-// back entirely if any statement fails. See relay/server.mjs and
-// test/d1shim.mjs.
+// A Cloudflare-D1-shaped shim over node:sqlite, shared by the test suite (in-memory) and relay/server.mjs (file-backed).
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
@@ -17,27 +12,17 @@ function runResult(stmt, norm) {
   return { success: true, meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) } };
 }
 
-// node:sqlite hands back null-prototype rows; D1 hands back plain objects, and
-// code that spreads or iterates a row should behave the same either way.
+// node:sqlite hands back null-prototype rows; D1 hands back plain objects.
 const plain = (row) => (row ? { ...row } : row);
 
-// file defaults to an in-memory database, same as the old test-only shim.
-// A real path gets WAL: the server reads on every GET and writes on every
-// POST from the same process, and WAL is what keeps a reader from blocking a
-// writer under that. Journal mode is a database-level, persistent setting on
-// disk, so this only has to run once, but it costs nothing to set it every
-// open and it keeps a copied-in database file correct even if the copy was
-// made without WAL on.
 export function makeD1(file = ":memory:") {
   if (file !== ":memory:") fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
-  if (file !== ":memory:") db.exec("PRAGMA journal_mode = WAL");
-  // schema.sql is written to run again on top of itself with nothing lost:
-  // every CREATE is IF NOT EXISTS and the migration DROPs only the retired v1
-  // and v2 tables, so applying it at every startup is how a file-backed
-  // database picks up a schema change on update, the same as deploy.sh does
-  // for D1.
-  db.exec(SCHEMA);
+  if (file !== ":memory:") {
+    db.exec("PRAGMA journal_mode = WAL"); // lets a reader run alongside the writer, both in this same process
+    db.exec("PRAGMA busy_timeout = 5000"); // waits out a lock from another process (a backup tool) instead of erroring
+  }
+  db.exec(SCHEMA); // every statement is idempotent, so this is safe to run again on top of an existing database
   return {
     prepare(sql) {
       const stmt = db.prepare(sql);
@@ -49,17 +34,11 @@ export function makeD1(file = ":memory:") {
             async first() { return plain(stmt.get(...norm)) ?? null; },
             async all() { return { results: stmt.all(...norm).map(plain) }; },
             async run() { return runResult(stmt, norm); },
-            // Used only by batch(): runs synchronously inside the shared transaction.
-            _runSync() { return runResult(stmt, norm); },
+            _runSync() { return runResult(stmt, norm); }, // used only by batch(), inside its own transaction
           };
         },
       };
     },
-    // D1's batch() runs all statements inside one implicit transaction: if any
-    // statement fails (a UNIQUE constraint, say) the whole batch rolls back and
-    // none of the writes apply. The relay leans on that for the member cap and
-    // for the points primary key backstopping the replay rule, so it is
-    // modelled here rather than approximated.
     async batch(stmts) {
       for (const s of stmts) {
         if (!s?._bound) throw new TypeError("batch takes bound statements: call .bind() even with no parameters");
