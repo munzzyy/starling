@@ -68,8 +68,14 @@ trap 'rm -f ../app/starling.apk' EXIT
 "${W[@]}" deploy
 
 echo "== 4/4 health check =="
-SUB=$("${W[@]}" whoami 2>/dev/null | grep -oE '[a-z0-9-]+\.workers\.dev' | head -1 || true)
-URL="https://$WORKER.${SUB:-workers.dev}"
+# wrangler whoami never prints the workers.dev subdomain, so prefer the custom domain when wrangler.toml has one.
+HOST=$(grep -A2 '^\[\[routes\]\]' wrangler.toml | grep -oE 'pattern = "[^"]+"' | head -1 | cut -d'"' -f2 || true)
+if [ -n "$HOST" ]; then
+  URL="https://$HOST"
+else
+  SUB=$("${W[@]}" whoami 2>/dev/null | grep -oE '[a-z0-9-]+\.workers\.dev' | head -1 || true)
+  URL="https://$WORKER.${SUB:-workers.dev}"
+fi
 echo "trying $URL/api/v2/health"
 for i in 1 2 3 4 5 6; do
   if curl -fsS "$URL/api/v2/health" 2>/dev/null | grep -q '"ok":true'; then
