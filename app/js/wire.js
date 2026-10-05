@@ -121,7 +121,7 @@ export async function validEcdhKey(epkBytes) {
   }
 }
 
-// Control characters and lone surrogates JSON-escape to six bytes each, enough to push a post past PAD_LEN.
+// C0 controls and lone surrogates JSON-escape to up to six bytes each, enough to push a post past PAD_LEN.
 export function cleanText(s, max) {
   if (typeof s !== "string") return "";
   const cut = s.replace(/[\p{Cc}\p{Cs}]/gu, "").slice(0, max);

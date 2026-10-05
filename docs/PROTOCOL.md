@@ -262,11 +262,12 @@ Plaintext is JSON, padded to exactly `PAD_LEN` bytes with trailing spaces
 ```
 
 A sender cuts `name` and `st` to 24 UTF-16 code units and `emoji` to 8, after
-removing control characters and unpaired surrogates, which JSON escapes to six
-bytes each. With every field at its longest the message still leaves
-`PAD_RESERVE` bytes of `PAD_LEN` unused; `test/crypto.test.mjs` builds that
-message from the fields the app actually sends and holds the line, so a new
-field that would not fit is caught before it ships.
+removing control characters and unpaired surrogates (C0 controls and lone
+surrogates JSON-escape to up to six bytes each). With every field at its longest
+the message still leaves `PAD_RESERVE` bytes of `PAD_LEN` unused;
+`test/crypto.test.mjs` builds that message from the fields the app actually
+sends and holds the line, so a new field that would not fit is caught before it
+ships.
 
 `cadence` is how many seconds the sender waits between posts while standing
 still: 15, 60 or 300, chosen per circle. A receiver that reads it calls the
