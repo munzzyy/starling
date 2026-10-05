@@ -6880,11 +6880,11 @@ window.addEventListener("hashchange", () => {
 
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
+  if (ui.closeTopOverlay()) return;
   if (pickName !== null) {
     backOutOfPick();
     return;
   }
-  if (ui.closeTopOverlay()) return;
   if (focusedId) {
     unfocus();
     return;

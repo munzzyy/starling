@@ -67,6 +67,22 @@ test("Escape backs out to Places, and a later tap saves nothing", async () => {
   assert.deepEqual(state.places, []);
 });
 
+test("Escape closes a sheet opened over a pick before it backs out of the pick", async () => {
+  reset();
+  internals.startPlacePick("Gym");
+  harness.fire(harness.node('[data-testid="settings-open"]'), "click");
+  await settle();
+  assert.ok(ui.overlaysOpen(), "Settings is open over the armed pick");
+  harness.fire(document, "keydown", { key: "Escape" });
+  assert.equal(ui.overlaysOpen(), false, "Escape closed Settings");
+  assert.ok(!placesSheetOpen(), "and did not stack Places on top of it");
+  assert.equal(banner.hidden, false, "the pick is still armed");
+  assert.ok(mapEl.classList.contains("picking"));
+  harness.fire(document, "keydown", { key: "Escape" });
+  assert.equal(banner.hidden, true);
+  assert.ok(placesSheetOpen());
+});
+
 test("Use the map center saves the spot under the crosshair", async () => {
   reset();
   internals.startPlacePick("Home");
