@@ -42,7 +42,7 @@ def q(b, script, *args):
 
 def member_sub(b, name):
     return q(b,
-        "var cards = document.querySelectorAll('.member-card');"
+        "var cards = document.querySelectorAll('#member-list [data-testid=\"member-card\"]');"
         "for (var i = 0; i < cards.length; i++) {"
         "  var n = cards[i].querySelector('.mc-name');"
         "  if (n && n.textContent === arguments[0])"
