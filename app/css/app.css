@@ -2664,7 +2664,6 @@ div.danger-zone {
   cursor: crosshair;
 }
 
-/* The spot Use the map center saves. */
 #map.picking::after {
   content: "";
   position: absolute;

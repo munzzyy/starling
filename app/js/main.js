@@ -396,7 +396,6 @@ let storedCkEpoch = -1;
 let beacon = null;
 let mapView = null;
 let sheet = null;
-// The name of the place waiting for a spot on the map, while a pick is armed.
 let pickName = null;
 let demo = null;
 let demoMembers = [];
