@@ -108,7 +108,7 @@ export function fenceSnap(places, lat, lon, { sos = false, precision = "precise"
 // Per-member arrive/leave tracking against the current set of places.
 export function createPlaceTracker(initialPlaces = []) {
   let places = sanitizePlaces(initialPlaces);
-  // memberId -> { placeId, since, flippedAt, arrivedAt }; null placeId is nowhere, null arrivedAt is unseen.
+  // memberId -> { placeId, since, flippedAt, arrivedAt, coarse }; null placeId is nowhere, null arrivedAt is unseen.
   const state = new Map();
 
   function setPlaces(next) {
@@ -129,7 +129,15 @@ export function createPlaceTracker(initialPlaces = []) {
   function update(memberId, lat, lon, { mode, ts, now = Date.now(), acc } = {}) {
     if (!places.length) return [];
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return [];
-    if (mode === "coarse") return [];
+    if (mode === "coarse") {
+      // The place stays remembered so a return to precise inside it is not a fresh "arrived".
+      const held = state.get(memberId);
+      if (held) {
+        held.coarse = true;
+        held.arrivedAt = null;
+      }
+      return [];
+    }
     if (Number.isFinite(ts) && now - ts > POINT_MAX_AGE_MS) return [];
     if (Number.isFinite(acc) && acc > MAX_ACC_M) return [];
     // How much of the accuracy radius argues against a transition. Unknown
@@ -168,6 +176,8 @@ export function createPlaceTracker(initialPlaces = []) {
       }
     }
     rec.last = { lat, lon, at };
+    const afterCoarse = rec.coarse === true;
+    rec.coarse = false;
 
     const events = [];
     const current = rec.placeId ? places.find((p) => p.id === rec.placeId) : null;
@@ -198,7 +208,7 @@ export function createPlaceTracker(initialPlaces = []) {
         rec.since = now;
         rec.flippedAt = now;
         // The fix's own time, but a sender clock running ahead cannot date an arrival in the future.
-        rec.arrivedAt = Math.min(at, now);
+        rec.arrivedAt = afterCoarse ? null : Math.min(at, now);
         events.push({ type: "arrive", memberId, placeId: entered.id, placeName: entered.name });
       }
     }
@@ -206,20 +216,22 @@ export function createPlaceTracker(initialPlaces = []) {
     return events;
   }
 
-  function placeFor(memberId) {
+  const placed = (memberId) => {
     const rec = state.get(memberId);
-    if (!rec?.placeId) return null;
-    return places.find((p) => p.id === rec.placeId) || null;
+    return rec?.placeId && !rec.coarse ? rec : null;
+  };
+
+  function placeFor(memberId) {
+    const rec = placed(memberId);
+    return rec ? places.find((p) => p.id === rec.placeId) || null : null;
   }
 
   function sinceFor(memberId) {
-    const rec = state.get(memberId);
-    return rec?.placeId ? rec.since : null;
+    return placed(memberId)?.since ?? null;
   }
 
   function arrivedAtFor(memberId) {
-    const rec = state.get(memberId);
-    return rec?.placeId ? rec.arrivedAt : null;
+    return placed(memberId)?.arrivedAt ?? null;
   }
 
   function forget(memberId) {

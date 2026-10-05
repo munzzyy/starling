@@ -218,6 +218,52 @@ test("arrivedAtFor: deleting the place forgets the arrival", () => {
   assert.equal(t.arrivedAtFor("m1"), null, "a place that comes back does not bring the old arrival with it");
 });
 
+test("a coarse fix hides the place until a precise one, and a return is not an arrival", () => {
+  const t = createPlaceTracker([HOME]);
+  let now = 1000;
+  t.update("m1", north(5000).lat, BASE.lon, { now });
+  now += MIN_FLIP_MS + 1000;
+  t.update("m1", BASE.lat, BASE.lon, { ts: now, now });
+  assert.equal(t.placeFor("m1").name, "Home");
+  assert.equal(t.arrivedAtFor("m1"), now);
+
+  now += 60_000;
+  assert.deepEqual(t.update("m1", BASE.lat, BASE.lon, { mode: "coarse", now }), []);
+  assert.equal(t.placeFor("m1"), null, "a grid point a kilometer wide cannot say which place");
+  assert.equal(t.arrivedAtFor("m1"), null);
+  assert.equal(t.sinceFor("m1"), null);
+
+  now += 60_000;
+  assert.deepEqual(t.update("m1", BASE.lat, BASE.lon, { ts: now, now }), [], "precise again at Home fires nothing");
+  assert.equal(t.placeFor("m1").name, "Home");
+  assert.equal(t.arrivedAtFor("m1"), null, "nobody saw when she got back");
+});
+
+test("an arrival found on the first precise fix after coarse is not dated", () => {
+  const t = createPlaceTracker([HOME, SCHOOL]);
+  let now = 1000;
+  t.update("m1", BASE.lat, BASE.lon, { now });
+  now += MIN_FLIP_MS + 1000;
+  t.update("m1", north(1000).lat, BASE.lon, { mode: "coarse", now });
+  now += 10 * 60_000;
+  const evs = t.update("m1", SCHOOL.lat, SCHOOL.lon, { ts: now, now });
+  assert.deepEqual(
+    evs.map((e) => `${e.type} ${e.placeName}`),
+    ["leave Home", "arrive School"],
+  );
+  assert.equal(t.placeFor("m1").name, "School");
+  assert.equal(t.arrivedAtFor("m1"), null);
+
+  // The next arrival this phone does watch is dated again.
+  now += 30 * 60_000;
+  t.update("m1", north(5000).lat, BASE.lon, { ts: now, now });
+  assert.equal(t.placeFor("m1"), null);
+  now += 30 * 60_000;
+  t.update("m1", BASE.lat, BASE.lon, { ts: now, now });
+  assert.equal(t.placeFor("m1").name, "Home");
+  assert.equal(t.arrivedAtFor("m1"), now);
+});
+
 test("forget drops a member's state", () => {
   const t = createPlaceTracker([HOME]);
   t.update("m1", BASE.lat, BASE.lon, { now: 1000 });

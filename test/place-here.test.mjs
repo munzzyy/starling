@@ -33,7 +33,7 @@ const north = (m) => ({ lat: BASE.lat + m / 111320, lon: BASE.lon });
 const HOME = { id: "aaaaaaaa", name: "Home", lat: BASE.lat, lon: BASE.lon, radius: 250 };
 const SCHOOL = { id: "bbbbbbbb", name: "School", lat: north(2000).lat, lon: BASE.lon, radius: 250 };
 
-async function post(who, name, pos, ts) {
+async function post(who, name, pos, ts, mode = "precise") {
   const gen = state.gen;
   const e = epochAt(ts);
   const key = await gen.ratchet.keyFor(e, who.memberId, ts);
@@ -44,8 +44,8 @@ async function post(who, name, pos, ts) {
     name,
     lat: pos.lat,
     lon: pos.lon,
-    acc: 5,
-    mode: "precise",
+    ...(mode === "precise" ? { acc: 5 } : {}),
+    mode,
   });
   const p = await buildPost(who, gen.channelId, e, sealed, ts);
   await internals.roster().ingest(
@@ -148,4 +148,22 @@ test("you count too, and an empty place says nothing", () => {
   } finally {
     state.me = null;
   }
+});
+
+test("a member who switches to Neighborhood is not named at a place until she is precise again", async () => {
+  const label = (id) =>
+    harness.node("#member-list").children.find((c) => c.dataset.member === id)?.getAttribute("aria-label") || "";
+  const ts = Date.now();
+  await post(juno, "Juno", BASE, ts - 30_000, "coarse");
+  assert.equal(internals.placeTracker.placeFor(juno.memberId), null);
+  assert.equal(hereLines()[HOME.id], "", "a grid point a kilometer wide cannot put her at Home");
+  await api.setSetting("trail", false);
+  assert.ok(label(juno.memberId).includes("Neighborhood"), label(juno.memberId));
+  assert.ok(!label(juno.memberId).includes("At Home"), label(juno.memberId));
+
+  await post(juno, "Juno", BASE, ts);
+  assert.equal(hereLines()[HOME.id], "Here now: Juno");
+  await api.setSetting("trail", true);
+  assert.ok(label(juno.memberId).includes("At Home"), label(juno.memberId));
+  assert.ok(!label(juno.memberId).includes("since"), "nobody saw when she got back");
 });
