@@ -402,6 +402,7 @@ let demoMapOn = false;
 let demoMapAsk = false;
 let focusedId = null;
 let focusSaid = "";
+let focusByKeyboard = false;
 let focusTrailOn = false;
 let stopGeo = null;
 let shareTimer = 0;
@@ -1558,6 +1559,7 @@ function focusMember(id, { keyboard = false } = {}) {
   // member's trail painted on the map.
   if (focusedId && focusedId !== id) mapView.clearTrail(focusedId);
   focusedId = id;
+  focusByKeyboard = keyboard;
   focusTrailOn = state.settings.trail;
   if (Number.isFinite(rec.lat)) mapView.focusOn(rec.lat, rec.lon);
   render();
@@ -1566,9 +1568,11 @@ function focusMember(id, { keyboard = false } = {}) {
 
 function unfocus() {
   const card = $("#focus-card");
-  const back = focusedId && card.contains(document.activeElement)
+  // A tap on the close button focuses it too, so where focus sits cannot tell a tap from a key.
+  const back = focusedId && focusByKeyboard && card.contains(document.activeElement)
     ? [...$("#member-list").children].find((n) => n.dataset.member === focusedId)
     : null;
+  focusByKeyboard = false;
   if (focusedId) mapView.clearTrail(focusedId);
   focusedId = null;
   card.hidden = true;

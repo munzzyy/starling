@@ -135,6 +135,7 @@ test("closing the card puts focus back on that member's card in the list", () =>
   const card = harness.node("#member-list").children.find((n) => n.dataset.member === who.memberId);
   const close = focusCard.children[0].children[2];
   assert.equal(close.className, "icon-btn fc-close");
+  close.focus();
   close.dispatchEvent({ type: "click" });
   assert.equal(focusCard.hidden, true);
   assert.equal(document.activeElement, card);
@@ -147,6 +148,10 @@ test("a tap that opens the card leaves focus where it was", () => {
   card.dispatchEvent({ type: "click" });
   assert.equal(focusCard.hidden, false);
   assert.equal(document.activeElement, document.body, "only the keyboard path moves focus");
-  focusCard.children[0].children[2].dispatchEvent({ type: "click" });
-  assert.equal(document.activeElement, document.body, "and closing a card focus never entered does not pull it into the list");
+  // Chromium focuses a button on a tap before its click handler runs.
+  const close = focusCard.children[0].children[2];
+  close.focus();
+  close.dispatchEvent({ type: "click" });
+  assert.equal(focusCard.hidden, true);
+  assert.notEqual(document.activeElement, card, "closing a card a tap opened does not pull focus into the list");
 });
