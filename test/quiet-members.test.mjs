@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { installDom, loadApp } from "./dom-harness.mjs";
+import { installDom, loadApp, settle } from "./dom-harness.mjs";
 
 const harness = installDom();
 
@@ -19,7 +19,7 @@ globalThis.indexedDB ??= {
   },
 };
 
-const { internals } = await loadApp(harness);
+const { internals, api } = await loadApp(harness);
 const state = internals.state;
 const { openGeneration } = await import("../app/js/rekey.js");
 const { epochAt } = await import("../app/js/ratchet.js");
@@ -112,6 +112,64 @@ test("a member who posts leaves the quiet list for the live one", async () => {
   assert.deepEqual(quietList().children.map(cardName), ["Bo"]);
   assert.equal(quietList().children[0], before[1], "the card left standing is the same node, not a rebuilt one");
   assert.equal(nudge().hidden, true);
+});
+
+async function postAs(who, name) {
+  const gen = state.gen;
+  const ts = Date.now();
+  const e = epochAt(ts);
+  const key = await gen.ratchet.keyFor(e, who.memberId, ts);
+  const sealed = await sealMessage(key, gen.channelId, who.memberId, e, ts, { v: 2, ts, t: "loc", name, lat: 40, lon: -75, acc: 5 });
+  const post = await buildPost(who, gen.channelId, e, sealed, ts);
+  await internals.roster().ingest(
+    [{ m: who.memberId, alg: who.alg, pk: b64uEncode(who.pk), epk: b64uEncode(who.epk), points: [{ e: post.e, ts: post.ts, srv: post.ts, n: post.n, c: post.c, sig: post.sig }] }],
+    ts,
+  );
+}
+
+test("a key change is not shown as a quiet member, and accepting it leaves no ghost card", async () => {
+  const ana = await generateIdentity();
+  const older = await generateIdentity();
+  state.keyChanges.clear();
+  await circleOf([]);
+  state.pinned.set(ana.memberId, { ...pinOf(older, "Ana"), memberId: ana.memberId });
+  internals.render();
+  assert.equal(quietList().children.length, 1);
+
+  await postAs(ana, "Ana");
+  await settle();
+  assert.ok(state.keyChanges.has(ana.memberId), "the new keys are held for a person to decide");
+  assert.equal(quietList().children.length, 0, "the key-change card speaks for her, not No recent update");
+  assert.equal(nudge().hidden, true, "and she is still in the circle");
+
+  assert.equal(await api.acceptKeyChange(ana.memberId), true);
+  assert.equal(state.pinned.get(ana.memberId).memberId, ana.memberId);
+  assert.deepEqual(quietList().children.map((c) => c.dataset.member), [ana.memberId]);
+
+  await postAs(ana, "Ana");
+  internals.render();
+  assert.equal(internals.roster().list().length, 1, "she is live on the new keys");
+  assert.equal(quietList().children.length, 0, "and not drawn a second time as quiet");
+  const ui = await import("../app/js/ui.js");
+  const find = (n, pred) => (pred(n) ? n : (n.children || []).reduce((hit, c) => hit || find(c, pred), null));
+  const sheet = ui.openMembersSheet({ api, onClose() {} });
+  const rows = [];
+  find(harness.node("#overlays"), (n) => (n.dataset?.testid === "member-row" && rows.push(n.dataset.member), false));
+  sheet.close();
+  assert.ok(rows.includes(ana.memberId), "People and keys has her row under her id, so verify, nickname and mute reach her");
+  assert.ok(!rows.includes("undefined") && !rows.includes(undefined));
+  assert.equal(await api.setNickname(ana.memberId, "Gran"), true);
+  assert.equal(api.members()[0].name, "Gran");
+});
+
+test("a record that does not repeat its id still gets a quiet card and a row under that id", async () => {
+  const ana = await generateIdentity();
+  await circleOf([]);
+  const { memberId, ...bare } = pinOf(ana, "Ana");
+  state.pinned.set(memberId, bare);
+  internals.render();
+  assert.deepEqual(quietList().children.map((c) => c.dataset.member), [ana.memberId]);
+  assert.deepEqual(api.pinnedList().map((p) => p.memberId).filter((id) => id !== state.identity.memberId), [ana.memberId]);
 });
 
 test("locking takes the quiet cards down with everything else", async () => {

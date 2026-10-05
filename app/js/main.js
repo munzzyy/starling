@@ -725,19 +725,20 @@ function render() {
   renderMarkers(list, now);
   const quiet = quietMembers(list);
   ui.updateQuietList($("#quiet-list"), quiet, { onTap: () => openMembers() });
-  $("#nudge").hidden = state.demo || !state.gen || list.length > 0 || quiet.length > 0;
+  $("#nudge").hidden = state.demo || !state.gen || list.length > 0 || quiet.length > 0 || state.keyChanges.size > 0;
   renderFocus(list, now);
   renderAlerts();
   renderTools();
 }
 
+// The map key is the id, since a record does not always repeat it; a pending key change has its own card.
 function quietMembers(list) {
   if (state.demo || !state.gen) return [];
   const me = state.identity?.memberId;
   const live = new Set(list.map((r) => r.id));
-  return [...state.pinned.values()]
-    .filter((r) => r.memberId !== me && !live.has(r.memberId))
-    .map((r) => ({ id: r.memberId, name: r.nick || r.name || "", hue: hueFromMemberId(r.memberId) }));
+  return [...state.pinned]
+    .filter(([id]) => id !== me && !live.has(id) && !state.keyChanges.has(id))
+    .map(([id, r]) => ({ id, name: r.nick || r.name || "", hue: hueFromMemberId(id) }));
 }
 
 function renderChrome() {
@@ -2080,7 +2081,7 @@ async function acceptKeyChange(id) {
     render();
     return false;
   }
-  state.pinned.set(id, entry);
+  state.pinned.set(id, { ...entry, memberId: id });
   state.keyChanges.delete(id);
   persistPinned();
   render();
@@ -6636,7 +6637,7 @@ const api = {
   joining: () => state.joining,
   cancelJoin,
   // membership
-  pinnedList: () => [...state.pinned.values()],
+  pinnedList: () => [...state.pinned].map(([memberId, rec]) => ({ ...rec, memberId })),
   // Pinned members whose phones have been quiet long enough that a re-key
   // right now risks stranding them (they would miss the new keys and need a
   // fresh invite). Read by the accept and new-keys confirmations.

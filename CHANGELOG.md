@@ -24,6 +24,10 @@ All notable changes to Starling are recorded here. Versions follow
   phone. Their card still says where they are, and an SOS, a missed
   check-in or a key change from them still comes through.
 
+- **People and keys keeps working after you accept someone's new keys.**
+  Their row lost track of who it belonged to, so Mark verified and Remove
+  did nothing for that person until Starling was restarted.
+
 ## [0.17.1]
 
 - **Scanning a code works again on Android.** The camera was refused to
