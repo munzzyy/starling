@@ -730,3 +730,98 @@ test("a message kind this version does not know never touches the record", async
   assert.equal(roster.get(alice.memberId).type, "loc", "a message without t is still a position");
   assert.equal(roster.get(alice.memberId).lat, 2);
 });
+
+test("past the window a held chain opens re-keys only, never positions", async () => {
+  const c = await circle({ historyEpochs: 6 });
+  const alice = await generateIdentity();
+  const now = rAt(RE0 + 12) + 1000;
+  c.recv.ratchet.holdTrim(now);
+  await c.recv.ratchet.syncToClock(now);
+  const control = [];
+  const roster = rosterFor(c, {
+    pinned: pinnedWith(alice),
+    onControl: (from, obj, e) => control.push([obj.t, e]),
+  });
+  const old = rAt(RE0 + 2) + 1000;
+  await roster.ingest([await entryFor(c, alice, [
+    { e: RE0 + 2, msg: rLoc(old) },
+    { e: RE0 + 2, msg: { v: 2, t: "rekey", ts: old + 1, g: 1, to: RSELF, rm: [] } },
+  ])], now);
+  assert.deepEqual(control, [["rekey", RE0 + 2]], "the re-key from below the window is still delivered");
+  assert.equal(roster.get(alice.memberId), undefined, "the position from below the window is not shown");
+
+  await roster.ingest([await entryFor(c, alice, [{ e: RE0 + 7, msg: rLoc(rAt(RE0 + 7) + 1000) }])], now);
+  assert.equal(roster.get(alice.memberId).ts, rAt(RE0 + 7) + 1000, "the oldest epoch inside the window still lands");
+});
+
+test("the poller holds the trim across every read and lets go once the read is done", async () => {
+  const log = [];
+  let held = false;
+  const ratchet = {
+    retainedEpochs: () => [],
+    holdTrim: () => {
+      held = true;
+      log.push("hold");
+    },
+    releaseTrim: () => {
+      held = false;
+      log.push("release");
+    },
+    syncToClock: async () => {
+      log.push(held ? "sync while held" : "sync");
+    },
+  };
+  const calls = [];
+  const restore = stubGlobals(
+    [{ now: 0, members: [] }, () => { throw new Error("offline"); }, { now: 0, members: [] }],
+    calls,
+  );
+  const poller = createPoller({
+    channelId: CHANNEL,
+    roster: { ingest: async () => log.push(held ? "ingest while held" : "ingest") },
+    ratchet,
+    onChange() {},
+    onStatus() {},
+  });
+  try {
+    poller.start();
+    await new Promise((r) => setTimeout(r, 20));
+    await poller.pollNow();
+    await poller.pollNow();
+  } finally {
+    poller.stop();
+    restore();
+  }
+  assert.deepEqual(log, [
+    "hold", "ingest while held", "release", "sync",
+    "hold", "ingest while held", "release", "sync",
+  ], "a failed read takes no hold and releases nothing");
+});
+
+test("a held chain starts the cursor at zero, never at this device's last trim", async () => {
+  const head = epochAt(Date.now());
+  const gen = await openGeneration({ seed: newSeed(), g: 0, e0: head - 30, historyEpochs: 6 });
+  gen.ratchet.holdTrim();
+  await gen.ratchet.syncToClock();
+  assert.equal(gen.ratchet.retainedEpochs()[0], head - 30, "the chain reaches back to the stored snapshot");
+  assert.equal(windowStart(gen.ratchet), 0);
+
+  const calls = [];
+  const restore = stubGlobals([{ now: 0, members: [] }], calls);
+  const poller = createPoller({
+    channelId: CHANNEL,
+    roster: { async ingest() {} },
+    ratchet: gen.ratchet,
+    onChange() {},
+    onStatus() {},
+  });
+  try {
+    poller.start();
+    await new Promise((r) => setTimeout(r, 20));
+  } finally {
+    poller.stop();
+    restore();
+  }
+  assert.equal(sinceOf(calls[0].url), 0, "the relay learns nothing about when this device was last open");
+  assert.ok(gen.ratchet.retainedEpochs()[0] >= head - 5, "and the read released the hold");
+});

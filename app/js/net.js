@@ -235,6 +235,8 @@ export function createRoster({ channelId, ratchet, selfId, pinned, onControl, on
         }
         // A kind from a newer version must not overwrite an SOS with "live".
         if (typeof obj.t === "string" && !POSITION_KINDS.has(obj.t)) continue;
+        // A held trim reads keys past the window for re-keys only; positions there stay hidden.
+        if (Number.isSafeInteger(ratchet.historyEpochs) && p.e <= epochAt(now) - ratchet.historyEpochs) continue;
         if (!accepted(entry.m, p.e, p.ts)) continue;
 
         if (!rec) {
@@ -287,6 +289,8 @@ export function createRoster({ channelId, ratchet, selfId, pinned, onControl, on
 // The oldest server time worth fetching. Points older than the history window
 // cannot be decrypted by design, so there is no reason to pull them down.
 export function windowStart(ratchet, now = Date.now()) {
+  // From a held chain the cursor would tell the relay when this device last trimmed.
+  if (ratchet.trimHeld) return 0;
   const oldest = ratchet.retainedEpochs()[0];
   if (!Number.isSafeInteger(oldest)) return 0;
   return Math.max(0, Math.min(now, oldest * EPOCH_MS));
@@ -344,7 +348,12 @@ export function createPoller({ channelId, roster, ratchet, onChange, onStatus, o
         ...entry,
         points: (entry.points || []).filter((p) => !seen.has(`${entry.m}|${p.e}|${p.ts}|${p.n}`)),
       }));
-      await roster.ingest(fresh);
+      ratchet?.holdTrim?.();
+      try {
+        await roster.ingest(fresh);
+      } finally {
+        ratchet?.releaseTrim?.();
+      }
       let maxCursor = since;
       for (const entry of data.members || []) {
         for (const p of entry.points || []) {

@@ -200,7 +200,12 @@ than Cloudflare can run their own relay; see the FAQ and
    depending on the user's setting) is still on the device, in memory or on
    disk, because that is the trail the user chose to be able to read. A
    device compromise that catches the key before it is destroyed exposes
-   only what remains in that window, never the full circle history.
+   only what remains in that window, never the full circle history. One
+   exception, bounded: a device coming back after a gap keeps the keys its
+   stored snapshot reaches until it has read the relay backlog, or for five
+   minutes when it cannot, so a re-key sent while it was away is not lost.
+   Those keys were on its disk the whole time it was away, positions from
+   that range are never shown, and nothing older than the snapshot is kept.
 3. **Post-compromise security requires an actual re-key.** Holding a
    compromised device's current keys is not automatically remediated; someone
    has to trigger a re-key (removing the compromised device, or a manual "new

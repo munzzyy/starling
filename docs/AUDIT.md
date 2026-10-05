@@ -201,7 +201,9 @@ under it; the function names are the durable half.
 ## Deletion schedule, honestly
 
 - **Content keys.** `HISTORY_EPOCHS` past epochs retained, everything older
-  destroyed on every app start and every epoch boundary (`ratchet.js:114-136`,
+  destroyed on every epoch boundary, and on every app start, return to the
+  app or reconnect as soon as the relay backlog has been read, or
+  `TRIM_HOLD_MS` (five minutes) later if it cannot be (`ratchet.js:114-136`,
   `210-226`). Destruction is `Uint8Array.fill(0)` (`ratchet.js:39-40`) followed
   by removal from the in-memory `Map`.
 - **What "destroyed" cannot mean in a browser.** JavaScript garbage collects,
@@ -345,7 +347,13 @@ a unit test in isolation, and the things round five turned up.
    (`main.js:1454`), which nobody will post there. Work
    out whether that leaves a device silently stranded, how long it takes
    anyone to notice, and whether the relay withholding a re-key for one
-   epoch is enough to cause it deliberately.
+   epoch is enough to cause it deliberately. Partly closed: a device that
+   was away (closed, locked, in the background or offline) now reads the
+   backlog before it trims, at any history setting, and
+   `test/rekey-away.test.mjs` holds that on entry, on return and with no
+   network. What is left is a device that stays online and polling while
+   the relay withholds a re-key for longer than its window; that one is
+   still stranded.
 3. **Cross-protocol confusion between the two wrap types.** A welcome
    wrap and a re-key wrap share the AAD label `starling/v2/rekey` and
    the same HKDF label shape; what separates them is the channel id

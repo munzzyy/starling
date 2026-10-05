@@ -16,6 +16,7 @@ import {
   MAX_CATCHUP_EPOCHS,
   DEFAULT_HISTORY_EPOCHS,
   HISTORY_CHOICES,
+  TRIM_HOLD_MS,
   epochAt,
   createRatchet,
   chainInit,
@@ -306,4 +307,50 @@ test("our send epoch follows our own clock, never a peer's", async () => {
   // a receiver refuses a member whose (epoch, ts) does not strictly increase.
   await r.currentEpoch(at(E0 + 3));
   assert.equal(await r.currentEpoch(at(E0 + 1)), E0 + 3, "a backwards clock does not walk us back");
+});
+
+test("a held trim keeps the snapshot's key through the walk, and the release drops it", async () => {
+  const r = await ratchetAt(E0, 6);
+  const now = at(E0 + 12);
+  r.holdTrim(now);
+  assert.equal(await r.syncToClock(now), E0 + 12, "the walk to the clock still happens");
+  assert.equal(r.retainedEpochs()[0], E0, "nothing the stored snapshot reached is gone yet");
+  assert.ok(await r.keyFor(E0, MEMBER, now), "so a re-key sealed at the old epoch still opens");
+  assert.ok(await r.currentEpoch(now), "and a send in the meantime trims nothing");
+  assert.equal(r.retainedEpochs()[0], E0);
+  assert.equal(r.snapshot().e0, E0, "a snapshot while held is the one already stored, never older");
+
+  r.releaseTrim(now);
+  assert.equal(r.trimHeld, false);
+  assert.equal(r.retainedEpochs()[0], E0 + 7, "the release is the trim the clock asked for");
+  assert.equal(await r.keyFor(E0, MEMBER, now), null);
+  assert.equal(r.snapshot().e0, E0 + 7);
+});
+
+test("a held trim still self-destructs past the catch-up cap", async () => {
+  const r = await ratchetAt(E0, 6);
+  const now = at(E0 + MAX_CATCHUP_EPOCHS + 1);
+  r.holdTrim(now);
+  assert.equal(await r.syncToClock(now), null);
+  assert.equal(r.destroyed, true);
+  assert.deepEqual(r.retainedEpochs(), []);
+  assert.equal(r.snapshot(), null);
+});
+
+test("a hold that is never released ends on its own, and a new window ends it at once", async () => {
+  const r = await ratchetAt(E0, 6);
+  const start = at(E0 + 12);
+  r.holdTrim(start);
+  await r.syncToClock(start + TRIM_HOLD_MS - 1);
+  assert.equal(r.retainedEpochs()[0], E0, "inside the bound the old keys stay");
+  await r.syncToClock(start + TRIM_HOLD_MS);
+  assert.equal(r.trimHeld, false);
+  assert.equal(r.retainedEpochs()[0], E0 + 7, "at the bound the trim happens with no release at all");
+
+  const s = await ratchetAt(E0, 36);
+  s.holdTrim(start);
+  await s.syncToClock(start);
+  s.setHistoryEpochs(1, start);
+  assert.deepEqual(s.retainedEpochs(), [E0 + 12], "a person shrinking the window is never kept waiting");
+  assert.equal(s.trimHeld, false);
 });

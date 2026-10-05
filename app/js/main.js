@@ -58,7 +58,7 @@ import {
   checkSafetyQr,
   parseSafetyQr,
 } from "./roster.js";
-import { createRatchet, epochAt, HISTORY_CHOICES, DEFAULT_HISTORY_EPOCHS } from "./ratchet.js";
+import { createRatchet, epochAt, HISTORY_CHOICES, DEFAULT_HISTORY_EPOCHS, TRIM_HOLD_MS } from "./ratchet.js";
 import {
   INVITE_TTL_MS,
   MAX_SKEW_EPOCHS,
@@ -392,6 +392,7 @@ const beaconLinks = new Map();
 // The chain-key epoch already on disk, so the ratchet is only rewritten when
 // it has actually moved.
 let storedCkEpoch = -1;
+let trimHoldTimer = 0;
 // The live emergency beacon, if an SOS is running. Memory only by design:
 // it must not outlive the process that can also cancel it.
 let beacon = null;
@@ -1655,6 +1656,7 @@ async function enterCircle() {
   // spends the mark.
   if (!state.chainWiped && (await hasDestroyMark())) state.chainWiped = { at: Date.now() };
   state.gen.ratchet.setHistoryEpochs(historyEpochs());
+  holdTrimForBacklog();
   await syncRatchet();
   // The sync can end the circle rather than advance it: a chain asked to walk
   // further than the catch-up cap destroys itself, and the teardown takes the
@@ -1684,8 +1686,9 @@ async function enterCircle() {
 // The one call that actually destroys expired key material. Nothing else walks
 // the chain forward on a device that is only listening, so a phone that has
 // been switched off for a week would otherwise come back still holding the
-// week's keys. Called on entry and on every resume, and the survivor is written
-// down, because a chain key left on disk is a chain key a seized phone has.
+// week's keys. Called on entry and on a resume with no poller, and the
+// survivor is written down, because a chain key left on disk is a chain key a
+// seized phone has.
 async function syncRatchet() {
   if (!state.gen || state.locked) return;
   // A null head means the chain destroyed itself rather than walk a jump it
@@ -1696,6 +1699,26 @@ async function syncRatchet() {
     return;
   }
   await persistRatchet();
+}
+
+// The poller's next read ends the hold; the timer ends it for a phone with no network.
+function holdTrimForBacklog() {
+  const gen = state.gen;
+  if (!gen) return;
+  gen.ratchet.holdTrim();
+  clearTimeout(trimHoldTimer);
+  trimHoldTimer = setTimeout(() => {
+    trimHoldTimer = 0;
+    if (state.gen !== gen) return;
+    gen.ratchet.releaseTrim();
+    syncRatchet().catch(() => {});
+  }, TRIM_HOLD_MS);
+}
+
+function endTrimHold() {
+  clearTimeout(trimHoldTimer);
+  trimHoldTimer = 0;
+  state.gen?.ratchet.releaseTrim();
 }
 
 async function persistRatchet() {
@@ -2054,6 +2077,7 @@ function setupNet() {
 function onRelayRetired() {
   state.retired = true;
   teardownNet();
+  persistRatchet();
   stopInviteWatch();
   showNotice({
     title: "Update Starling",
@@ -3284,6 +3308,7 @@ function lockNow() {
   // being held open for a re-key race is chain keys, and a locked device holds
   // none.
   endGraceWatch();
+  endTrimHold();
   poller?.stop();
   poller = null;
   sender?.cancel?.();
@@ -4654,6 +4679,7 @@ function teardownNet() {
   // locking, switching circles or losing the chain all end it, and the old
   // keys go with it.
   endGraceWatch();
+  endTrimHold();
   poller?.stop();
   poller = null;
   sender?.cancel();
@@ -6760,6 +6786,7 @@ if (debugHooks()) window.__starlingInternals = {
   unlockWith,
   syncRatchet,
   persistRatchet,
+  holdTrimForBacklog,
   startJoinWatch,
   alertItems,
   onShareToggle,
@@ -6835,10 +6862,19 @@ if (debugHooks()) window.__starlingInternals = {
 
 // ----------------------------------------------------------------- boot
 
+// With a poller, the backlog is read before anything is trimmed; see holdTrimForBacklog.
+function catchUp() {
+  if (!poller || state.demo) {
+    syncRatchet().catch(() => {});
+    return;
+  }
+  holdTrimForBacklog();
+  poller.pollNow();
+}
+
 window.addEventListener("online", () => {
   state.offline = false;
-  syncRatchet().catch(() => {});
-  poller?.pollNow();
+  catchUp();
   // A working network just showed itself: anything still owed to the
   // circle goes now.
   outbox.flush();
@@ -6850,7 +6886,7 @@ window.addEventListener("online", () => {
 // them forward, and nothing else does.
 document.addEventListener("visibilitychange", () => {
   if (!pageShown() || state.locked) return;
-  syncRatchet().catch(() => {});
+  catchUp();
   healthAt = 0;
   if (!state.sharing && (state.stopRecord?.route === "system" || state.stopRecord?.route === "stalled")) {
     resumeShareIfArmed().catch((e) => window.__starlingErrors.push(`share resume: ${String(e)}`));

@@ -30,6 +30,7 @@ is as load bearing as the rest and should be read before the wire format.
 | `EPOCH_MS`            | 600000 (10 min)     | content key lifetime                             |
 | `MAX_SKEW_EPOCHS`     | 2 (±20 min)         | tolerated clock disagreement between members     |
 | `MAX_CATCHUP_EPOCHS`  | 4320 (30 days)      | hard cap on forward ratcheting in one operation  |
+| `TRIM_HOLD_MS`        | 300000 (5 min)      | longest a device waits to read the relay backlog before trimming |
 | `HISTORY_EPOCHS`      | 6 (1 h), settable   | how many past epoch keys a device keeps          |
 | `PAD_LEN`             | 512                 | every plaintext padded to exactly this           |
 | `PAD_RESERVE`         | 48                  | bytes the largest message the app builds leaves free under `PAD_LEN` |
@@ -41,8 +42,9 @@ is as load bearing as the rest and should be read before the wire format.
 | `MAX_BODY`            | 2048                | largest POST body the relay reads                |
 
 These live in `app/js/wire.js`, which the relay imports too, so a client and a
-relay cannot drift apart on a bound they both enforce. `MAX_CATCHUP_EPOCHS` and
-the history window choices are client only and live in `app/js/ratchet.js`.
+relay cannot drift apart on a bound they both enforce. `MAX_CATCHUP_EPOCHS`,
+`TRIM_HOLD_MS` and the history window choices are client only and live in
+`app/js/ratchet.js`.
 `EPOCH_MS` and `MAX_SKEW_EPOCHS` are deliberately written out in both files
 rather than imported one from the other, so the relay never has to pull in the
 client ratchet to bounds check an epoch index.
@@ -115,7 +117,8 @@ is ever tried.
 
 A device keeps `HISTORY_EPOCHS` past keys and destroys the rest. On every app
 start and every epoch boundary it ratchets to the current epoch and drops
-everything older than the window. The window is a user setting, because it is
+everything older than the window; on a start, only once it has read the relay
+backlog (see "Coming back" below). The window is a user setting, because it is
 exactly the trade the user should be making:
 
 | setting        | `HISTORY_EPOCHS` | trail you can still read | what a seized device gives up |
@@ -125,8 +128,28 @@ exactly the trade the user should be making:
 | Longer         | 36               | 6 hours                  | the last 6 hours              |
 | Full retention | 144              | 24 hours                 | everything the relay still has|
 
-A point older than the window is not shown, and the client sets its feed cursor
-to the start of the window so it does not even fetch what it cannot read.
+A point older than the window is not shown.
+
+**Coming back.** A re-key is an ordinary message, read with the key for the
+epoch it was sent in, so a device that trimmed before reading would lose any
+re-key sent while it was away and stay on a generation the circle has left. On
+entering a circle, on coming back to the app and on reconnecting, the device
+still ratchets to the current epoch at once, and still destroys itself past
+`MAX_CATCHUP_EPOCHS`, but it holds the trim until it has read what the relay
+has for it. Only keys the stored snapshot already reached are held, and that
+snapshot was on the disk the whole time the device was away; nothing older is
+ever written. From those older epochs only a re-key is acted on: a position
+there is dropped, so the window still decides what can be seen. The read
+releases the hold, and if the relay cannot be reached the hold ends by itself
+after `TRIM_HOLD_MS`. Changing the history setting, locking, switching circles
+and leaving all end it at once.
+
+The first read after entering a circle asks for everything the relay keeps
+(`since=0`) rather than starting at the oldest key the device holds: that epoch
+is when this device last trimmed, and handing it to the relay would link the
+session to the last one. Every read after that pages on the relay's own receive
+time. A poller that starts with nothing held, such as the one that watches a
+generation just left, starts at the window as before.
 
 **When catching up is not possible.** A device that comes back after longer
 than `MAX_CATCHUP_EPOCHS` cannot walk its chain to the current epoch, and the

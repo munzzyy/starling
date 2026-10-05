@@ -23,6 +23,7 @@ export const EPOCH_MS = 600_000; // 10 minutes
 export const MAX_SKEW_EPOCHS = 2; // ±20 minutes of tolerated clock disagreement
 export const MAX_CATCHUP_EPOCHS = 4320; // 30 days: bounds a hostile epoch index
 export const DEFAULT_HISTORY_EPOCHS = 6; // 1 hour of readable trail
+export const TRIM_HOLD_MS = 5 * 60 * 1000; // longest a trim waits for the relay backlog
 
 // The history window is a user setting because it is exactly the trade the user
 // should be making: how much trail they can still read against how much a
@@ -110,6 +111,7 @@ export function createRatchet({ e0, ck0, historyEpochs = DEFAULT_HISTORY_EPOCHS 
   let sentEpoch = e0; // highest epoch WE have encrypted in, never peer-driven
   let window = Math.max(1, historyEpochs | 0);
   let destroyed = false;
+  let holdUntil = 0;
 
   function forget(below) {
     for (const [e, ck] of chain) {
@@ -133,6 +135,8 @@ export function createRatchet({ e0, ck0, historyEpochs = DEFAULT_HISTORY_EPOCHS 
   // to the whole circle, durably. The window belongs to the passage of time,
   // not to whatever a peer claims the time is.
   function trim(now = Date.now()) {
+    if (now < holdUntil) return;
+    holdUntil = 0;
     forget(Math.min(head, epochAt(now)) - window + 1);
   }
 
@@ -205,8 +209,9 @@ export function createRatchet({ e0, ck0, historyEpochs = DEFAULT_HISTORY_EPOCHS 
   }
 
   // Called on boot and on every epoch boundary. A device that has been off for
-  // three days drops three days of keys the moment it comes back, rather than
-  // carrying them until something happens to need one.
+  // three days drops three days of keys once it has read the relay backlog, or
+  // TRIM_HOLD_MS after it came back, rather than carrying them until something
+  // happens to need one.
   async function syncToClock(now = Date.now()) {
     const e = epochAt(now);
     if (e > head) {
@@ -240,7 +245,19 @@ export function createRatchet({ e0, ck0, historyEpochs = DEFAULT_HISTORY_EPOCHS 
     // that is simulating time has to be able to say which time it means.
     setHistoryEpochs(n, now = Date.now()) {
       window = Math.max(1, n | 0);
+      holdUntil = 0;
       trim(now);
+    },
+    // Only the trim waits: the walk and the destroy past the catch-up cap do not.
+    holdTrim(now = Date.now()) {
+      if (!destroyed) holdUntil = Math.max(holdUntil, now + TRIM_HOLD_MS);
+    },
+    releaseTrim(now = Date.now()) {
+      holdUntil = 0;
+      trim(now);
+    },
+    get trimHeld() {
+      return holdUntil > 0;
     },
     retainedEpochs: () => [...chain.keys()].sort((a, b) => a - b),
     // The next generation's seed, mixed from the chain key at a NAMED epoch and

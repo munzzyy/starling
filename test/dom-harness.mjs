@@ -194,7 +194,7 @@ function makeLeaflet() {
 
 // Install the fake page. Returns a handle with the pieces a check may want to
 // steer: the fetch queue and the collected toasts.
-export function installDom({ hostname = "127.0.0.1", interactive: live = false, listen = false } = {}) {
+export function installDom({ hostname = "127.0.0.1", interactive: live = false, listen = false, listeners = false } = {}) {
   interactive = live;
   listening = listen;
   const head = makeEl("head");
@@ -225,6 +225,20 @@ export function installDom({ hostname = "127.0.0.1", interactive: live = false, 
   };
   if (live) doc.activeElement = body;
   if (listen) listenable(doc);
+  // Opt in to keep page and window listeners, so a check can fire the app's own handlers.
+  const heard = { document: new Map(), window: new Map() };
+  if (listeners) {
+    for (const [where, target] of [["document", doc], ["window", globalThis]]) {
+      target.addEventListener = (type, fn) => {
+        if (!heard[where].has(type)) heard[where].set(type, []);
+        heard[where].get(type).push(fn);
+      };
+      target.removeEventListener = (type, fn) => {
+        const list = heard[where].get(type) || [];
+        if (list.includes(fn)) list.splice(list.indexOf(fn), 1);
+      };
+    }
+  }
   globalThis.document = doc;
   globalThis.window = globalThis;
   globalThis.self = globalThis;
@@ -249,8 +263,10 @@ export function installDom({ hostname = "127.0.0.1", interactive: live = false, 
     addListener() {},
     removeListener() {},
   });
-  globalThis.addEventListener = () => {};
-  globalThis.removeEventListener = () => {};
+  if (!listeners) {
+    globalThis.addEventListener = () => {};
+    globalThis.removeEventListener = () => {};
+  }
   globalThis.requestAnimationFrame = (fn) => setTimeout(() => fn(0), 0);
   globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
   globalThis.btoa ??= (s) => Buffer.from(s, "binary").toString("base64");
@@ -296,6 +312,7 @@ export function installDom({ hostname = "127.0.0.1", interactive: live = false, 
   return {
     calls: state.calls,
     onFetch(fn) { state.handler = fn; },
+    listeners: (where, type) => [...(heard[where].get(type) || [])],
     makeEl,
     // The element a selector resolves to, for reading back what was rendered.
     node,
