@@ -13,9 +13,9 @@ import androidx.core.content.ContextCompat
 import org.json.JSONObject
 
 // A restart or an update kills the page that seals every position. This
-// offers the share back as a tap, an ordinary reopen through the app lock, or
-// with a resume switch on brings it back with no window; any gate that fails
-// gets the tap.
+// offers the share back as a tap, which reopens through the app lock. With a
+// resume switch on it brings the share back with no window instead, and any
+// gate that fails gets the tap.
 //
 // The page keeps the real armed record in its own storage, which this side
 // cannot read before a page exists. It hands over a copy: when the share was
@@ -279,14 +279,15 @@ object ShareResume {
                 LocationService.refreshNotification()
             }
             else -> {
-                val offer = if (state == "locked") offerText(why) else null
-                if (PageHost.activity == null) {
+                val alone = PageHost.activity == null
+                if (alone) {
                     PageHost.destroy()
                     abandons++
                 }
                 clear()
                 LocationService.stop(ctx)
-                if (offer != null && PageHost.activity == null) offerIfDue(ctx, offer)
+                // A page that threw says declined too; a share it rightly refused is no longer due.
+                if (alone) offerIfDue(ctx, offerText(why))
             }
         }
     }

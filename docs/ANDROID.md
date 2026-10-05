@@ -387,15 +387,17 @@ than left waiting. Any miss gets the tap above. Otherwise it starts the
 location service, whose notification reads "Sharing again after a restart"
 (or "after an update"), and builds the page with no activity, held in the same
 private virtual display a page kept past a swipe uses. The proxy setting goes
-in before that page's WebView exists, and the page loads only once it has
-landed. It boots the way a reopen does and tells
-the wrapper how that went. When the share is back, Starling posts "Sharing
-resumed" on the Circle alerts channel, and the next time the app is opened a
-card says the share came back by itself, and to check who has access to the
-phone if that was not you. When the app lock held the page shut, the service
-stops and you get the tap. When the page's own rules said no, the service just
-stops. If the page says nothing within 90 seconds, it is destroyed first so
-nothing more is posted, then the service stops and you get the tap.
+in before that page's WebView exists. With Tor mode on the page loads only
+once it has landed; with it off there is nothing to wait for, so it loads at
+once. It boots the way a reopen does and tells the wrapper how that went.
+When the share is back, Starling posts "Sharing resumed" on the Circle alerts
+channel, and the next time the app is opened a card says the share came back
+by itself, and to check who has access to the phone if that was not you. When
+the app lock held the page shut, or the page said no or failed, the service
+stops and you get the tap, as long as the share is still due: a share you
+stopped or one whose window ran out gets nothing. If the page says nothing
+within 90 seconds, it is destroyed first so nothing more is posted, then the
+service stops and you get the tap.
 
 Your own server gets nothing until the page says started. The map fetches no
 tiles until a window shows the page for the first time. With no window the

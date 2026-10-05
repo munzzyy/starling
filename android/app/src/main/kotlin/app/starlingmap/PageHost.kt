@@ -120,19 +120,21 @@ object PageHost {
         return build(app)
     }
 
-    // Proxy before the WebView, and the load only from its listener, so nothing leaves before Tor.
+    // Proxy before the WebView. With Tor on the page loads only from the proxy's listener; off, at once.
     fun bootHeadless(app: Context): Boolean {
         if (webView != null) return false
         release?.let { main.removeCallbacks(it) }
         release = null
         if (!SystemCheck.webViewOk(app)) return false
+        val tor = TorProxy.enabled(app)
+        if (tor && !TorProxy.supported()) return false
         activity = null
         windowShown = false
         appCtx = app
-        val pending = TorProxy.apply(app, Runnable { load(null) })
+        val pending = TorProxy.apply(app, Runnable { if (tor) load(null) })
         build(app)
         hold()
-        if (!pending) load(null)
+        if (!tor || !pending) load(null)
         return true
     }
 

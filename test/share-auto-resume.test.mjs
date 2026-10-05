@@ -694,9 +694,15 @@ test("Kotlin: the page with no window loads only behind the proxy, and reuses th
   assert.match(boot, /if \(!SystemCheck\.webViewOk\(app\)\) return false/, "the WebView floor a window would enforce");
   assert.match(boot, /activity = null/);
   assert.match(boot, /build\(app\)\s*hold\(\)/, "held in the same private display a kept page is");
-  assert.match(boot, /val pending = TorProxy\.apply\(app, Runnable \{ load\(null\) \}\)/);
+  assert.match(boot, /val tor = TorProxy\.enabled\(app\)\s*if \(tor && !TorProxy\.supported\(\)\) return false/, "Tor on with no way to set a proxy is the tap, never a direct load");
+  assert.ok(boot.indexOf("TorProxy.supported()") < boot.indexOf("build(app)"));
+  assert.match(boot, /val pending = TorProxy\.apply\(app, Runnable \{ if \(tor\) load\(null\) \}\)/);
   assert.ok(boot.indexOf("TorProxy.apply(") < boot.indexOf("build(app)"), "the proxy is set before the WebView exists");
-  assert.match(boot, /hold\(\)\s*if \(!pending\) load\(null\)/, "and the page loads from its listener, or at once when nothing changed");
+  assert.match(
+    boot,
+    /hold\(\)\s*if \(!tor \|\| !pending\) load\(null\)/,
+    "with Tor on the page loads from the listener, or at once when the rule is already in; with Tor off it waits on no listener",
+  );
   assert.equal((boot.match(/load\(/g) || []).length, 2, "no other load");
   assert.match(fn(host, "attach"), /return build\(app\)/, "one way to build a page");
   assert.match(fnExpr(host, "backgroundReply"), /eval\("globalThis\.__starlingBackground && __starlingBackground\(\$\{JSONObject\.quote\(token\)\}, \$granted\)"\)/);
@@ -721,7 +727,13 @@ test("Kotlin: the page's word is checked, and anything but started ends the shar
   );
   assert.match(code(fn(src, "clear")), /alerted = false/, "and the next one alerts again");
   assert.match(on, /else -> \{[\s\S]*?LocationService\.stop\(ctx\)/, "locked and declined both end it");
-  assert.match(on, /if \(state == "locked"\) offerText\(why\) else null/, "and only locked offers the tap");
+  assert.match(
+    on,
+    /else -> \{\s*val alone = PageHost\.activity == null[\s\S]*?LocationService\.stop\(ctx\)\s*if \(alone\) offerIfDue\(ctx, offerText\(why\)\)\s*\}/,
+    "locked and declined both get the tap back when nobody is at the window",
+  );
+  assert.doesNotMatch(on, /state == "locked"/, "a page that threw says declined, and that must not end in nothing");
+  assert.match(code(fn(src, "offerIfDue")), /if \(dueNow\(ctx\)\) Events\.postShareResume\(ctx, text\)/, "a share stopped or run out gets no tap");
   const abandon = code(fn(src, "abandon"));
   assert.match(abandon, /if \(PageHost\.activity != null\) return/, "never behind a person's back");
   assert.ok(abandon.indexOf("PageHost.destroy()") < abandon.indexOf("LocationService.stop(ctx)"), "no page, no posts, then no service");
