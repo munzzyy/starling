@@ -313,3 +313,28 @@ test("locking forgets the ask going out", async () => {
   const next = await opened(back.peerGen, back.posted.at(-1));
   assert.equal("ask" in next, false, "and so did the ask");
 });
+
+test("the check-in button leaves a stale fix home unless this phone is sharing", async () => {
+  const self = await generateIdentity();
+  const peer = await generateIdentity();
+  const { peerGen, posted } = await circleWith(self, peer);
+  await peerPost(peer, peerGen, { t: "loc", lat: 1, lon: 2 });
+
+  state.me = { lat: 45.5, lon: -122.6, acc: 8, ts: Date.now() - 3_600_000 };
+  // The button hands doCheckin its click event, which says nothing about sharing.
+  await internals.doCheckin({ type: "click" });
+  const quiet = await opened(peerGen, posted.at(-1));
+  assert.equal(quiet.t, "checkin");
+  for (const field of ["lat", "lon", "acc", "bat"]) assert.equal(field in quiet, false, `${field} stays home`);
+
+  state.sharing = true;
+  try {
+    await internals.doCheckin();
+  } finally {
+    state.sharing = false;
+  }
+  const live = await opened(peerGen, posted.at(-1));
+  assert.equal(live.t, "checkin");
+  assert.equal(live.lat, 45.5, "a sharing phone still checks in with its position");
+  assert.equal(live.bat, 0.5);
+});

@@ -298,8 +298,8 @@ treats an `ask` that is not 8 lowercase hex characters, or an `ak` more than 15
 minutes from that message's `ts`, as absent. It acts only on an ask aimed at its
 own member id and no older than 15 minutes by its own clock: it says so once per
 sender and `ak`, at most once per sender in 10 minutes, and offers a check-in,
-which goes to the whole circle as usual. From a phone that is not sharing, that
-check-in carries no position and no battery level either. Every member can read
+which goes to the whole circle as usual. A `checkin` from a phone that is not
+sharing, that one or any other, carries no position and no battery level. Every member can read
 who was asked; only the member asked is told. Eight characters keep the message
 small, and two members who share them would both be asked, about one chance in
 36 million for a full circle. Nothing is pushed: a phone hears an ask only while

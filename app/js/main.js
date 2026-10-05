@@ -6165,7 +6165,8 @@ async function doCheckin({ share = true } = {}) {
   }
   if (wasSos) applyCadence();
   if (timerDue()) clearCheckinTimer();
-  checkinShares = share !== false;
+  // A phone that is not sharing has only an old fix, and a check-in would stamp it as new.
+  checkinShares = share !== false && state.sharing;
   try {
     await sendMsg("checkin", { share: checkinShares });
     // Checking in safe cancels a queued SOS retry and is exactly the moment
