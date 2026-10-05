@@ -36,6 +36,9 @@ class MainActivity : FragmentActivity() {
         const val PREFS = "starling"
         const val PREF_TOR = "tor"
         const val EVENTS_CHANNEL = "events"
+        const val ARRIVE_CHANNEL = "events_arrive"
+        const val LEAVE_CHANNEL = "events_leave"
+        const val CHECKIN_CHANNEL = "events_checkin"
         // A new id, not a raised importance on EVENTS_CHANNEL: a channel's
         // sound and vibration are as fixed after creation as its importance
         // is, so an existing install's routine channel can never grow the
@@ -305,6 +308,11 @@ class MainActivity : FragmentActivity() {
                 Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName),
             )
         }
+    }
+
+    fun openAlertSounds() {
+        Events.ensureEventChannels(this)
+        openNotificationSettings()
     }
 
     // Where a person can let an SOS through total silence, not only alarms-allowed.

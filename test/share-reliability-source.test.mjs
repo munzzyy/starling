@@ -245,7 +245,7 @@ test("the wipe stops the share first, deletes each channel on its own, and kills
   // Deleting "share" throws while its foreground service is up; that must not keep the others.
   assert.match(
     wipe,
-    /for \(id in listOf\(\s*LocationService\.CHANNEL,\s*MainActivity\.EVENTS_CHANNEL,\s*MainActivity\.SOS_CHANNEL,\s*MainActivity\.OLD_SOS_CHANNEL,\s*\)\) \{\s*runCatching \{ nm\.deleteNotificationChannel\(id\) \}\s*\}/,
+    /for \(id in listOf\(\s*LocationService\.CHANNEL,\s*MainActivity\.EVENTS_CHANNEL,\s*MainActivity\.ARRIVE_CHANNEL,\s*MainActivity\.LEAVE_CHANNEL,\s*MainActivity\.CHECKIN_CHANNEL,\s*MainActivity\.SOS_CHANNEL,\s*MainActivity\.OLD_SOS_CHANNEL,\s*\)\) \{\s*runCatching \{ nm\.deleteNotificationChannel\(id\) \}\s*\}/,
   );
   assert.equal((wipe.match(/deleteNotificationChannel/g) || []).length, 1, "no channel deleted outside the loop");
 });

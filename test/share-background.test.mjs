@@ -290,10 +290,10 @@ test("a moment of visibility with no window up does not suppress a notification"
     document.visibilityState = "visible";
     bridge.shown = false;
     bridge.calls.length = 0;
-    internals.notifyEvent("SOS from Juno", "body", "sos-1", true);
+    internals.notifyEvent("SOS from Juno", "body", "sos-1", "sos");
     assert.equal(bridge.calls.filter((c) => c[0] === "notify").length, 1, "nobody is looking, so it goes to the tray");
     bridge.shown = true;
-    internals.notifyEvent("SOS from Juno", "body", "sos-1", true);
+    internals.notifyEvent("SOS from Juno", "body", "sos-1", "sos");
     assert.equal(bridge.calls.filter((c) => c[0] === "notify").length, 1, "with the window up the toast is enough");
   } finally {
     document.visibilityState = prev;

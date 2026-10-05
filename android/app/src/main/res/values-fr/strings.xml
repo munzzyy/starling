@@ -3,6 +3,9 @@
     <string name="app_name">Starling</string>
     <string name="notif_channel">Partage de position</string>
     <string name="notif_events_channel">Alertes du cercle</string>
+    <string name="notif_arrive_channel">Arrivées</string>
+    <string name="notif_leave_channel">Départs</string>
+    <string name="notif_checkin_channel">Nouvelles de sécurité</string>
     <string name="notif_sos_channel">Alertes d\'urgence</string>
     <string name="notif_sos_text">Ouvrez Starling maintenant.</string>
     <string name="notif_title">Partage avec votre cercle</string>

@@ -24,10 +24,25 @@ object Events {
 
     private val SOS_VIBRATION = longArrayOf(0, 400, 200, 400, 200, 400, 200, 400)
 
-    fun post(ctx: Context, title: String, body: String, tag: String, urgent: Boolean = false) {
+    private val ROUTINE = listOf(
+        MainActivity.EVENTS_CHANNEL to R.string.notif_events_channel,
+        MainActivity.ARRIVE_CHANNEL to R.string.notif_arrive_channel,
+        MainActivity.LEAVE_CHANNEL to R.string.notif_leave_channel,
+        MainActivity.CHECKIN_CHANNEL to R.string.notif_checkin_channel,
+    )
+
+    // Never the SOS channel: only post(urgent = true) reaches that one.
+    fun channelFor(kind: String): String = when (kind) {
+        "arrive" -> MainActivity.ARRIVE_CHANNEL
+        "leave" -> MainActivity.LEAVE_CHANNEL
+        "checkin" -> MainActivity.CHECKIN_CHANNEL
+        else -> MainActivity.EVENTS_CHANNEL
+    }
+
+    fun post(ctx: Context, title: String, body: String, tag: String, urgent: Boolean = false, kind: String = "") {
         if (title.isEmpty()) return
         // title/body never reach a notification field; see the commit message for why.
-        show(ctx, R.string.app_name, if (urgent) R.string.notif_sos_text else R.string.notif_locked_text, tag, urgent)
+        show(ctx, R.string.app_name, if (urgent) R.string.notif_sos_text else R.string.notif_locked_text, tag, urgent, channelFor(kind))
     }
 
     // The share reminder (ShareReminder). Its words say nothing about a circle or a person.
@@ -42,15 +57,22 @@ object Events {
         show(ctx, R.string.notif_resumed_title, textRes, ShareResume.RESUMED_TAG, false)
 
     // String resources only, so nothing a caller was handed can reach a notification field.
-    private fun show(ctx: Context, @StringRes titleRes: Int, @StringRes textRes: Int, tag: String, urgent: Boolean) {
+    private fun show(
+        ctx: Context,
+        @StringRes titleRes: Int,
+        @StringRes textRes: Int,
+        tag: String,
+        urgent: Boolean,
+        routine: String = MainActivity.EVENTS_CHANNEL,
+    ) {
         if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
             return
         }
         val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val channelId = if (urgent) ensureSosChannel(ctx) else MainActivity.EVENTS_CHANNEL
-        if (!urgent) nm.createNotificationChannel(buildChannel(ctx, channelId, false))
+        val channelId = if (urgent) ensureSosChannel(ctx) else routine
+        if (!urgent) ensureEventChannels(ctx)
         val open = PendingIntent.getActivity(
             ctx,
             0,
@@ -86,7 +108,9 @@ object Events {
     }
 
     private fun buildChannel(ctx: Context, channelId: String, urgent: Boolean): NotificationChannel {
-        val name = ctx.getString(if (urgent) R.string.notif_sos_channel else R.string.notif_events_channel)
+        val name = ctx.getString(
+            if (urgent) R.string.notif_sos_channel else ROUTINE.firstOrNull { it.first == channelId }?.second ?: R.string.notif_events_channel,
+        )
         val channel = NotificationChannel(channelId, name, NotificationManager.IMPORTANCE_HIGH)
         if (urgent) {
             // A ringtone, not the default notification ding, and a pattern
@@ -103,6 +127,12 @@ object Events {
             channel.vibrationPattern = SOS_VIBRATION
         }
         return channel
+    }
+
+    // All of them at once, so each is in system settings to pick a sound for before its first alert.
+    fun ensureEventChannels(ctx: Context) {
+        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.createNotificationChannels(ROUTINE.map { buildChannel(ctx, it.first, false) })
     }
 
     // A channel's sound attributes never change in place, so the pre-alarm channel is retired.

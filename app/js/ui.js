@@ -2600,6 +2600,29 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, autoRes
       onChange: (v) => onChange("batAlerts", v),
     }),
   );
+  if (typeof native()?.openAlertSounds === "function") {
+    const box = el("div", "field");
+    box.dataset.testid = "settings-alert-sounds";
+    const open = btn("btn btn-secondary", "Open alert sound settings");
+    open.dataset.testid = "settings-alert-sounds-open";
+    open.addEventListener("click", () => {
+      try {
+        native()?.openAlertSounds?.();
+      } catch {
+        // the system screen is missing on this phone; nothing else to offer
+      }
+    });
+    box.append(
+      el("span", "field-label", "Alert sounds"),
+      el(
+        "p",
+        "field-note",
+        "Arrivals, departures and check-ins each have their own channel in Android's notification settings, so each can have its own sound. A sound of its own also tells anyone near the phone which kind of alert came in.",
+      ),
+      open,
+    );
+    gAlerts.append(box);
+  }
   if (typeof native()?.openSosChannelSettings === "function") {
     const box = el("div", "field");
     box.dataset.testid = "settings-sos-dnd";

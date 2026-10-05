@@ -30,7 +30,7 @@ test("an SOS notification asks the bridge to be urgent; routine ones do not", ()
   globalThis.StarlingNative = { notify: (...args) => calls.push(args) };
   try {
     withHiddenPage(() => {
-      internals.notifyEvent("SOS from Juno", "Open Starling to see their live position.", "sos-1", true);
+      internals.notifyEvent("SOS from Juno", "Open Starling to see their live position.", "sos-1", "sos");
       internals.notifyEvent("Someone wants to join", "Open Starling to check their number and let them in.", "join-req");
     });
   } finally {
@@ -47,12 +47,12 @@ test("notifyEvent never reaches the bridge while the page is visible or the demo
   try {
     document.visibilityState = "visible";
     state.demo = false;
-    internals.notifyEvent("SOS from Juno", "body", "sos-1", true);
+    internals.notifyEvent("SOS from Juno", "body", "sos-1", "sos");
     assert.equal(calls.length, 0, "a visible page already toasted this, it must not also hit the tray");
 
     document.visibilityState = "hidden";
     state.demo = true;
-    internals.notifyEvent("SOS from Juno", "body", "sos-1", true);
+    internals.notifyEvent("SOS from Juno", "body", "sos-1", "sos");
     assert.equal(calls.length, 0, "the demo's fake SOS must never reach the real notification tray");
   } finally {
     state.demo = false;

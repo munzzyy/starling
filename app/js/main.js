@@ -4198,7 +4198,7 @@ async function onJoinRequest(inv, obj, from) {
   // OUT of the notification: it is whatever the requester typed, anyone
   // holding the link can send one, and the lock screen is no place to render
   // an unauthenticated stranger's chosen words.
-  notifyEvent(t("Someone wants to join"), t("Open Starling to check their number and let them in."), "join-req");
+  notifyEvent(t("Someone wants to join"), t("Open Starling to check their number and let them in."), "join-req", "other");
   render();
 }
 
@@ -4683,7 +4683,7 @@ async function completeJoin(j, welcome) {
   // The wait for an accept can easily outlast someone's patience with a
   // spinner; if they backgrounded the app, the moment it resolves is exactly
   // what they are waiting to hear.
-  notifyEvent(t("You're in"), t("Your request was accepted. Your circle is on the map."), "join");
+  notifyEvent(t("You're in"), t("Your request was accepted. Your circle is on the map."), "join", "other");
   // Say hello on the circle channel. Everyone else was told a new member
   // exists by the re-key that admitted this device, but only its own posts
   // carry its keys, and until they land nobody can attribute anything it
@@ -6590,20 +6590,25 @@ function openHelpLink() {
   );
 }
 
+// "sos" keeps its own urgent path; the wrapper gives arrive, leave and checkin a channel each.
+const NOTIFY_KINDS = new Set(["sos", "arrive", "leave", "checkin", "battery", "other"]);
+
 // A system notification through the wrapper, for events that matter while the
 // screen is off or another app is in front. On the open web there is nothing
 // to post through (no push tokens, by design), so the toast is the whole
 // story there. Never fires while the app is visibly on screen: the toast
 // already said it.
-function notifyEvent(title, body, tag, urgent = false) {
+function notifyEvent(title, body, tag, kind = "other") {
   // The demo is a scripted story. Its fake SOS must never reach the phone's
   // real notification tray, where nothing marks it as fiction.
   if (state.demo) return;
   if (pageShown()) return;
   const n = native();
   if (!n?.notify) return;
+  const urgent = kind === "sos";
   try {
-    n.notify(title, body, tag, urgent);
+    if (!urgent && typeof n.notifyKind === "function") n.notifyKind(title, body, tag, NOTIFY_KINDS.has(kind) ? kind : "other");
+    else n.notify(title, body, tag, urgent);
   } catch {
     // an older wrapper without the method
   }
@@ -6658,7 +6663,7 @@ function checkOwnTimer(now = Date.now()) {
     const msg = t("Check in within 5 minutes, or your circle is told.");
     // The lock screen must not say a timer is running.
     if (!state.locked) ui.toast(msg, "warn");
-    notifyEvent(msg, "", "due-self");
+    notifyEvent(msg, "", "due-self", "checkin");
   }
   if (!dueTimer) scheduleDueTimer();
 }
@@ -6860,11 +6865,11 @@ function checkAlerts() {
       sosCardHidden.delete(rec.id);
       ui.toast(t("SOS from {who}", { who: rec.name || t("a member") }), "sos");
       navigator.vibrate?.([160, 80, 160, 80, 240]);
-      notifyEvent(t("SOS from {who}", { who }), t("Open Starling to see their live position."), `sos-${rec.id}`, true);
+      notifyEvent(t("SOS from {who}", { who }), t("Open Starling to see their live position."), `sos-${rec.id}`, "sos");
     } else if (st === "checkin" && prev === "sos") {
       ui.toast(t("{who} checked in", { who }));
       cancelEventNotification(`sos-${rec.id}`);
-      notifyEvent(t("{who} checked in", { who }), t("The SOS is cleared."), `sos-${rec.id}`);
+      notifyEvent(t("{who} checked in", { who }), t("The SOS is cleared."), `sos-${rec.id}`, "checkin");
     }
     prevStatus.set(rec.id, st);
 
@@ -6876,7 +6881,7 @@ function checkAlerts() {
         askHeardFrom.set(rec.id, now);
         const msg = t("{who} asked you to check in", { who });
         ui.toast(msg);
-        notifyEvent(msg, "", `ask-${rec.id}`);
+        notifyEvent(msg, "", `ask-${rec.id}`, "checkin");
       }
     }
 
@@ -6884,7 +6889,7 @@ function checkAlerts() {
       sosQuietTold.add(rec.id);
       const msg = t("{who}'s SOS went quiet", { who });
       ui.toast(msg, "warn");
-      notifyEvent(msg, t("Their last position is on the map."), `sos-${rec.id}`, true);
+      notifyEvent(msg, t("Their last position is on the map."), `sos-${rec.id}`, "sos");
     }
 
     if (overdue(rec, now)) {
@@ -6893,7 +6898,7 @@ function checkAlerts() {
         dueAnnounced.add(key);
         const msg = t("{who} missed their check-in", { who });
         ui.toast(msg, "warn");
-        notifyEvent(msg, t("Their last position is on the map."), `due-${rec.id}`, true);
+        notifyEvent(msg, t("Their last position is on the map."), `due-${rec.id}`, "sos");
       }
     } else {
       let told = false;
@@ -6924,7 +6929,7 @@ function checkAlerts() {
             ev.type === "arrive" ? t("{who} arrived at {place}", { who, place: ev.placeName }) : t("{who} left {place}", { who, place: ev.placeName });
           ui.toast(msg);
           navigator.vibrate?.(80);
-          notifyEvent(msg, "", `place-${rec.id}`);
+          notifyEvent(msg, "", `place-${rec.id}`, ev.type);
         }
       }
     }
@@ -6936,7 +6941,7 @@ function checkAlerts() {
         const msg = t("{who}'s phone is at {pct}%", { who, pct });
         if (!muted) {
           ui.toast(msg, "warn");
-          notifyEvent(msg, t("Their dot may go dark soon."), `bat-${rec.id}`);
+          notifyEvent(msg, t("Their dot may go dark soon."), `bat-${rec.id}`, "battery");
         }
       } else if (rec.bat > 0.25) {
         if (batWarned.delete(rec.id)) cancelEventNotification(`bat-${rec.id}`);

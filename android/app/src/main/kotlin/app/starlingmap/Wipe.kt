@@ -33,6 +33,9 @@ object Wipe {
         for (id in listOf(
             LocationService.CHANNEL,
             MainActivity.EVENTS_CHANNEL,
+            MainActivity.ARRIVE_CHANNEL,
+            MainActivity.LEAVE_CHANNEL,
+            MainActivity.CHECKIN_CHANNEL,
             MainActivity.SOS_CHANNEL,
             MainActivity.OLD_SOS_CHANNEL,
         )) {

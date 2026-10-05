@@ -792,4 +792,7 @@ export const es = {
   "Sharing came back on by itself": "Se volvió a compartir por sí solo",
   "Your phone restarted while you were sharing, and Starling turned sharing back on without being opened, because Also after a restart is on in Settings. If you did not turn that on, check who has access to this phone.": "Tu teléfono se reinició mientras compartías y Starling volvió a compartir sin que la abrieras, porque También tras un reinicio está activado en Ajustes. Si no lo activaste tú, revisa quién tiene acceso a este teléfono.",
   "Starling updated while you were sharing, and turned sharing back on without being opened, because Also after an update is on in Settings. If you did not turn that on, check who has access to this phone.": "Starling se actualizó mientras compartías y volvió a compartir sin que la abrieras, porque También tras una actualización está activado en Ajustes. Si no lo activaste tú, revisa quién tiene acceso a este teléfono.",
+  "Alert sounds": "Sonidos de los avisos",
+  "Open alert sound settings": "Abrir ajustes de sonidos de los avisos",
+  "Arrivals, departures and check-ins each have their own channel in Android's notification settings, so each can have its own sound. A sound of its own also tells anyone near the phone which kind of alert came in.": "Las llegadas, las salidas y los avisos tienen cada uno su propio canal en los ajustes de notificaciones de Android, así que cada uno puede tener su propio sonido. Un sonido propio también le dice a cualquiera que esté cerca del teléfono qué tipo de aviso llegó.",
 };

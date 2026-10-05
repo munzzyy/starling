@@ -50,6 +50,17 @@ class StarlingBridge(private val app: Context) {
         Events.post(app, title.take(80), body.take(160), tag.take(64), urgent)
     }
 
+    // Routine events by kind, each kind on its own channel so a person can give it its own sound.
+    @JavascriptInterface
+    fun notifyKind(title: String, body: String, tag: String, kind: String) {
+        Events.post(app, title.take(80), body.take(160), tag.take(64), false, kind.take(16))
+    }
+
+    @JavascriptInterface
+    fun openAlertSounds() {
+        ui { it.openAlertSounds() }
+    }
+
     // Take a posted event notification back down (an SOS that cleared while
     // the app was open would otherwise stand on the lock screen forever).
     @JavascriptInterface

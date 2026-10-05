@@ -3,6 +3,9 @@
     <string name="app_name">Starling</string>
     <string name="notif_channel">Location sharing</string>
     <string name="notif_events_channel">Circle alerts</string>
+    <string name="notif_arrive_channel">Arrivals</string>
+    <string name="notif_leave_channel">Departures</string>
+    <string name="notif_checkin_channel">Check-ins</string>
     <string name="notif_sos_channel">Emergency alerts</string>
     <string name="notif_sos_text">Open Starling now.</string>
     <string name="notif_title">Sharing with your circle</string>
