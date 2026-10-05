@@ -354,3 +354,38 @@ test("a hold that is never released ends on its own, and a new window ends it at
   assert.deepEqual(s.retainedEpochs(), [E0 + 12], "a person shrinking the window is never kept waiting");
   assert.equal(s.trimHeld, false);
 });
+
+test("coming back again does not stretch the hold: it ends five minutes after the first one", async () => {
+  const r = await ratchetAt(E0, 6);
+  const start = at(E0 + 12) + 1000;
+  r.holdForBacklog(start);
+  await r.syncToClock(start);
+  r.holdForBacklog(start + 4 * 60_000);
+  await r.syncToClock(start + 4 * 60_000);
+  assert.equal(r.retainedEpochs()[0], E0, "inside the first five minutes the old keys stay");
+  assert.equal(r.trimHeldUntil, start + TRIM_HOLD_MS, "and coming back did not move the end");
+  await r.syncToClock(start + TRIM_HOLD_MS);
+  assert.equal(r.retainedEpochs()[0], E0 + 7, "five minutes after the first hold the trim happens");
+
+  // An offline phone opened every four minutes for two hours never keeps more than an epoch extra.
+  for (let t = start + TRIM_HOLD_MS; t <= start + 2 * 3_600_000; t += 4 * 60_000) {
+    r.holdForBacklog(t);
+    await r.syncToClock(t);
+    assert.ok(r.retainedEpochs()[0] >= epochAt(t) - 6, `${(t - start) / 60_000} min in`);
+  }
+});
+
+test("only a backlog hold hides positions, and only from before the window as it stood then", async () => {
+  const r = await ratchetAt(E0, 6);
+  const now = at(E0 + 12) + 1000;
+  r.holdTrim(now);
+  assert.equal(r.backlogFloor, null, "a hold around an ordinary read hides nothing");
+  r.releaseTrim(now);
+  r.holdForBacklog(now);
+  assert.equal(r.backlogFloor, E0 + 7);
+  r.holdTrim(now + 60_000);
+  assert.equal(r.backlogFloor, E0 + 7, "the read's own hold leaves it as it was");
+  r.releaseTrim(now + 60_000);
+  assert.equal(r.backlogFloor, null);
+  assert.equal(r.trimHeld, false);
+});

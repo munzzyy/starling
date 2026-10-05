@@ -158,6 +158,23 @@ test("coming back to the app reads the backlog before the window trims", { timeo
   assert.ok(moved, "returning to the app read the re-key before anything trimmed its key");
 });
 
+test("coming back with no network still walks to the current epoch at once", { timeout: 30_000 }, async () => {
+  const self = await generateIdentity();
+  const peer = await generateIdentity();
+  const E = epochAt(Date.now()) - 12;
+  await awayCircle(self, peer, E - 2);
+  relay(() => null);
+  internals.setupNet();
+  await settle(100);
+  assert.equal(state.gen.ratchet.head, E - 2);
+
+  for (const fn of harness.listeners("document", "visibilitychange")) fn();
+  assert.ok(await waitFor(() => state.gen.ratchet.head >= E + 12, 3000), "the walk does not wait for the network");
+  assert.equal(state.gen.ratchet.trimHeld, true);
+  assert.equal(state.gen.ratchet.retainedEpochs()[0], E - 2, "only the trim waits");
+  harness.onFetch(null);
+});
+
 test("a phone that comes back with no network still trims once the hold runs out", { timeout: 30_000 }, async () => {
   const self = await generateIdentity();
   const peer = await generateIdentity();
@@ -170,11 +187,16 @@ test("a phone that comes back with no network still trims once the hold runs out
   assert.equal(state.gen.ratchet.trimHeld, true, "a failed read leaves the hold in place");
   assert.equal(state.gen.ratchet.retainedEpochs()[0], E - 2);
 
-  mock.timers.enable({ apis: ["setTimeout"] });
+  const until = state.gen.ratchet.trimHeldUntil;
+  assert.ok(until > Date.now() && until <= Date.now() + TRIM_HOLD_MS);
+  mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
   try {
     internals.holdTrimForBacklog();
-    mock.timers.tick(TRIM_HOLD_MS - 1);
+    mock.timers.tick(until - Date.now() - 1);
     assert.equal(state.gen.ratchet.retainedEpochs()[0], E - 2);
+    // Opening the app again just before the end must not buy the old keys more time.
+    internals.holdTrimForBacklog();
+    assert.equal(state.gen.ratchet.trimHeldUntil, until);
     mock.timers.tick(1);
   } finally {
     mock.timers.reset();

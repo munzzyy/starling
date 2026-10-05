@@ -735,7 +735,7 @@ test("past the window a held chain opens re-keys only, never positions", async (
   const c = await circle({ historyEpochs: 6 });
   const alice = await generateIdentity();
   const now = rAt(RE0 + 12) + 1000;
-  c.recv.ratchet.holdTrim(now);
+  c.recv.ratchet.holdForBacklog(now);
   await c.recv.ratchet.syncToClock(now);
   const control = [];
   const roster = rosterFor(c, {
@@ -752,6 +752,26 @@ test("past the window a held chain opens re-keys only, never positions", async (
 
   await roster.ingest([await entryFor(c, alice, [{ e: RE0 + 7, msg: rLoc(rAt(RE0 + 7) + 1000) }])], now);
   assert.equal(roster.get(alice.memberId).ts, rAt(RE0 + 7) + 1000, "the oldest epoch inside the window still lands");
+});
+
+test("at the High risk setting an ordinary read still opens a check-in sealed just before the boundary", async () => {
+  const c = await circle({ historyEpochs: 1 });
+  const alice = await generateIdentity();
+  await c.recv.ratchet.syncToClock(rAt(RE0 + 3) + 60_000);
+  const sealedAt = rAt(RE0 + 4) - 2000;
+  const now = rAt(RE0 + 4) + 3000;
+  const roster = rosterFor(c);
+  const point = await entryFor(c, alice, [{ e: RE0 + 3, msg: rLoc(sealedAt, { t: "checkin" }) }]);
+  // As the poller reads: the trim waits for the read, then runs.
+  c.recv.ratchet.holdTrim(now);
+  try {
+    await roster.ingest([point], now);
+  } finally {
+    c.recv.ratchet.releaseTrim(now);
+  }
+  await c.recv.ratchet.syncToClock(now);
+  assert.equal(roster.get(alice.memberId)?.type, "checkin", "the key was still held, so the check-in lands");
+  assert.deepEqual(c.recv.ratchet.retainedEpochs(), [RE0 + 4], "and the trim after the read still happens");
 });
 
 test("the poller holds the trim across every read and lets go once the read is done", async () => {

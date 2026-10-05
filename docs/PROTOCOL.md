@@ -138,11 +138,14 @@ still ratchets to the current epoch at once, and still destroys itself past
 `MAX_CATCHUP_EPOCHS`, but it holds the trim until it has read what the relay
 has for it. Only keys the stored snapshot already reached are held, and that
 snapshot was on the disk the whole time the device was away; nothing older is
-ever written. From those older epochs only a re-key is acted on: a position
-there is dropped, so the window still decides what can be seen. The read
-releases the hold, and if the relay cannot be reached the hold ends by itself
-after `TRIM_HOLD_MS`. Changing the history setting, locking, switching circles
-and leaving all end it at once.
+ever written. During that read only a re-key is acted on from those older
+epochs: a position there is dropped, so the window as it stood when the device
+came back still decides what can be seen. Ordinary reads see what the trimmed
+chain can open, as before. The read releases the hold, and if the relay cannot
+be reached the hold ends by itself `TRIM_HOLD_MS` after it began. Coming back
+again in the meantime does not extend it; a new hold can start only once that
+trim has run. Changing the history setting, locking, switching circles and
+leaving all end it at once.
 
 The first read after entering a circle asks for everything the relay keeps
 (`since=0`) rather than starting at the oldest key the device holds: that epoch

@@ -235,8 +235,8 @@ export function createRoster({ channelId, ratchet, selfId, pinned, onControl, on
         }
         // A kind from a newer version must not overwrite an SOS with "live".
         if (typeof obj.t === "string" && !POSITION_KINDS.has(obj.t)) continue;
-        // A held trim reads keys past the window for re-keys only; positions there stay hidden.
-        if (Number.isSafeInteger(ratchet.historyEpochs) && p.e <= epochAt(now) - ratchet.historyEpochs) continue;
+        // A backlog read holds keys past the window for re-keys only; positions there stay hidden.
+        if (Number.isSafeInteger(ratchet.backlogFloor) && p.e < ratchet.backlogFloor) continue;
         if (!accepted(entry.m, p.e, p.ts)) continue;
 
         if (!rec) {

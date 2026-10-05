@@ -112,6 +112,7 @@ export function createRatchet({ e0, ck0, historyEpochs = DEFAULT_HISTORY_EPOCHS 
   let window = Math.max(1, historyEpochs | 0);
   let destroyed = false;
   let holdUntil = 0;
+  let backlogFloor = null;
 
   function forget(below) {
     for (const [e, ck] of chain) {
@@ -137,7 +138,14 @@ export function createRatchet({ e0, ck0, historyEpochs = DEFAULT_HISTORY_EPOCHS 
   function trim(now = Date.now()) {
     if (now < holdUntil) return;
     holdUntil = 0;
+    backlogFloor = null;
     forget(Math.min(head, epochAt(now)) - window + 1);
+  }
+
+  // Only the trim waits: the walk and the destroy past the catch-up cap do not.
+  function holdTrim(now = Date.now()) {
+    // Never renewed: once a hold runs out, a trim has to happen before another can start.
+    if (!destroyed && !holdUntil) holdUntil = now + TRIM_HOLD_MS;
   }
 
   // Move the head forward to `target`, materialising the epochs in between.
@@ -248,9 +256,11 @@ export function createRatchet({ e0, ck0, historyEpochs = DEFAULT_HISTORY_EPOCHS 
       holdUntil = 0;
       trim(now);
     },
-    // Only the trim waits: the walk and the destroy past the catch-up cap do not.
-    holdTrim(now = Date.now()) {
-      if (!destroyed) holdUntil = Math.max(holdUntil, now + TRIM_HOLD_MS);
+    holdTrim,
+    // A backlog read stands in for the trim it delays, so its positions keep to the window as of now.
+    holdForBacklog(now = Date.now()) {
+      holdTrim(now);
+      if (now < holdUntil) backlogFloor = Math.max(backlogFloor ?? -Infinity, epochAt(now) - window + 1);
     },
     releaseTrim(now = Date.now()) {
       holdUntil = 0;
@@ -258,6 +268,12 @@ export function createRatchet({ e0, ck0, historyEpochs = DEFAULT_HISTORY_EPOCHS 
     },
     get trimHeld() {
       return holdUntil > 0;
+    },
+    get trimHeldUntil() {
+      return holdUntil;
+    },
+    get backlogFloor() {
+      return backlogFloor;
     },
     retainedEpochs: () => [...chain.keys()].sort((a, b) => a - b),
     // The next generation's seed, mixed from the chain key at a NAMED epoch and

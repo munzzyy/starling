@@ -58,7 +58,7 @@ import {
   checkSafetyQr,
   parseSafetyQr,
 } from "./roster.js";
-import { createRatchet, epochAt, HISTORY_CHOICES, DEFAULT_HISTORY_EPOCHS, TRIM_HOLD_MS } from "./ratchet.js";
+import { createRatchet, epochAt, HISTORY_CHOICES, DEFAULT_HISTORY_EPOCHS } from "./ratchet.js";
 import {
   INVITE_TTL_MS,
   MAX_SKEW_EPOCHS,
@@ -1728,9 +1728,8 @@ async function enterCircle() {
 // The one call that actually destroys expired key material. Nothing else walks
 // the chain forward on a device that is only listening, so a phone that has
 // been switched off for a week would otherwise come back still holding the
-// week's keys. Called on entry and on a resume with no poller, and the
-// survivor is written down, because a chain key left on disk is a chain key a
-// seized phone has.
+// week's keys. Called on entry and on every resume, and the survivor is written
+// down, because a chain key left on disk is a chain key a seized phone has.
 async function syncRatchet() {
   if (!state.gen || state.locked) return;
   // A null head means the chain destroyed itself rather than walk a jump it
@@ -1747,14 +1746,16 @@ async function syncRatchet() {
 function holdTrimForBacklog() {
   const gen = state.gen;
   if (!gen) return;
-  gen.ratchet.holdTrim();
+  gen.ratchet.holdForBacklog();
   clearTimeout(trimHoldTimer);
+  trimHoldTimer = 0;
+  if (!gen.ratchet.trimHeld) return;
   trimHoldTimer = setTimeout(() => {
     trimHoldTimer = 0;
     if (state.gen !== gen) return;
     gen.ratchet.releaseTrim();
     syncRatchet().catch(() => {});
-  }, TRIM_HOLD_MS);
+  }, gen.ratchet.trimHeldUntil - Date.now());
 }
 
 function endTrimHold() {
@@ -6968,12 +6969,9 @@ if (debugHooks()) window.__starlingInternals = {
 
 // With a poller, the backlog is read before anything is trimmed; see holdTrimForBacklog.
 function catchUp() {
-  if (!poller || state.demo) {
-    syncRatchet().catch(() => {});
-    return;
-  }
-  holdTrimForBacklog();
-  poller.pollNow();
+  if (poller && !state.demo) holdTrimForBacklog();
+  syncRatchet().catch(() => {});
+  poller?.pollNow();
 }
 
 window.addEventListener("online", () => {
