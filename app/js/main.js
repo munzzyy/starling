@@ -1178,7 +1178,7 @@ function alertItems() {
     items.push({
       id: "joining",
       kind: state.joining.imposters ? "warn" : "info",
-      title: t("Waiting to be let into {name}", { name: state.joining.circleName }),
+      title: t("Waiting to be let into {name}", { name: state.joining.circleName || t("New circle") }),
       text: t("Somebody already in that circle has to accept your request. Read them your number: {digits}{jumped}", { digits: state.joining.safety || t("not ready yet"), jumped }),
       actions: [{ label: "Cancel the request", testid: "alert-cancel-join", onClick: cancelJoin }],
     });
@@ -2488,8 +2488,8 @@ async function adoptRekey(applied, senderId) {
   }
   // Names first: teardownNet below takes the roster with it, and the people
   // being removed leave the pinned map a few lines later.
-  const senderName = displayName(senderId, "Someone");
-  const removedNames = applied.removed.map((id) => displayName(id, "a member"));
+  const senderName = displayName(senderId, t("Someone"));
+  const removedNames = applied.removed.map((id) => displayName(id, t("a member")));
   const { pinned: nextPinned, view: ours } = rosterAfterRekey({
     pinned: state.pinned,
     removed: applied.removed,
@@ -4019,7 +4019,7 @@ async function onJoinRequest(inv, obj, from) {
     safety: seen.safety,
     at: Date.now(),
   });
-  const who = obj.name ? String(obj.name).slice(0, 24) : "Someone";
+  const who = obj.name ? String(obj.name).slice(0, 24) : t("Someone");
   ui.toast(t("{who} wants to join. Check their safety number.", { who }));
   // The inviter often pockets the phone right after sending the link; the
   // request arriving is the other moment this flow hinges on. The name stays
@@ -4301,7 +4301,7 @@ async function joinWithInvite(invite, profile) {
     identity,
     chanId,
     key,
-    circleName: profile?.circleName || "New circle",
+    circleName: profile?.circleName || "",
   };
   startJoinWatch();
   render();
@@ -4469,7 +4469,7 @@ async function completeJoin(j, welcome) {
     state.joinIncomplete = null;
     state.chainDestroyed = false;
     state.chainWipeFailed = null;
-    state.circleName = j.circleName || prev.circleName;
+    state.circleName = j.circleName || "New circle";
     await dbSet("circleName", state.circleName);
     await persistCircle();
     state.circleShare = packShare(null);

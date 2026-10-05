@@ -124,3 +124,48 @@ test("countdown words and an unnamed circle follow the language", () => {
     assert.deepEqual(bare.map((m) => m.index), [], `${f} writes the default name as data instead of rendering it`);
   }
 });
+
+test("a re-key from a member with no name reads in the chosen language, card and toast", async () => {
+  const { generateIdentity, newSeed } = await import("../app/js/crypto.js");
+  const { openGeneration } = await import("../app/js/rekey.js");
+  const { epochAt } = await import("../app/js/ratchet.js");
+  state.demo = false;
+  state.locked = false;
+  state.lastRekey = null;
+  state.identity = await generateIdentity();
+  state.gen = await openGeneration({ seed: new Uint8Array(newSeed()), g: 0, e0: epochAt(Date.now()) });
+  state.gen.at = Date.now();
+  const sender = await generateIdentity();
+  const gone = await generateIdentity();
+  state.pinned = new Map([sender, gone].map((p) => [p.memberId, { alg: p.alg, pk: p.pk, epk: p.epk }]));
+  state.genRoster = new Set(state.pinned.keys());
+
+  setLocale("de");
+  try {
+    const applied = { seed: new Uint8Array(newSeed()), g: 1, e0: epochAt(Date.now()), rh: null, removed: [gone.memberId], by: sender.memberId };
+    assert.equal(await internals.adoptRekey(applied, sender.memberId), true);
+    const card = internals.alertItems().find((i) => i.id === "rekey");
+    assert.equal(card.title, de["{who} removed {gone}"].replace("{who}", de.Someone).replace("{gone}", de["a member"]));
+    const toasts = harness.node("#toasts").children;
+    assert.equal(toasts[toasts.length - 1].textContent, de["{who} removed {gone}."].replace("{who}", de.Someone).replace("{gone}", de["a member"]));
+  } finally {
+    setLocale("en");
+  }
+});
+
+test("waiting on a circle with no name says New circle in the chosen language", () => {
+  raiseEveryCard();
+  state.joining = { circleName: "", safety: "12 34 56", imposters: 0 };
+  setLocale("de");
+  try {
+    const card = internals.alertItems().find((i) => i.id === "joining");
+    assert.equal(card.title, de["Waiting to be let into {name}"].replace("{name}", de["New circle"]));
+    state.joining.circleName = "Field team";
+    assert.equal(internals.alertItems().find((i) => i.id === "joining").title, de["Waiting to be let into {name}"].replace("{name}", "Field team"));
+  } finally {
+    setLocale("en");
+    state.joining = null;
+  }
+  const src = readFileSync(path.join(ROOT, "app/js/main.js"), "utf8");
+  assert.doesNotMatch(src, /circleName: profile\?\.circleName \|\| "New circle"/, "the waiting state holds no English stand-in");
+});
