@@ -260,6 +260,7 @@ export function createRoster({ channelId, ratchet, selfId, pinned, onControl, on
         if (Number.isFinite(obj.lat) && Number.isFinite(obj.lon)) {
           rec.lat = obj.lat;
           rec.lon = obj.lon;
+          rec.posTs = obj.ts;
           rec.acc = Number.isFinite(obj.acc) ? obj.acc : null;
           rec.trail.push({ lat: obj.lat, lon: obj.lon, ts: obj.ts });
           if (rec.trail.length > TRAIL_CAP) rec.trail.splice(0, rec.trail.length - TRAIL_CAP);

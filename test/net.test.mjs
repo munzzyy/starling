@@ -865,3 +865,17 @@ test("an ask to check in lands on the record, bounded, and goes when a post leav
   await post(t0 + 5000);
   assert.equal(roster.get(alice.memberId).ask, null, "a post without it clears it");
 });
+
+test("a post with no position leaves the position's own time alone", async () => {
+  const c = await circle();
+  const alice = await generateIdentity();
+  const t0 = rAt(RE0) + 1000;
+  const roster = rosterFor(c);
+  await roster.ingest([await entryFor(c, alice, [{ e: RE0, msg: rLoc(t0) }])], t0);
+  const t1 = t0 + 60_000;
+  await roster.ingest([await entryFor(c, alice, [{ e: RE0, msg: { v: 2, t: "bye", ts: t1, ask: "0a1b2c3d", ak: t1 } }])], t1);
+  const rec = roster.get(alice.memberId);
+  assert.equal(rec.ts, t1, "the post itself is heard");
+  assert.equal(rec.posTs, t0, "but the position is as old as it was");
+  assert.equal(rec.lat, 44.98);
+});

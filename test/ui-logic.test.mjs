@@ -196,3 +196,12 @@ test("memberSubLine: a place carries 'since' only for a seen arrival under a day
   assert.equal(memberSubLine(rec, now, null, "Home", "live", now + 60_000), "At Home · now", "never a time still to come");
   assert.equal(memberSubLine(rec, now, null, null, "live", at), "now", "no place, nothing to be at since");
 });
+
+test("memberSubLine: a post with no position does not make the last position look new", () => {
+  const now = 10 * 3_600_000;
+  const me = { lat: 0, lon: 0 };
+  const rec = { ts: now - 5_000, posTs: now - 3_600_000, lat: 0.01, lon: 0 };
+  assert.equal(memberSubLine(rec, now, me, null, "stopped"), "now · 1.1 km (1 h 00 min)");
+  assert.equal(memberSubLine({ ...rec, posTs: rec.ts }, now, me, null, "stopped"), "now · 1.1 km");
+  assert.equal(memberSubLine({ ...rec, posTs: undefined }, now, me, null, "stopped"), "now · 1.1 km");
+});

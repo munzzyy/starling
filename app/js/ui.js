@@ -3019,9 +3019,13 @@ export function memberSubLine(rec, now, mePos, place, status, since = null) {
     bits.push(known ? t("At {place} since {time}", { place, time: fmtClock(since) }) : t("At {place}", { place }));
   }
   if (rec.due) bits.push(t("Check in by {time}", { time: fmtClock(rec.due) }));
-  bits.push(fmtRelTime(now - rec.ts));
+  const heard = fmtRelTime(now - rec.ts);
+  bits.push(heard);
   if (mePos && Number.isFinite(rec.lat) && Number.isFinite(rec.lon)) {
-    bits.push(fmtDistance(haversineMeters(mePos.lat, mePos.lon, rec.lat, rec.lon)));
+    const dist = fmtDistance(haversineMeters(mePos.lat, mePos.lon, rec.lat, rec.lon));
+    // A post with no position (an ask, a check-in while not sharing) must not make the last one look new.
+    const placed = Number.isFinite(rec.posTs) ? fmtRelTime(now - rec.posTs) : heard;
+    bits.push(placed === heard ? dist : `${dist} (${placed})`);
   }
   if (rec.mode === "coarse") bits.push(t("Neighborhood"));
   return bits.join(" · ");

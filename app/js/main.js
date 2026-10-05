@@ -1545,7 +1545,7 @@ function renderMarkers(list, now) {
       hue: rec.hue ?? hueFromMemberId(rec.id),
       // map.js draws sos, live and stale; a missed check-in keeps its wire look there.
       status: displayStatus(rec, now) === "overdue" ? statusOf(rec, now) : displayStatus(rec, now),
-      ts: rec.ts,
+      ts: rec.posTs ?? rec.ts,
       now,
       staleMs: staleAfter(rec),
     });
@@ -6658,7 +6658,7 @@ function checkAlerts() {
     if (Number.isFinite(rec.lat) && Number.isFinite(rec.lon)) {
       const evs = placeTracker.update(rec.id, rec.lat, rec.lon, {
         mode: rec.mode,
-        ts: rec.ts,
+        ts: rec.posTs ?? rec.ts,
         now,
         acc: rec.acc,
       });
