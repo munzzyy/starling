@@ -39,7 +39,8 @@ class ForwardQueue(private val capacity: Int = 20) {
             synchronized(this) {
                 if (at == gen) {
                     if (retry(code)) return
-                    items.removeFirst()
+                    // A full queue may have dropped it mid-send, and the new head was never sent.
+                    if (items.firstOrNull() === body) items.removeFirst()
                 }
             }
         }

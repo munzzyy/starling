@@ -93,6 +93,33 @@ class ForwardQueueTest {
         assertEquals(0, q.size)
     }
 
+    @Test fun aClearDuringAFailedSendStillTriesWhatCameAfterIt() {
+        val q = queueOf("a")
+        q.drain { body ->
+            sent += body
+            if (body == "a") {
+                q.clear()
+                q.add("x")
+                -1
+            } else {
+                200
+            }
+        }
+        assertEquals(listOf("a", "x"), sent)
+        assertEquals(0, q.size)
+    }
+
+    @Test fun aFullQueueDroppingThePointBeingSentLosesNothingElse() {
+        val q = queueOf("a", "b", capacity = 2)
+        q.drain { body ->
+            sent += body
+            if (body == "a") q.add("c")
+            200
+        }
+        assertEquals(listOf("a", "b", "c"), sent)
+        assertEquals(0, q.size)
+    }
+
     @Test fun onlyOneDrainWaitsAtATime() {
         val q = ForwardQueue()
         assertTrue(q.add("a"))
