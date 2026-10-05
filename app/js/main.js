@@ -155,8 +155,14 @@ window.__starlingErrors = [];
 
 // The wrapper's one way to say something human to the page (an Orbot that
 // never answered, for instance). Bundled app code only; it becomes a toast.
+// Kotlin has no catalog, so it sends a code and the words are chosen here.
+const NATIVE_NOTICES = {
+  "orbot-silent": () => t("Orbot did not answer. If sharing stalls, turn on Power User Mode in Orbot's settings, or use Orbot's per-app VPN mode instead."),
+};
 window.__starlingNotice = (message, kind) => {
-  if (typeof message === "string" && message) ui.toast(message.slice(0, 200), kind === "info" ? "info" : "warn");
+  if (typeof message !== "string" || !message) return;
+  const text = Object.hasOwn(NATIVE_NOTICES, message) ? NATIVE_NOTICES[message]() : message.slice(0, 200);
+  ui.toast(text, kind === "info" ? "info" : "warn");
 };
 window.addEventListener("error", (e) => {
   window.__starlingErrors.push(String(e.message || e.error || "error"));
@@ -210,7 +216,7 @@ const state = {
   // Named spots that live only on this device; never sent anywhere. Loaded by
   // loadPlaces() under the same at-rest rule as the chain key.
   places: [],
-  circleName: "My circle",
+  circleName: "",
   // The active circle's own precision and cadence; null means it has none and
   // the device-wide setting (or the 15 second floor) stands in.
   circleShare: { precision: null, cadence: null },
@@ -451,7 +457,7 @@ const members = () => (state.demo ? demoMembers : roster ? roster.list() : []);
 // Who a member id belongs to, in the words a person would use. The live roster
 // name is the one they are posting under; the pinned name is what they were
 // called when we pinned them, and is all that is left after they are removed.
-const displayName = (id, fallback = "A member") =>
+const displayName = (id, fallback = t("A member")) =>
   members().find((r) => r.id === id)?.name || state.pinned.get(id)?.name || fallback;
 const myHue = () => (state.identity ? hueFromMemberId(state.identity.memberId) : 205);
 
@@ -711,7 +717,7 @@ function render() {
 }
 
 function renderChrome() {
-  $("#pill-name").textContent = state.demo ? t("Demo circle") : state.circleName;
+  $("#pill-name").textContent = state.demo ? t("Demo circle") : ui.circleLabel(state.circleName);
   const dotState = state.demo ? "ok" : state.netStatus;
   const dot = $("#status-dot");
   dot.className = `status-dot dot-${dotState}`;
@@ -1052,8 +1058,8 @@ function alertItems() {
     items.push({
       id: "chain-wipe-failed",
       kind: "warn",
-      title: "That circle expired, and this phone could not erase it",
-      text: "Its keys are out of memory and nothing you send arrives any more, but this device could not delete them from its own storage, most likely because there is no room left. They are still on the disk. Free some space and open Starling again to finish clearing it, or use Panic to erase everything now.",
+      title: t("That circle expired, and this phone could not erase it"),
+      text: t("Its keys are out of memory and nothing you send arrives any more, but this device could not delete them from its own storage, most likely because there is no room left. They are still on the disk. Free some space and open Starling again to finish clearing it, or use Panic to erase everything now."),
       actions: [{ label: "Try again", testid: "alert-wipe-retry", onClick: () => syncRatchet() }],
     });
   }
@@ -1073,8 +1079,8 @@ function alertItems() {
     items.push({
       id: "chain-destroyed",
       kind: "warn",
-      title: "This phone has been offline too long",
-      text: "Starling throws a circle's keys away rather than carry them for weeks, and this device passed that point while it was away. Its keys are gone from memory and from storage, and so is this phone's own identity in that circle, so nothing you send arrives and nothing sent to you can be read. Ask somebody in the circle for a fresh invite link.",
+      title: t("This phone has been offline too long"),
+      text: t("Starling throws a circle's keys away rather than carry them for weeks, and this device passed that point while it was away. Its keys are gone from memory and from storage, and so is this phone's own identity in that circle, so nothing you send arrives and nothing sent to you can be read. Ask somebody in the circle for a fresh invite link."),
       actions,
     });
   }
@@ -1090,7 +1096,7 @@ function alertItems() {
     items.push({
       id: "chain-wiped",
       kind: "warn",
-      title: "One of your circles expired while this phone was away",
+      title: t("One of your circles expired while this phone was away"),
       text: t("Starling throws a circle's keys away rather than carry them for weeks, and that circle passed the point where this device could still read it, so it was erased from this phone. {kept} Ask somebody in that circle for a fresh invite link if you want back in.", { kept }),
       // It stays until it is read, like a re-key somebody else made, and then
       // it goes. Nothing else cleared it, so it sat on the map for good.
@@ -1118,8 +1124,8 @@ function alertItems() {
     items.push({
       id: "missed",
       kind: "warn",
-      title: "Your circle moved on without this phone",
-      text: "New keys were made while this device could not be reached, and they cannot be worked out from the old ones. Nothing you send now arrives. Ask somebody in the circle for a fresh invite link.",
+      title: t("Your circle moved on without this phone"),
+      text: t("New keys were made while this device could not be reached, and they cannot be worked out from the old ones. Nothing you send now arrives. Ask somebody in the circle for a fresh invite link."),
     });
   }
 
@@ -1127,8 +1133,8 @@ function alertItems() {
     items.push({
       id: "mismatch",
       kind: "warn",
-      title: "Your list of members does not match",
-      text: `${displayName(state.rosterMismatch.by)} made new keys for a circle with a different list of people than this phone has. One of you is looking at a member the other is not.`,
+      title: t("Your list of members does not match"),
+      text: t("{who} made new keys for a circle with a different list of people than this phone has. One of you is looking at a member the other is not.", { who: displayName(state.rosterMismatch.by) }),
       actions: [{ label: "See who is here", testid: "alert-mismatch", onClick: openMembers }],
     });
   }
@@ -1142,7 +1148,7 @@ function alertItems() {
     items.push({
       id: "clock",
       kind: "warn",
-      title: "This phone's clock is wrong",
+      title: t("This phone's clock is wrong"),
       text: t("Your circle cannot see you. The relay refuses anything stamped with a time that far out, so your position is not going anywhere.{off} Turn on automatic date and time, then check again.", { off }),
       actions: [{ label: "Check again", testid: "alert-clock", onClick: recheckClock }],
     });
@@ -1153,7 +1159,7 @@ function alertItems() {
       id: `join:${req.memberId}`,
       kind: "info",
       title: t("{who} wants to join", { who: req.name || t("Someone") }),
-      text: "Check their safety number with them first. Accepting is what lets them see everyone's location.",
+      text: t("Check their safety number with them first. Accepting is what lets them see everyone's location."),
       actions: [
         { label: "Review the request", variant: "btn-primary", testid: "alert-review", onClick: openInvite },
       ],
@@ -1181,7 +1187,7 @@ function alertItems() {
     items.push({
       id: "join-incomplete",
       kind: "warn",
-      title: "That invitation arrived incomplete",
+      title: t("That invitation arrived incomplete"),
       text: t(want === 1 ? "The circle sent {want} member record and only {got} arrived, so this device would not be able to tell who is making new keys and would quietly stop keeping up. You were not joined. Ask for a fresh invite link." : "The circle sent {want} member records and only {got} arrived, so this device would not be able to tell who is making new keys and would quietly stop keeping up. You were not joined. Ask for a fresh invite link.", { want, got }),
       actions: [
         {
@@ -1224,8 +1230,8 @@ function alertItems() {
       kind: "info",
       title: t("Sharing{run}, and this screen has to stay on", { run }),
       text: state.foreground.wakeLock
-        ? "This phone gives a web app no way to send a position in the background, so Starling only sends while it is open and in front. It is holding the screen awake for you."
-        : "This phone gives a web app no way to send a position in the background, so Starling only sends while it is open and in front. It could not hold the screen awake, so stop the phone locking itself.",
+        ? t("This phone gives a web app no way to send a position in the background, so Starling only sends while it is open and in front. It is holding the screen awake for you.")
+        : t("This phone gives a web app no way to send a position in the background, so Starling only sends while it is open and in front. It could not hold the screen awake, so stop the phone locking itself."),
     });
   }
 
@@ -1242,7 +1248,7 @@ function alertItems() {
         : t("{who} changed the keys", { who: r.byName }),
       text: gone.length
         ? t("{who} can read nothing this circle sends from now on. Everyone still here got new keys.", { who: gone.length === 1 ? gone[0] : t("They") })
-        : "Everyone in the circle has new keys. Nobody was removed, and nothing on your map goes away.",
+        : t("Everyone in the circle has new keys. Nobody was removed, and nothing on your map goes away."),
       actions: [
         {
           label: "Got it",
@@ -1263,10 +1269,10 @@ function alertItems() {
     items.push({
       id: "install",
       kind: "info",
-      title: "Add Starling to your home screen",
+      title: t("Add Starling to your home screen"),
       text: isIOSSafari()
-        ? "In a tab, iOS can throw your circle's keys away when storage runs low, and sharing stops the moment you switch apps. Tap the Share button, then Add to Home Screen, and open Starling from there."
-        : "In a tab, iOS can throw your circle's keys away when storage runs low. Open this page in Safari, tap Share, then Add to Home Screen.",
+        ? t("In a tab, iOS can throw your circle's keys away when storage runs low, and sharing stops the moment you switch apps. Tap the Share button, then Add to Home Screen, and open Starling from there.")
+        : t("In a tab, iOS can throw your circle's keys away when storage runs low. Open this page in Safari, tap Share, then Add to Home Screen."),
       actions: [{ label: "Not now", testid: "alert-install-no", onClick: dismissInstall }],
     });
   }
@@ -1282,7 +1288,7 @@ function alertItems() {
       items.push({
         id: "quiet-channel",
         kind: "info",
-        title: "Nobody has been heard from in a while",
+        title: t("Nobody has been heard from in a while"),
         text: t("No update from anyone in over {n} minutes. Usually that just means phones are asleep. But if others say they are sharing right now, this phone may have missed the circle's new keys; ask any member for a fresh invite to be sure.", { n: Math.round(QUIET_CHANNEL_MS / 60000) }),
         actions: [
           {
@@ -1405,11 +1411,11 @@ function renderOnboarding() {
     ((isIOS() && !isInstalled()) || canPrompt);
   install.hidden = !wantInstall;
   if (wantInstall) {
-    $("#install-text").textContent = t(isIOS()
+    $("#install-text").textContent = isIOS()
       ? isIOSSafari()
-        ? "In a Safari tab, iOS can throw your circle's keys away when storage runs low, and sharing stops the moment you switch apps. Tap the Share button, then Add to Home Screen."
-        : "In a browser tab, iOS can throw your circle's keys away when storage runs low. Open this page in Safari, tap Share, then Add to Home Screen."
-      : "Installed, Starling opens without browser chrome and its storage is harder for the browser to evict. Nothing is uploaded either way.");
+        ? t("In a Safari tab, iOS can throw your circle's keys away when storage runs low, and sharing stops the moment you switch apps. Tap the Share button, then Add to Home Screen.")
+        : t("In a browser tab, iOS can throw your circle's keys away when storage runs low. Open this page in Safari, tap Share, then Add to Home Screen.")
+      : t("Installed, Starling opens without browser chrome and its storage is harder for the browser to evict. Nothing is uploaded either way.");
     const go = $("#install-go");
     go.hidden = !canPrompt;
     if (canPrompt && !installWired) {
@@ -1845,7 +1851,7 @@ async function leaveDestroyedCircle(circles) {
   // Nothing took the slots, so the purge above took this device's keypair and
   // the circle's name with it, and memory has to say what the disk says.
   state.identity = null;
-  state.circleName = "My circle";
+  state.circleName = "";
   state.circleShare = packShare(null);
   if (res.pending) {
     ui.toast(
@@ -3650,7 +3656,7 @@ async function saveStartRelay(value) {
     return false;
   }
   await adoptRelay(norm || "");
-  ui.toast(norm ? t("Starling will use {host}.", { host: new URL(norm).host }) : "Starling will use the default relay.");
+  ui.toast(norm ? t("Starling will use {host}.", { host: new URL(norm).host }) : t("Starling will use the default relay."));
   return true;
 }
 
@@ -4666,7 +4672,7 @@ async function doSwitchCircle(i) {
   }
   if (state.locked) return false;
   await enterCircle();
-  ui.toast(t("Switched to {name}.", { name: state.circleName }));
+  ui.toast(t("Switched to {name}.", { name: ui.circleLabel(state.circleName) }));
   return true;
 }
 
@@ -4681,14 +4687,14 @@ async function promoteCircle(i) {
   state.circles = res.circles;
   applyActive(res.active);
   await enterCircle();
-  ui.toast(t("Switched to {name}.", { name: state.circleName }));
+  ui.toast(t("Switched to {name}.", { name: ui.circleLabel(state.circleName) }));
   return true;
 }
 
 // A timer cannot follow the person into another circle, so it is settled first.
 const switchCircle = async (i) => {
   if (timerDue() && !state.demo && !state.locked) {
-    if (!(await ui.confirmTimerSwitch(state.circleName))) return false;
+    if (!(await ui.confirmTimerSwitch(ui.circleLabel(state.circleName)))) return false;
     await doCheckin();
     if (timerDue() || outbox.pending().includes("checkin")) return false;
   }
@@ -4725,7 +4731,7 @@ const leaveCircle = () =>
       state.circles = res.circles;
       applyActive(res.active);
       await enterCircle();
-      ui.toast(t("You left. Now in {name}.", { name: state.circleName }));
+      ui.toast(t("You left. Now in {name}.", { name: ui.circleLabel(state.circleName) }));
       return true;
     }
     // Back where a fresh install starts.
@@ -4739,7 +4745,7 @@ const leaveCircle = () =>
     state.joinRequests = [];
     state.keyChanges.clear();
     storedCkEpoch = -1;
-    state.circleName = "My circle";
+    state.circleName = "";
     state.circleShare = packShare(null);
     state.circles = [];
     state.me = null;
@@ -4772,8 +4778,8 @@ function openCircles() {
     // With no active circle the sheet is a list of circles to go to, so the
     // current row says there is nothing here rather than naming the circle
     // that was just erased.
-    current: { name: state.gen ? state.circleName : "No circle" },
-    others: state.circles.map((c) => ({ name: c.name })),
+    current: { name: state.gen ? ui.circleLabel(state.circleName) : t("No circle") },
+    others: state.circles.map((c) => ({ name: ui.circleLabel(c.name) })),
     onSwitch: switchCircle,
     onCreate: promptCreate,
     onJoin: promptPasteInvite,
@@ -5927,8 +5933,8 @@ async function doCheckin() {
   const wasSos = state.sosActive;
   state.sosActive = false;
   const okMsg = wasSos
-    ? "SOS cleared. Your circle sees you checked in."
-    : "Checked in with your circle";
+    ? t("SOS cleared. Your circle sees you checked in.")
+    : t("Checked in with your circle");
   if (state.demo) {
     ui.toast(okMsg);
     render();

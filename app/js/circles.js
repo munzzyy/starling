@@ -284,7 +284,7 @@ export function unpackCircles(bytes, identities) {
     const gen = readGenMeta(m);
     if (!gen) continue;
     out.push({
-      name: typeof m.name === "string" ? m.name : "My circle",
+      name: typeof m.name === "string" ? m.name : "",
       secret,
       identity,
       ...gen,

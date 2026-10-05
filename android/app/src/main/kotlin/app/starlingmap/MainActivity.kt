@@ -377,12 +377,7 @@ class MainActivity : FragmentActivity() {
             val asked = android.os.SystemClock.elapsedRealtime()
             torSilenceCheck?.let { PageHost.cancel(it) }
             val check = Runnable {
-                if (torEnabled() && OrbotStatus.lastAnswerAt < asked) {
-                    PageHost.notice(
-                        "Orbot did not answer. If sharing stalls, turn on Power User Mode in " +
-                            "Orbot's settings, or use Orbot's per-app VPN mode instead.",
-                    )
-                }
+                if (torEnabled() && OrbotStatus.lastAnswerAt < asked) PageHost.notice("orbot-silent")
             }
             torSilenceCheck = check
             PageHost.post(check, 8000)

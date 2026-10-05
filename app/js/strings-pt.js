@@ -639,4 +639,101 @@ export const pt = {
   "5 minutes": "5 minutos",
   "Running late": "Vou atrasar",
   "Busy": "Ocupado",
+  "{n} people you have not checked": "{n} pessoas que você não verificou",
+  "{n} person you have not checked": "{n} pessoa que você não verificou",
+  "{n} place saved on this phone": "{n} lugar salvo neste celular",
+  "{n} places saved on this phone": "{n} lugares salvos neste celular",
+  "{who} made new keys for a circle with a different list of people than this phone has. One of you is looking at a member the other is not.":
+    "{who} gerou novas chaves para um círculo com uma lista de pessoas diferente da que este celular tem. Um de vocês está vendo um membro que o outro não vê.",
+  "1 hour": "1 hora",
+  "10 minutes": "10 minutos",
+  "24 hours": "24 horas",
+  "6 hours": "6 horas",
+  "About": "Sobre",
+  "Add another": "Adicionar outro",
+  "Add your first place": "Adicione seu primeiro lugar",
+  "Advanced": "Avançado",
+  "App lock": "Bloqueio do app",
+  "Change duress passcode": "Alterar senha de coação",
+  "Checked in with your circle": "Você avisou seu círculo",
+  "Circle": "Círculo",
+  "Confirm passcode": "Confirmar senha",
+  "Create your circle": "Crie seu círculo",
+  "Current passcode": "Senha atual",
+  "Danger zone": "Zona de perigo",
+  "Everyone in the circle has new keys. Nobody was removed, and nothing on your map goes away.":
+    "Todos no círculo têm chaves novas. Ninguém foi removido, e nada some do seu mapa.",
+  "expired": "expirado",
+  "Family, friends, the trip": "Família, amigos, a viagem",
+  "Follow my location:": "Acompanhe minha localização:",
+  "Heads up: {names} have not been heard from in over an hour and may miss the new keys. A phone that misses them is cut off until it rejoins from a fresh invite.":
+    "Atenção: {names} não dão notícias há mais de uma hora e podem perder as novas chaves. Um celular que as perde fica de fora até entrar de novo com um convite novo.",
+  "Heads up: {names} have not been heard from in over an hour. A phone that misses the new keys is cut off until it rejoins from a fresh invite.":
+    "Atenção: {names} não dão notícias há mais de uma hora. Um celular que perde as novas chaves fica de fora até entrar de novo com um convite novo.",
+  "Heads up: {who} has not been heard from in over an hour and may miss the new keys. A phone that misses them is cut off until it rejoins from a fresh invite.":
+    "Atenção: {who} não dá notícias há mais de uma hora e pode perder as novas chaves. Um celular que as perde fica de fora até entrar de novo com um convite novo.",
+  "Heads up: {who} has not been heard from in over an hour. A phone that misses the new keys is cut off until it rejoins from a fresh invite.":
+    "Atenção: {who} não dá notícias há mais de uma hora. Um celular que perde as novas chaves fica de fora até entrar de novo com um convite novo.",
+  "Help link copied": "Link de ajuda copiado",
+  "In a browser tab, iOS can throw your circle's keys away when storage runs low. Open this page in Safari, tap Share, then Add to Home Screen.":
+    "Numa aba do navegador, o iOS pode jogar fora as chaves do seu círculo quando o armazenamento fica baixo. Abra esta página no Safari, toque em Compartilhar e depois em Adicionar à Tela de Início.",
+  "In a Safari tab, iOS can throw your circle's keys away when storage runs low, and sharing stops the moment you switch apps. Tap the Share button, then Add to Home Screen.":
+    "Numa aba do Safari, o iOS pode jogar fora as chaves do seu círculo quando o armazenamento fica baixo, e o compartilhamento para assim que você troca de app. Toque no botão Compartilhar e depois em Adicionar à Tela de Início.",
+  "In a tab, iOS can throw your circle's keys away when storage runs low, and sharing stops the moment you switch apps. Tap the Share button, then Add to Home Screen, and open Starling from there.":
+    "Numa aba, o iOS pode jogar fora as chaves do seu círculo quando o armazenamento fica baixo, e o compartilhamento para assim que você troca de app. Toque no botão Compartilhar, depois em Adicionar à Tela de Início, e abra o Starling por lá.",
+  "In a tab, iOS can throw your circle's keys away when storage runs low. Open this page in Safari, tap Share, then Add to Home Screen.":
+    "Numa aba, o iOS pode jogar fora as chaves do seu círculo quando o armazenamento fica baixo. Abra esta página no Safari, toque em Compartilhar e depois em Adicionar à Tela de Início.",
+  "Installed, Starling opens without browser chrome and its storage is harder for the browser to evict. Nothing is uploaded either way.":
+    "Instalado, o Starling abre sem a barra do navegador, e fica mais difícil para o navegador apagar o armazenamento dele. Nada é enviado de nenhum jeito.",
+  "Invite link copied": "Link de convite copiado",
+  "Join my circle on Starling:": "Entre no meu círculo no Starling:",
+  "Keys and history": "Chaves e histórico",
+  "Leaving deletes this circle's secret and your identity in it from this device. The circle itself keeps existing for everyone else, and you can come back with a fresh invite. Type \"leave\" to confirm.":
+    "Sair apaga deste dispositivo o segredo deste círculo e a sua identidade nele. O círculo continua existindo para todos os outros, e você pode voltar com um convite novo. Digite \"leave\" para confirmar.",
+  "My circle": "Meu círculo",
+  "New passcode": "Nova senha",
+  "No circle": "Nenhum círculo",
+  "Nobody has used this link yet. When somebody does, their request shows up here.":
+    "Ninguém usou este link ainda. Quando alguém usar, o pedido aparece aqui.",
+  "Not a valid help link": "Não é um link de ajuda válido",
+  "Orbot did not answer. If sharing stalls, turn on Power User Mode in Orbot's settings, or use Orbot's per-app VPN mode instead.":
+    "O Orbot não respondeu. Se o compartilhamento travar, ligue o Power User Mode nas configurações do Orbot, ou use o modo VPN por app do Orbot.",
+  "Places and alerts": "Lugares e alertas",
+  "Reach {who} some way you already trust, a call or in person, and have them read the number on their screen. Every digit has to match.":
+    "Fale com {who} por um meio em que você já confia, uma ligação ou pessoalmente, e peça para ler o número na tela. Todos os dígitos precisam bater.",
+  "School": "Escola",
+  "Set a duress passcode": "Definir uma senha de coação",
+  "Sharing": "Compartilhamento",
+  "Somebody is waiting on you above. The link still works until you accept.":
+    "Tem alguém esperando por você aí em cima. O link continua funcionando até você aceitar.",
+  "Something went wrong. Try again.": "Algo deu errado. Tente de novo.",
+  "SOS cleared. Your circle sees you checked in.": "SOS cancelado. Seu círculo vê que você avisou.",
+  "Starling will use the default relay.": "O Starling vai usar o relay padrão.",
+  "That current passcode is wrong.": "Essa senha atual está errada.",
+  "The circle sent {want} member record and only {got} arrived, so this device would not be able to tell who is making new keys and would quietly stop keeping up. You were not joined. Ask for a fresh invite link.":
+    "O círculo enviou {want} registro de membro e só chegaram {got}, então este dispositivo não conseguiria saber quem está gerando as novas chaves e ficaria para trás sem avisar. Você não entrou. Peça um novo link de convite.",
+  "The circle sent {want} member records and only {got} arrived, so this device would not be able to tell who is making new keys and would quietly stop keeping up. You were not joined. Ask for a fresh invite link.":
+    "O círculo enviou {want} registros de membros e só chegaram {got}, então este dispositivo não conseguiria saber quem está gerando as novas chaves e ficaria para trás sem avisar. Você não entrou. Peça um novo link de convite.",
+  "The relay no longer speaks this version's protocol, so this app cannot connect and your circle cannot see you. Install the current version to get back on. Your circle and its keys are untouched on this device.":
+    "O relay não fala mais o protocolo desta versão, então este app não consegue se conectar e seu círculo não consegue ver você. Instale a versão atual para voltar. Seu círculo e as chaves dele continuam intactos neste dispositivo.",
+  "The two passcodes do not match.": "As duas senhas não batem.",
+  "This device holds a circle from an older version of Starling. The encryption changed, and old circles cannot be carried across: the keys mean different things now. Erase this device's Starling data and create or join a circle again. Nothing was sent anywhere.":
+    "Este dispositivo guarda um círculo de uma versão mais antiga do Starling. A criptografia mudou, e círculos antigos não podem ser levados adiante: as chaves agora significam outra coisa. Apague os dados do Starling deste dispositivo e crie ou entre em um círculo de novo. Nada foi enviado para lugar nenhum.",
+  "This emergency link is no longer active. If the emergency is still going on, ask for a fresh link.":
+    "Este link de emergência não está mais ativo. Se a emergência ainda estiver acontecendo, peça um link novo.",
+  "This help link has expired": "Este link de ajuda expirou",
+  "This link is gone. Close this and tap Invite again for a new one.":
+    "Este link não existe mais. Feche isto e toque em Convidar de novo para gerar outro.",
+  "This page only works when opened from a complete Starling help link. Ask the person who sent it to share the link again.":
+    "Esta página só funciona quando aberta a partir de um link de ajuda do Starling completo. Peça para quem enviou compartilhar o link de novo.",
+  "This phone gives a web app no way to send a position in the background, so Starling only sends while it is open and in front. It could not hold the screen awake, so stop the phone locking itself.":
+    "Este celular não dá a um app web nenhum jeito de enviar a posição em segundo plano, então o Starling só envia enquanto está aberto e na frente. Ele não conseguiu manter a tela acesa, então impeça o celular de se bloquear sozinho.",
+  "This phone gives a web app no way to send a position in the background, so Starling only sends while it is open and in front. It is holding the screen awake for you.":
+    "Este celular não dá a um app web nenhum jeito de enviar a posição em segundo plano, então o Starling só envia enquanto está aberto e na frente. Ele está mantendo a tela acesa para você.",
+  "Type \"leave\"": "Digite \"leave\"",
+  "under a minute": "menos de um minuto",
+  "You can see the last {window} of your circle. A phone taken from you gives up almost nothing.":
+    "Você consegue ver {window} para trás no seu círculo. Um celular tirado de você entrega quase nada.",
+  "You can see the last {window} of your circle. A phone taken from you gives up that same {window}, and nothing older.":
+    "Você consegue ver {window} para trás no seu círculo. Um celular tirado de você entrega também {window}, e nada mais antigo.",
 };

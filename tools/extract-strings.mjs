@@ -25,7 +25,7 @@ const add = (s) => {
   keys.add(n);
 };
 
-const JS_FILES = ["app/js/main.js", "app/js/ui.js", "app/js/helpview.js", "app/js/fmt.js", "app/js/demo.js", "app/js/sharehealth.js"];
+const JS_FILES = ["app/js/main.js", "app/js/ui.js", "app/js/helpview.js", "app/js/fmt.js", "app/js/demo.js", "app/js/sharehealth.js", "app/js/ratchet.js"];
 
 // Unescape the source spelling of a double-quoted literal.
 const unq = (s) => s.replaceAll('\\"', '"').replaceAll("\\'", "'").replaceAll("\\n", " ");
@@ -47,7 +47,26 @@ for (const f of JS_FILES) {
     add(unq(m[1]));
     add(unq(m[2]));
   }
-  for (const m of src.matchAll(/\b(?:title|text|label|note|intro|cta|placeholder|lead|msg|stKey)\s*:\s*"((?:[^"\\]|\\.)+)"/g)) add(unq(m[1]));
+  for (const m of src.matchAll(/\b(?:title|text|body|label|note|intro|cta|placeholder|lead|msg|stKey)\s*:\s*"((?:[^"\\]|\\.)+)"/g)) add(unq(m[1]));
+  // Helpers that pass their text on to el() or t(): group titles, passcode fields, the help panel.
+  for (const m of src.matchAll(/\b(?:group|pcField|fail)\(\s*"((?:[^"\\]|\\.)+)"/g)) add(unq(m[1]));
+  for (const m of src.matchAll(/\bshowPanel\(\s*"((?:[^"\\]|\\.)+)",\s*"((?:[^"\\]|\\.)+)"/g)) {
+    add(unq(m[1]));
+    add(unq(m[2]));
+  }
+  // Share and copy: the lead goes out in front of the link, the message is a toast.
+  for (const m of src.matchAll(/\bshareLink\([^,()]*(?:\(\))?,\s*"((?:[^"\\]|\\.)+)",\s*"((?:[^"\\]|\\.)+)"/g)) {
+    add(unq(m[1]));
+    add(unq(m[2]));
+  }
+  for (const m of src.matchAll(/\bcopyLink\([^,()]*(?:\(\))?,\s*"((?:[^"\\]|\\.)+)"/g)) add(unq(m[1]));
+  // cond ? "a" : "b" handed straight to a chokepoint: both arms are user copy.
+  const arms =
+    /(?:\bt\(|\bel\(\s*"[^"]*",\s*"[^"]*",|\bbtn\(\s*"[^"]*",|\bpcField\(|\b(?:title|text|label|note|intro|cta|placeholder|lead|msg)\s*:)\s*[^"();,{}]*?\?\s*"((?:[^"\\]|\\.)+)"\s*:\s*"((?:[^"\\]|\\.)+)"/g;
+  for (const m of src.matchAll(arms)) {
+    add(unq(m[1]));
+    add(unq(m[2]));
+  }
   // Vocabulary tables.
   for (const m of src.matchAll(/\b(?:CHIP_TEXT|STATUS_LINE)\s*=\s*\{([^}]+)\}/g)) {
     for (const v of m[1].matchAll(/"((?:[^"\\]|\\.)+)"/g)) add(unq(v[1]));

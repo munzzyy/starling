@@ -7,7 +7,7 @@
 
 import { bearingDeg, compassWord, fmtClock, fmtDistance, fmtRelTime, haversineMeters } from "./fmt.js";
 import { HISTORY_CHOICES } from "./ratchet.js";
-import { t, LOCALE_CHOICES } from "./i18n.js";
+import { t, currentLocale, LOCALE_CHOICES } from "./i18n.js";
 import { native, pageShown } from "./env.js";
 import { PLACE_RADII, MAX_PLACES, MAX_NAME_LEN } from "./places.js";
 import { DEFAULT_TIMER_MIN, TIMER_CHOICES_MIN } from "./checkin.js";
@@ -330,7 +330,7 @@ function circleNameField(circleName) {
   const input = el("input", "text-input");
   input.type = "text";
   input.maxLength = 24;
-  input.placeholder = circleName.placeholder || "Family, friends, the trip";
+  input.placeholder = circleName.placeholder || t("Family, friends, the trip");
   input.autocomplete = "off";
   input.value = circleName.value || "";
   input.dataset.testid = "circle-name";
@@ -573,12 +573,22 @@ export function setSafety(wrap, number) {
 // Coarse on purpose. A ticking second hand on something you are about to hand
 // to somebody reads as pressure, and these are read under pressure already.
 export function fmtCountdown(ms) {
-  if (!Number.isFinite(ms) || ms <= 0) return "expired";
-  if (ms < 60000) return "under a minute";
+  if (!Number.isFinite(ms) || ms <= 0) return t("expired");
+  if (ms < 60000) return t("under a minute");
   const mins = Math.floor(ms / 60000);
   if (mins < 60) return `${mins} min`;
   return `${Math.floor(mins / 60)} h ${String(mins % 60).padStart(2, "0")} min`;
 }
+
+function nameList(names) {
+  try {
+    return new Intl.ListFormat(currentLocale(), { type: "conjunction" }).format(names);
+  } catch {
+    return names.join(", ");
+  }
+}
+
+export const circleLabel = (name) => name || t("My circle");
 
 // ---------------------------------------------------------- link handoff
 
@@ -1349,7 +1359,7 @@ function reviewBlock(api, req, { onChanged, onAccepted }) {
     el(
       "p",
       "ov-note",
-      `Reach ${who} some way you already trust, a call or in person, and have them read the number on their screen. Every digit has to match.`,
+      t("Reach {who} some way you already trust, a call or in person, and have them read the number on their screen. Every digit has to match.", { who }),
     ),
   );
   box.append(
@@ -1368,7 +1378,9 @@ function reviewBlock(api, req, { onChanged, onAccepted }) {
       el(
         "p",
         "ov-note review-stale",
-        `Heads up: ${quiet.join(", ")} ${quiet.length === 1 ? "has" : "have"} not been heard from in over an hour. A phone that misses the new keys is cut off until it rejoins from a fresh invite.`,
+        quiet.length === 1
+          ? t("Heads up: {who} has not been heard from in over an hour. A phone that misses the new keys is cut off until it rejoins from a fresh invite.", { who: quiet[0] })
+          : t("Heads up: {names} have not been heard from in over an hour. A phone that misses the new keys is cut off until it rejoins from a fresh invite.", { names: nameList(quiet) }),
       ),
     );
   }
@@ -1507,10 +1519,10 @@ export function openInviteSheet({ api, getLink, qrSvgFor, onClose }) {
     const left = inv ? inv.expiresAt - Date.now() : 0;
     expiry.textContent = inv
       ? t("One use only, and it expires in {left}. Accepting somebody uses it up.", { left: fmtCountdown(left) })
-      : "This link is gone. Close this and tap Invite again for a new one.";
+      : t("This link is gone. Close this and tap Invite again for a new one.");
     waiting.textContent = requests.length
-      ? "Somebody is waiting on you above. The link still works until you accept."
-      : "Nobody has used this link yet. When somebody does, their request shows up here.";
+      ? t("Somebody is waiting on you above. The link still works until you accept.")
+      : t("Nobody has used this link yet. When somebody does, their request shows up here.");
     const dead = !inv || left <= 0;
     for (const node of [linkRow, share, copy]) node.hidden = dead;
     // Somebody is waiting on a decision. Holding a QR code up to a second
@@ -1824,7 +1836,7 @@ export function openPlacesSheet({ api, onAdd, onPick, onRename, onRadius, onFenc
     const nameIn = el("input", "text-input");
     nameIn.type = "text";
     nameIn.maxLength = MAX_NAME_LEN;
-    nameIn.placeholder = places.length ? "School" : "Home";
+    nameIn.placeholder = places.length ? t("School") : t("Home");
     nameIn.dataset.testid = "place-name-input";
     nameField.append(nameIn);
     const actions = el("div", "place-add-actions");
@@ -1945,7 +1957,7 @@ export function openPasscodeSheet({ title, intro, cta, confirm = false, current 
     i.inputMode = "numeric";
     i.autocomplete = "off";
     i.dataset.testid = testid;
-    i.setAttribute("aria-label", labelText);
+    i.setAttribute("aria-label", t(labelText));
     f.append(i);
     ov.body.append(f);
     return i;
@@ -1964,7 +1976,7 @@ export function openPasscodeSheet({ title, intro, cta, confirm = false, current 
   submit.dataset.testid = "passcode-save";
   let busy = false;
   const fail = (m) => {
-    err.textContent = m;
+    err.textContent = t(m);
     err.hidden = false;
   };
   submit.addEventListener("click", async () => {
@@ -1980,7 +1992,7 @@ export function openPasscodeSheet({ title, intro, cta, confirm = false, current 
         succeeded = true;
         ov.close();
       } else {
-        fail(current ? "That current passcode is wrong." : wrong || "Could not save. Try again.");
+        fail(current ? t("That current passcode is wrong.") : wrong || t("Could not save. Try again."));
         busy = false;
         submit.disabled = false;
       }
@@ -2014,8 +2026,9 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, backgro
   cn.type = "text";
   cn.maxLength = 24;
   cn.value = values.circleName;
+  cn.placeholder = t("My circle");
   cn.addEventListener("change", () => {
-    const name = cn.value.trim().slice(0, 24) || "My circle";
+    const name = cn.value.trim().slice(0, 24);
     onChange("circleName", name);
     paintShareFor(name);
   });
@@ -2064,7 +2077,9 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, backgro
         el(
           "p",
           "ov-note review-stale",
-          `Heads up: ${rekeyQuiet.join(", ")} ${rekeyQuiet.length === 1 ? "has" : "have"} not been heard from in over an hour and may miss the new keys. A phone that misses them is cut off until it rejoins from a fresh invite.`,
+          rekeyQuiet.length === 1
+            ? t("Heads up: {who} has not been heard from in over an hour and may miss the new keys. A phone that misses them is cut off until it rejoins from a fresh invite.", { who: rekeyQuiet[0] })
+            : t("Heads up: {names} have not been heard from in over an hour and may miss the new keys. A phone that misses them is cut off until it rejoins from a fresh invite.", { names: nameList(rekeyQuiet) }),
         ),
       );
     }
@@ -2096,8 +2111,8 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, backgro
     const historyNote = (id) => {
       const c = choices.find((x) => x.id === id) || choices[0];
       return c.epochs <= 1
-        ? `You can see the last ${c.label} of your circle. A phone taken from you gives up almost nothing.`
-        : `You can see the last ${c.label} of your circle. A phone taken from you gives up that same ${c.label}, and nothing older.`;
+        ? t("You can see the last {window} of your circle. A phone taken from you gives up almost nothing.", { window: t(c.label) })
+        : t("You can see the last {window} of your circle. A phone taken from you gives up that same {window}, and nothing older.", { window: t(c.label) });
     };
     historyField = segControl({
       label: "How far back you can see",
@@ -2145,7 +2160,7 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, backgro
   const shareFor = el("p", "field-note");
   shareFor.dataset.testid = "share-for-circle";
   const paintShareFor = (name) => {
-    shareFor.textContent = t("For {name}. Each circle keeps its own precision and timing.", { name: demo ? t("Demo circle") : name });
+    shareFor.textContent = t("For {name}. Each circle keeps its own precision and timing.", { name: demo ? t("Demo circle") : circleLabel(name) });
   };
   paintShareFor(values.circleName);
   gShare.append(
@@ -2623,11 +2638,11 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, backgro
     const leaveBox = el("div", "confirm-box");
     leaveBox.hidden = true;
     leaveBox.append(
-      el("p", "ov-note", 'Leaving deletes this circle\'s secret and your identity in it from this device. The circle itself keeps existing for everyone else, and you can come back with a fresh invite. Type "leave" to confirm.'),
+      el("p", "ov-note", "Leaving deletes this circle's secret and your identity in it from this device. The circle itself keeps existing for everyone else, and you can come back with a fresh invite. Type \"leave\" to confirm."),
     );
     const leaveInput = el("input", "text-input");
     leaveInput.type = "text";
-    leaveInput.placeholder = 'Type "leave"';
+    leaveInput.placeholder = t("Type \"leave\"");
     leaveInput.autocomplete = "off";
     const leaveGo = btn("btn btn-danger", "Leave circle");
     leaveGo.dataset.testid = "settings-leave-confirm";

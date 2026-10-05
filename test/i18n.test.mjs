@@ -123,6 +123,28 @@ test("substituted values are never re-scanned for other placeholders", () => {
   assert.equal(t("{a} and {missing}", { a: "ok" }), "ok and {missing}");
 });
 
+// Literals an expression yields with nothing wrapping them: `x ? t("a") : "b"` yields "b".
+function bareLiterals(expr) {
+  const out = [];
+  let depth = 0;
+  let prev = "^";
+  for (let i = 0; i < expr.length; i++) {
+    const c = expr[i];
+    if (c === '"' || c === "'" || c === "`") {
+      let j = i + 1;
+      while (j < expr.length && expr[j] !== c) j += expr[j] === "\\" ? 2 : 1;
+      if (c !== "`" && depth === 0 && "^?:|+".includes(prev)) out.push(expr.slice(i + 1, j));
+      prev = c;
+      i = j;
+      continue;
+    }
+    if ("([{".includes(c)) depth++;
+    else if (")]}".includes(c)) depth--;
+    if (!/\s/.test(c)) prev = c;
+  }
+  return out;
+}
+
 test("no user-visible literal bypasses the translator", () => {
   // The class the verifier caught: English assigned straight to textContent
   // or a spoken attribute, invisible to both the chokepoints and the
@@ -136,25 +158,70 @@ test("no user-visible literal bypasses the translator", () => {
   const hits = [];
   for (const f of files) {
     const src = readFileSync(path.join(ROOT, f), "utf8");
-    for (const m of src.matchAll(/\.textContent = "([^"]{6,})"/g)) {
+    for (const m of src.matchAll(/\.textContent\s*=\s*"([^"]{6,})"/g)) {
       if (!allow.has(m[1])) hits.push(`${f}: textContent "${m[1]}"`);
     }
     for (const m of src.matchAll(/setAttribute\(\s*"(?:aria-label|placeholder|title)",\s*"([^"]{6,})"/g)) {
       if (!allow.has(m[1])) hits.push(`${f}: attr "${m[1]}"`);
     }
-    for (const m of src.matchAll(/\.textContent = \w+ \? "([^"]{6,})" : "([^"]{6,})"/g)) {
-      hits.push(`${f}: ternary "${m[1]}"`);
+    const spoken = /\.(textContent|placeholder|title|ariaLabel|alt)\s*=(?!=)((?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`|[^;"'`])*);/g;
+    for (const m of src.matchAll(spoken)) {
+      for (const lit of bareLiterals(m[2])) {
+        const words = lit.replace(/\\u\{[0-9A-Fa-f]+\}|\\u[0-9A-Fa-f]{4}/g, "");
+        if (/[A-Za-z]{2,}/.test(words) && !allow.has(lit) && !/^https?:\/\//.test(lit)) hits.push(`${f}: ${m[1]} "${lit.slice(0, 40)}"`);
+      }
     }
     // A direct property write skips the chokepoints the same way (starling#1, 2026-10-02).
-    for (const m of src.matchAll(/\.(?:placeholder|title|ariaLabel|alt) = "([^"]{4,})"/g)) {
+    for (const m of src.matchAll(/\.(?:placeholder|title|ariaLabel|alt)\s*=\s*"([^"]{4,})"/g)) {
       if (!allow.has(m[1]) && !/^https?:\/\//.test(m[1])) hits.push(`${f}: property "${m[1]}"`);
     }
     // el() translates its text, but an interpolated template is never a catalog key.
-    for (const m of src.matchAll(/\bel\("\w+", "[^"]*", `([^`]*\$\{[^`]*)`/g)) {
+    for (const m of src.matchAll(/\bel\(\s*"\w+",\s*"[^"]*",\s*`([^`]*\$\{[^`]*)`/g)) {
       if (!allow.has(m[1])) hits.push(`${f}: el() template "${m[1].slice(0, 40)}"`);
     }
   }
-  assert.deepEqual(hits, [], hits.slice(0, 6).join("\n"));
+  assert.deepEqual(hits, [], hits.slice(0, 12).join("\n"));
+});
+
+test("the bypass guard sees a bare literal and leaves wrapped ones alone", () => {
+  assert.deepEqual(bareLiterals(` inv ? t("Expires in {left}", { left }) : "This link is gone."`), ["This link is gone."]);
+  assert.deepEqual(bareLiterals(` n ? "One here" : "None here"`), ["One here", "None here"]);
+  assert.deepEqual(bareLiterals(` t(n === 1 ? "{n} place" : "{n} places", { n })`), []);
+  assert.deepEqual(bareLiterals(` a ? t("x") : b ? t("y") : "Third arm"`), ["Third arm"]);
+  assert.deepEqual(bareLiterals(` given.placeholder || "Family, friends"`), ["Family, friends"]);
+  assert.deepEqual(bareLiterals(` 'Type "leave"'`), ['Type "leave"']);
+  assert.deepEqual(bareLiterals(` state === "ok" ? t("Connected") : t("Not connected")`), []);
+});
+
+test("every alert card's title and text is translated where it is written", () => {
+  // updateAlerts puts these on screen as they are, so a bare literal stays English.
+  const src = readFileSync(path.join(ROOT, "app/js/main.js"), "utf8");
+  const start = src.indexOf("function alertItems() {");
+  const body = src.slice(start, src.indexOf("\nlet announcedAlerts", start));
+  assert.ok(start >= 0 && body.length > 5000, "found alertItems");
+  const valueAt = (i) => {
+    let depth = 0;
+    for (let j = i; j < body.length; j++) {
+      const c = body[j];
+      if (c === '"' || c === "`") {
+        let k = j + 1;
+        while (k < body.length && body[k] !== c) k += body[k] === "\\" ? 2 : 1;
+        j = k;
+      } else if ("([{".includes(c)) depth++;
+      else if (")]}".includes(c)) {
+        if (depth === 0) return body.slice(i, j);
+        depth--;
+      } else if (c === "," && depth === 0) return body.slice(i, j);
+    }
+    return body.slice(i);
+  };
+  const hits = [];
+  for (const m of body.matchAll(/\b(title|text):\s*/g)) {
+    const v = valueAt(m.index + m[0].length).trim();
+    const words = v.startsWith("`") ? v.replace(/\$\{[^}]*\}/g, "") : "";
+    if (/[A-Za-z]{2,}/.test(words) || bareLiterals(v).length) hits.push(`${m[1]}: ${v.slice(0, 50)}`);
+  }
+  assert.deepEqual(hits, [], hits.join("\n"));
 });
 
 test("every label table is in the extractor's list", () => {
