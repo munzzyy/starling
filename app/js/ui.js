@@ -8,7 +8,7 @@
 import { bearingDeg, compassWord, fmtClock, fmtDistance, fmtRelTime, haversineMeters } from "./fmt.js";
 import { HISTORY_CHOICES } from "./ratchet.js";
 import { t, currentLocale, LOCALE_CHOICES } from "./i18n.js";
-import { native, pageShown } from "./env.js";
+import { isBundled, native, pageShown } from "./env.js";
 import { PLACE_RADII, MAX_PLACES, MAX_NAME_LEN } from "./places.js";
 import { DEFAULT_TIMER_MIN, TIMER_CHOICES_MIN } from "./checkin.js";
 import { staleAfter } from "./net.js";
@@ -1691,7 +1691,16 @@ export function confirmTimerSwitch(circle) {
 // https pages), because a Save button that silently does nothing is worse
 // than no button.
 export function openExportSheet(json, { onClose } = {}) {
-  const ov = openOverlay({ title: "Your data", testid: "export-sheet", className: "ov-export", onClose });
+  let fileUrl = "";
+  const ov = openOverlay({
+    title: "Your data",
+    testid: "export-sheet",
+    className: "ov-export",
+    onClose: () => {
+      if (fileUrl) URL.revokeObjectURL(fileUrl);
+      onClose?.();
+    },
+  });
   ov.body.append(
     el(
       "p",
@@ -1713,12 +1722,14 @@ export function openExportSheet(json, { onClose } = {}) {
     }
   });
   actions.append(copyBtn);
-  if (globalThis.location?.protocol === "https:" || globalThis.location?.protocol === "http:") {
+  // The app's WebView has no download handler, so a file link there does nothing.
+  if (!isBundled() && (globalThis.location?.protocol === "https:" || globalThis.location?.protocol === "http:")) {
     const dl = el("a", "btn btn-ghost");
     dl.textContent = t("Download as a file");
+    dl.dataset.testid = "export-download";
     dl.download = "starling-data.json";
-    dl.href = URL.createObjectURL(new Blob([json], { type: "application/json" }));
-    ov.node.addEventListener?.("close", () => URL.revokeObjectURL(dl.href));
+    fileUrl = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+    dl.href = fileUrl;
     actions.append(dl);
   }
   ov.body.append(pre, actions);

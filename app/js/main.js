@@ -4927,22 +4927,26 @@ async function openSettings() {
       onLeave: leaveCircle,
       onExport: () => {
         if (state.locked) return;
-        const json = JSON.stringify(
-          buildDataExport({
-            profile: state.profile,
-            settings: state.settings,
-            places: state.places,
-            circles: state.circles.map((c) => ({ name: c.name })),
-            pinned: [...state.pinned.values()],
-            forwardHost: forwardStatus(true)?.host || null,
-          }),
-          null,
-          2,
-        );
-        ui.openExportSheet(json);
+        ui.openExportSheet(dataExportJson());
       },
     }),
   );
+}
+
+function dataExportJson() {
+  const circles = [
+    ...(state.gen ? [{ name: state.circleName, active: true, ...state.circleShare, pinned: state.pinned }] : []),
+    ...state.circles,
+  ].map((c) => ({ ...c, precision: c.precision || state.settings.precision, cadence: readCadence(c.cadence) || 15 }));
+  const out = buildDataExport({
+    profile: state.profile,
+    settings: state.settings,
+    places: state.places,
+    circles,
+    pinned: [...state.pinned.values()],
+    forwardHost: forwardStatus(true)?.host || null,
+  });
+  return JSON.stringify(out, null, 2);
 }
 
 async function onSettingChange(key, value) {
@@ -6678,6 +6682,7 @@ if (debugHooks()) window.__starlingInternals = {
   doCheckin,
   sendStatus: () => ({ busy: sendBusy, again: sendAgain, whenReady: sendWhenReady, stats: { ...shareStats }, locationPaused }),
   buildShareReport,
+  dataExportJson,
   healthCard,
   saveForward,
   saveForwardTid,

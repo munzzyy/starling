@@ -3,6 +3,13 @@
 // material cannot ride along by accident. Nothing here reads storage; the
 // caller hands in live state, which also means a locked device cannot export
 // at all, because there is no live state to hand.
+const peopleOf = (pinned) =>
+  [...(pinned instanceof Map ? pinned.values() : pinned || [])].map((r) => ({
+    name: r.name || null,
+    memberId: r.memberId,
+    verified: !!r.verified,
+  }));
+
 export function buildDataExport(src) {
   const places = (src.places || []).map((p) => ({
     name: p.name,
@@ -10,12 +17,9 @@ export function buildDataExport(src) {
     lon: p.lon,
     radius: p.radius,
     fence: !!p.fence,
+    alerts: p.alerts || "both",
   }));
-  const people = (src.pinned || []).map((r) => ({
-    name: r.name || null,
-    memberId: r.memberId,
-    verified: !!r.verified,
-  }));
+  const people = peopleOf(src.pinned);
   return {
     app: "starling",
     exported: new Date(src.now ?? Date.now()).toISOString(),
@@ -25,7 +29,13 @@ export function buildDataExport(src) {
     },
     settings: { ...(src.settings || {}) },
     places,
-    circles: (src.circles || []).map((c) => ({ name: c.name || null })),
+    circles: (src.circles || []).map((c) => ({
+      name: c.name || null,
+      active: !!c.active,
+      precision: c.precision === "precise" || c.precision === "coarse" ? c.precision : null,
+      cadence: Number.isFinite(c.cadence) ? c.cadence : null,
+      people: peopleOf(c.pinned),
+    })),
     people,
     ownServer: src.forwardHost ? { host: src.forwardHost } : null,
     note:

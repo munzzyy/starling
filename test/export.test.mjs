@@ -10,9 +10,34 @@ const HOSTILE_STATE = {
   now: 1725600000000,
   profile: { name: "Avery", emoji: "🐦", st: "omw" },
   settings: { precision: "precise", history: "default", basemap: "dark" },
-  places: [{ id: "aabbccdd", name: "Home", lat: 40, lon: -75, radius: 250, fence: true }],
+  places: [
+    { id: "aabbccdd", name: "Home", lat: 40, lon: -75, radius: 250, fence: true },
+    { id: "aabbccde", name: "Gym", lat: 40.1, lon: -75, radius: 100, alerts: "arrive" },
+  ],
   circles: [
-    { name: "Family", secret: new Uint8Array([1, 2, 3]), identity: { sk: "SECRETKEYMATERIAL" } },
+    {
+      name: "Family",
+      active: true,
+      precision: "precise",
+      cadence: 15,
+      secret: new Uint8Array([1, 2, 3]),
+      identity: { sk: "SECRETKEYMATERIAL" },
+      pinned: new Map([
+        ["a".repeat(32), { memberId: "a".repeat(32), name: "Blair", verified: true, pk: "PUBKEYB64THATMUSTNOTLEAK", epk: "EPHKEYB64THATMUSTNOTLEAK" }],
+      ]),
+    },
+    {
+      name: "Climbing",
+      precision: "coarse",
+      cadence: 300,
+      secret: new Uint8Array([4, 5, 6]),
+      ck: "CHAINKEYTHATMUSTNOTLEAK",
+      channelId: "CHANNELTHATSTAYSHOME",
+      identity: { sk: "OTHERSECRETKEYMATERIAL" },
+      pinned: [
+        { memberId: "c".repeat(32), alg: "ed25519", name: "Casey", verified: false, pk: "CASEYPKTHATMUSTNOTLEAK", epk: "CASEYEPKTHATMUSTNOTLEAK" },
+      ],
+    },
   ],
   pinned: [
     {
@@ -54,9 +79,35 @@ test("no denylisted key survives at any depth, and no key bytes leak as values",
   const out = buildDataExport(HOSTILE_STATE);
   assert.deepEqual(walkKeys(out), [], "denylisted key names absent everywhere");
   const flat = JSON.stringify(out);
-  for (const needle of ["SECRETKEYMATERIAL", "PUBKEYB64THATMUSTNOTLEAK", "EPHKEYB64THATMUSTNOTLEAK", "hunter2", "wipeword"]) {
+  for (const needle of ["SECRETKEYMATERIAL", "OTHERSECRETKEYMATERIAL", "PUBKEYB64THATMUSTNOTLEAK", "EPHKEYB64THATMUSTNOTLEAK", "CASEYPKTHATMUSTNOTLEAK", "CASEYEPKTHATMUSTNOTLEAK", "CHAINKEYTHATMUSTNOTLEAK", "CHANNELTHATSTAYSHOME", "hunter2", "wipeword"]) {
     assert.ok(!flat.includes(needle), `${needle} must not appear in the export`);
   }
+});
+
+test("every circle is in the export with its own people and sharing choices, the active one flagged", () => {
+  const out = buildDataExport(HOSTILE_STATE);
+  assert.equal(out.circles.length, 2);
+  const [family, climbing] = out.circles;
+  assert.deepEqual(family, {
+    name: "Family",
+    active: true,
+    precision: "precise",
+    cadence: 15,
+    people: [{ name: "Blair", memberId: "a".repeat(32), verified: true }],
+  });
+  assert.deepEqual(climbing, {
+    name: "Climbing",
+    active: false,
+    precision: "coarse",
+    cadence: 300,
+    people: [{ name: "Casey", memberId: "c".repeat(32), verified: false }],
+  });
+  assert.deepEqual(out.people, family.people, "the top-level list stays the active circle's for one more release");
+});
+
+test("each place says which way it alerts, with no choice stored meaning both", () => {
+  const out = buildDataExport(HOSTILE_STATE);
+  assert.deepEqual(out.places.map((p) => p.alerts), ["both", "arrive"]);
 });
 
 test("negative control: a leaked secret would be caught", () => {
