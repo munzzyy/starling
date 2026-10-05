@@ -740,4 +740,5 @@ export const es = {
     "Puedes ver {window} hacia atrás en tu círculo. Un teléfono que te quiten no revela casi nada.",
   "You can see the last {window} of your circle. A phone taken from you gives up that same {window}, and nothing older.":
     "Puedes ver {window} hacia atrás en tu círculo. Un teléfono que te quiten revela también {window}, y nada más antiguo.",
+  "No recent update": "Sin novedades recientes",
 };

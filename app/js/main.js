@@ -570,6 +570,8 @@ function showScreen(name) {
   // an unlock, a wipe, or a circle change later, a stray tap would still add
   // a place under whatever name was typed before the world changed.
   if (name !== "map") mapView?.cancelPick();
+  // Only render() repaints the quiet cards, and it stops when the map does, so they go now.
+  if (name !== "map") ui.updateQuietList($("#quiet-list"), [], {});
   $("#screen-lock").hidden = name !== "lock";
   $("#screen-onboarding").hidden = name !== "onboarding";
   $("#screen-map").hidden = name !== "map";
@@ -712,10 +714,21 @@ function render() {
   });
   ui.updateAvaStrip($("#ava-strip"), list, { statusOf: displayStatus, now });
   renderMarkers(list, now);
-  $("#nudge").hidden = state.demo || !state.gen || list.length > 0;
+  const quiet = quietMembers(list);
+  ui.updateQuietList($("#quiet-list"), quiet, { onTap: () => openMembers() });
+  $("#nudge").hidden = state.demo || !state.gen || list.length > 0 || quiet.length > 0;
   renderFocus(list, now);
   renderAlerts();
   renderTools();
+}
+
+function quietMembers(list) {
+  if (state.demo || !state.gen) return [];
+  const me = state.identity?.memberId;
+  const live = new Set(list.map((r) => r.id));
+  return [...state.pinned.values()]
+    .filter((r) => r.memberId !== me && !live.has(r.memberId))
+    .map((r) => ({ id: r.memberId, name: r.name || "", hue: hueFromMemberId(r.memberId) }));
 }
 
 function renderChrome() {
@@ -6676,6 +6689,7 @@ if (debugHooks()) window.__starlingInternals = {
   setDuress,
   clearDuress,
   checkAlerts,
+  render,
   placeTracker,
   resetMemberAlerts,
   startDemo,

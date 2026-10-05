@@ -5,6 +5,12 @@ All notable changes to Starling are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **People whose phones have gone quiet stay on the sheet.** A member who
+  had not posted in a day dropped off the list, and when that was everyone
+  the sheet said "Just you here so far" and asked you to send invites to
+  people already in the circle. They now keep a dimmed card that says there
+  is no recent update, and a tap on it opens People and keys.
+
 ## [0.17.1]
 
 - **Scanning a code works again on Android.** The camera was refused to

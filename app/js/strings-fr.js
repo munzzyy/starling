@@ -736,4 +736,5 @@ export const fr = {
     "Vous pouvez remonter {window} en arrière dans votre cercle. Un téléphone qu'on vous prend ne livre presque rien.",
   "You can see the last {window} of your circle. A phone taken from you gives up that same {window}, and nothing older.":
     "Vous pouvez remonter {window} en arrière dans votre cercle. Un téléphone qu'on vous prend livre aussi {window}, et rien de plus ancien.",
+  "No recent update": "Aucune nouvelle récente",
 };

@@ -1248,6 +1248,28 @@ a.land-download {
   filter: saturate(0.2) opacity(0.65);
 }
 
+#quiet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.member-card.mc-quiet {
+  background: transparent;
+  border-style: dashed;
+}
+
+.member-card.mc-quiet .ava {
+  filter: saturate(0.2) opacity(0.65);
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.member-card.mc-quiet .mc-name {
+  color: var(--ink-2);
+}
+
 .mc-main {
   flex: 1;
   min-width: 0;

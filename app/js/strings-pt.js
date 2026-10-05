@@ -736,4 +736,5 @@ export const pt = {
     "Você consegue ver {window} para trás no seu círculo. Um celular tirado de você entrega quase nada.",
   "You can see the last {window} of your circle. A phone taken from you gives up that same {window}, and nothing older.":
     "Você consegue ver {window} para trás no seu círculo. Um celular tirado de você entrega também {window}, e nada mais antigo.",
+  "No recent update": "Sem novidades recentes",
 };

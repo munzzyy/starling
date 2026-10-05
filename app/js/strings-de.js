@@ -736,4 +736,5 @@ export const de = {
     "Du kannst in deinem Kreis {window} zurückschauen. Ein Handy, das dir abgenommen wird, verrät fast nichts.",
   "You can see the last {window} of your circle. A phone taken from you gives up that same {window}, and nothing older.":
     "Du kannst in deinem Kreis {window} zurückschauen. Ein Handy, das dir abgenommen wird, verrät ebenfalls {window}, und nichts Älteres.",
+  "No recent update": "Keine aktuelle Meldung",
 };

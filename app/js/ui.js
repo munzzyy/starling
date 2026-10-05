@@ -2986,6 +2986,58 @@ export function updateMemberList(container, items, { now, mePos, statusOf, onTap
   for (const node of existing.values()) node.remove();
 }
 
+function quietCard(id, onTap) {
+  const node = el("div", "member-card mc-quiet");
+  node.dataset.testid = "quiet-card";
+  node.dataset.member = id;
+  node.tabIndex = 0;
+  node.setAttribute("role", "button");
+  const ava = el("div", "ava");
+  ava.setAttribute("aria-hidden", "true");
+  const letter = el("span", "ava-emoji");
+  ava.append(letter);
+  const main = el("div", "mc-main");
+  const name = el("div", "mc-name");
+  const sub = el("div", "mc-sub");
+  main.append(name, sub);
+  node.append(ava, main);
+  node.addEventListener("click", () => onTap(id));
+  node.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onTap(id);
+    }
+  });
+  function update({ name: who, hue }) {
+    const shown = who || t("Member");
+    node.style.setProperty("--m-hue", String(hue ?? 0));
+    letter.textContent = Array.from((who || "").trim())[0]?.toLocaleUpperCase() || "";
+    name.textContent = shown;
+    sub.textContent = t("No recent update");
+    node.setAttribute("aria-label", `${shown}, ${t("No recent update")}`);
+  }
+  return { node, update };
+}
+
+const quietCards = new WeakMap();
+
+export function updateQuietList(container, items, { onTap }) {
+  if (!container) return;
+  let cards = quietCards.get(container);
+  if (!cards) quietCards.set(container, (cards = new Map()));
+  const nodes = items.map((p) => {
+    let card = cards.get(p.id);
+    if (!card) cards.set(p.id, (card = quietCard(p.id, onTap)));
+    card.update(p);
+    return card.node;
+  });
+  const ids = new Set(items.map((p) => p.id));
+  for (const id of cards.keys()) if (!ids.has(id)) cards.delete(id);
+  const shown = [...container.children];
+  if (nodes.length !== shown.length || nodes.some((n, i) => n !== shown[i])) container.replaceChildren(...nodes);
+  container.hidden = !nodes.length;
+}
+
 export function updateAvaStrip(container, items, { statusOf, now }) {
   const shown = items.slice(0, 7);
   const existing = new Map();
