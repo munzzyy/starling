@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The mark from app/icons/starling.svg at 1/6 scale, centered inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="648"
+    android:viewportHeight="648">
+    <group
+        android:translateX="68"
+        android:translateY="52">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M256,464 C196,388 120,310 120,216 A136,136 0 1,1 392,216 C392,310 316,388 256,464 Z M162,214 C196,176 232,170 256,194 C280,170 316,176 350,214 C316,200 288,204 268,224 L256,236 L244,224 C224,204 196,200 162,214 Z" />
+    </group>
+</vector>
