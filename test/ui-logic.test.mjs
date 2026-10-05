@@ -45,9 +45,11 @@ test("fmtDistance: exact strings", () => {
   assert.equal(fmtDistance(0), "0 m");
   assert.equal(fmtDistance(38.4), "38 m");
   assert.equal(fmtDistance(999.4), "999 m");
+  assert.equal(fmtDistance(999.6), "1.0 km", "a meter count that rounds to a thousand is a kilometer");
   assert.equal(fmtDistance(1000), "1.0 km");
   assert.equal(fmtDistance(1234), "1.2 km");
   assert.equal(fmtDistance(9949), "9.9 km");
+  assert.equal(fmtDistance(9960), "10 km", "never 10.0 km next to 10 km");
   assert.equal(fmtDistance(10000), "10 km");
   assert.equal(fmtDistance(12345), "12 km");
 });

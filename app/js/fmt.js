@@ -58,8 +58,8 @@ export function fmtDistance(m) {
     const tenths = Math.round(mi * 10) / 10;
     return tenths < 10 ? `${num(tenths, 1)} mi` : `${num(Math.round(mi), 0)} mi`;
   }
-  if (m < 1000) return `${num(Math.round(m), 0)} m`;
-  if (m < 10000) return `${num(m / 1000, 1)} km`;
+  if (Math.round(m) < 1000) return `${num(Math.round(m), 0)} m`;
+  if (Math.round(m / 100) < 100) return `${num(m / 1000, 1)} km`;
   return `${num(Math.round(m / 1000), 0)} km`;
 }
 
