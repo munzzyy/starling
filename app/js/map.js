@@ -250,16 +250,20 @@ export function createMapView(container, { onMarkerTap } = {}) {
     trails.set(id, lines);
   }
 
-  // One-shot pick mode: the next map tap answers with its coordinates. Used
-  // by "pick a spot on the map" when saving a place.
+  // One-shot pick mode: the next map tap, or the map center on request,
+  // answers with its coordinates. Used when saving a place.
   let pickCb = null;
-  map.on("click", (ev) => {
-    if (!pickCb) return;
+  function finishPick(latlng) {
+    if (!pickCb) return false;
     const cb = pickCb;
     pickCb = null;
     container.classList.remove("picking");
-    cb({ lat: ev.latlng.lat, lon: ev.latlng.lng });
-  });
+    // A tap on a neighboring world copy is past 180; validPlace would drop it at the next load.
+    const ll = typeof latlng.wrap === "function" ? latlng.wrap() : latlng;
+    cb({ lat: ll.lat, lon: ll.lng });
+    return true;
+  }
+  map.on("click", (ev) => finishPick(ev.latlng));
   function startPick(cb) {
     pickCb = cb;
     container.classList.add("picking");
@@ -268,6 +272,7 @@ export function createMapView(container, { onMarkerTap } = {}) {
     pickCb = null;
     container.classList.remove("picking");
   }
+  const pickCenter = () => finishPick(map.getCenter());
 
   // The device's own saved places, drawn as soft rings with a name tag. These
   // exist only in local storage; drawing them is the only thing done with them.
@@ -337,6 +342,7 @@ export function createMapView(container, { onMarkerTap } = {}) {
     setPlaces,
     startPick,
     cancelPick,
+    pickCenter,
     setTrail,
     clearTrail,
     focusOn,

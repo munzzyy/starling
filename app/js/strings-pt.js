@@ -746,4 +746,5 @@ export const pt = {
   "Kilometers": "Quilômetros",
   "Miles": "Milhas",
   "Show everyone": "Mostrar todos",
+  "Use the map center": "Usar o centro do mapa",
 };

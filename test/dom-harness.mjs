@@ -169,6 +169,7 @@ function makeLeaflet() {
     getZoom: () => 12,
     project: () => ({ x: 0, y: 0 }),
     unproject: () => ({ lat: 0, lng: 0 }),
+    getCenter: () => ({ lat: 0, lng: 0 }),
     flyTo() {},
     fitBounds() {},
     invalidateSize() {},

@@ -828,6 +828,19 @@ a.land-download {
   border-color: rgba(45, 212, 191, 0.4);
 }
 
+.banner-pick {
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 420px;
+  border-color: rgba(45, 212, 191, 0.4);
+  border-radius: var(--r-lg);
+}
+
+.banner-pick > span {
+  flex-basis: 100%;
+  text-align: center;
+}
+
 .banner-btn {
   min-height: 30px;
   white-space: nowrap;
@@ -2649,6 +2662,23 @@ div.danger-zone {
 
 #map.picking {
   cursor: crosshair;
+}
+
+/* The spot Use the map center saves. */
+#map.picking::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 700;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--bg), inset 0 0 0 2px var(--bg);
+  background: radial-gradient(circle, var(--ink) 0 2px, transparent 2.5px);
+  pointer-events: none;
 }
 
 /* App-only line under the start screen actions: the one link out to the

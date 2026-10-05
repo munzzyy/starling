@@ -396,6 +396,8 @@ let storedCkEpoch = -1;
 let beacon = null;
 let mapView = null;
 let sheet = null;
+// The name of the place waiting for a spot on the map, while a pick is armed.
+let pickName = null;
 let demo = null;
 let demoMembers = [];
 // The demo's own basemap switch. It starts off-grid every time; real tiles
@@ -581,7 +583,7 @@ function showScreen(name) {
   // A pending map-tap pick must not outlive the map screen it was armed on:
   // an unlock, a wipe, or a circle change later, a stray tap would still add
   // a place under whatever name was typed before the world changed.
-  if (name !== "map") mapView?.cancelPick();
+  if (name !== "map") cancelPlacePick();
   // Only render() repaints the quiet cards, and it stops when the map does, so they go now.
   if (name !== "map") ui.updateQuietList($("#quiet-list"), [], {});
   $("#screen-lock").hidden = name !== "lock";
@@ -700,6 +702,8 @@ function ensureMapUI() {
   byTestid("places-open").addEventListener("click", openPlaces);
   byTestid("status-open").addEventListener("click", openStatus);
   $("#banner-keys-open").addEventListener("click", openMembers);
+  $("#banner-pick-center").addEventListener("click", () => mapView.pickCenter());
+  $("#banner-pick-cancel").addEventListener("click", backOutOfPick);
 }
 
 // ------------------------------------------------------------- rendering
@@ -6366,7 +6370,7 @@ function openPlaces() {
     ui.toast("Exit the demo to edit your places.");
     return;
   }
-  mapView?.cancelPick();
+  cancelPlacePick();
   keepLive((done) =>
     ui.openPlacesSheet({
       api: { places: () => state.places },
@@ -6380,15 +6384,7 @@ function openPlaces() {
         ui.toast(t("{name} saved. Only this phone knows it exists.", { name }));
         return true;
       },
-      onPick: (name) => {
-        ui.toast(t("Tap the map where {name} is.", { name }));
-        mapView.startPick(async ({ lat, lon }) => {
-          if (state.locked || state.demo) return;
-          await addPlace(name, lat, lon);
-          ui.toast(t("{name} saved. Only this phone knows it exists.", { name }));
-          openPlaces();
-        });
-      },
+      onPick: startPlacePick,
       onRename: async (id, name) => {
         state.places = state.places.map((p) => (p.id === id ? { ...p, name } : p));
         await savePlaces();
@@ -6411,6 +6407,35 @@ function openPlaces() {
       },
     }),
   );
+}
+
+function startPlacePick(name) {
+  if (state.demo || !mapView) return;
+  pickName = name;
+  $("#banner-pick-text").textContent = t("Tap the map where {name} is.", { name });
+  $("#banner-pick").hidden = false;
+  $("#banner-pick-center").focus?.();
+  sheet?.snapTo("peek");
+  mapView.startPick(async ({ lat, lon }) => {
+    pickName = null;
+    $("#banner-pick").hidden = true;
+    if (state.locked || state.demo) return;
+    await addPlace(name, lat, lon);
+    ui.toast(t("{name} saved. Only this phone knows it exists.", { name }));
+    openPlaces();
+  });
+}
+
+function cancelPlacePick() {
+  const armed = pickName !== null;
+  mapView?.cancelPick();
+  pickName = null;
+  $("#banner-pick").hidden = true;
+  return armed;
+}
+
+function backOutOfPick() {
+  if (cancelPlacePick()) openPlaces();
 }
 
 function checkAlerts() {
@@ -6507,7 +6532,7 @@ function checkAlerts() {
 
 function startDemo() {
   if (state.demo) return;
-  mapView?.cancelPick();
+  cancelPlacePick();
   if (state.sharing) setSharing(false);
   state.demo = true;
   state.sharing = true;
@@ -6747,6 +6772,7 @@ if (debugHooks()) window.__starlingInternals = {
   resetMemberAlerts,
   startDemo,
   exitDemo,
+  startPlacePick,
   toggleDemoMap,
   loadDemoMap,
   cancelDemoMap,
@@ -6838,6 +6864,10 @@ window.addEventListener("hashchange", () => {
 
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
+  if (pickName !== null) {
+    backOutOfPick();
+    return;
+  }
   if (ui.closeTopOverlay()) return;
   if (focusedId) {
     unfocus();

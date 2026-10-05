@@ -746,4 +746,5 @@ export const fr = {
   "Kilometers": "Kilomètres",
   "Miles": "Miles",
   "Show everyone": "Afficher tout le monde",
+  "Use the map center": "Utiliser le centre de la carte",
 };

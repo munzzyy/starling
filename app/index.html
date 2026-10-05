@@ -503,6 +503,11 @@
       </button>
     </div>
     <div class="banners" id="banners" role="status" aria-live="polite">
+      <div class="banner banner-pick" id="banner-pick" data-testid="pick-banner" hidden>
+        <span id="banner-pick-text"></span>
+        <button type="button" class="banner-btn" id="banner-pick-center" data-testid="pick-center" data-i18n>Use the map center</button>
+        <button type="button" class="banner-btn" id="banner-pick-cancel" data-testid="pick-cancel" data-i18n>Cancel</button>
+      </div>
       <div class="banner banner-demo" id="banner-demo" data-testid="demo-banner" hidden>
         <span data-i18n>Demo flight - nothing is real</span>
         <button type="button" class="banner-btn" id="banner-demo-map" data-testid="demo-map-toggle" data-i18n>Real map</button>

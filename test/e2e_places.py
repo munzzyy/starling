@@ -246,6 +246,35 @@ def main():
             "return !!sel && sel.dataset.radius === '500';"))
         a.escape()
 
+        # Picking on the map: a banner and a crosshair, Escape backs out to
+        # Places without saving, Use the map center saves the crosshair's spot.
+        pick_on = ("var b = document.getElementById('banner-pick');"
+                   "return !!b && !b.hidden && document.getElementById('map').classList.contains('picking');")
+        rows = "return document.querySelectorAll('.place-row').length"
+        E.wait_overlay_gone(a)
+        open_places(a)
+        a.send_keys('[data-testid="place-name-input"]', "Corner")
+        a.click('[data-testid="place-add-pick"]')
+        wait_for(lambda: q(a, pick_on), timeout=10, desc="pick banner")
+        check("pick banner names the place",
+              q(a, "return document.getElementById('banner-pick-text').textContent") == "Tap the map where Corner is.")
+        check("crosshair while picking",
+              q(a, "return getComputedStyle(document.getElementById('map'), '::after').content") not in (None, "none", ""))
+        a.escape()
+        wait_for(lambda: q(a, "return !!document.querySelector('[data-testid=\"places-sheet\"]')"),
+                 timeout=10, desc="Escape back to Places")
+        check("Escape ends the pick", not q(a, pick_on))
+        check("Escape saves nothing", q(a, rows) == 1)
+        a.send_keys('[data-testid="place-name-input"]', "Corner")
+        a.click('[data-testid="place-add-pick"]')
+        wait_for(lambda: q(a, pick_on), timeout=10, desc="pick banner again")
+        a.click('[data-testid="pick-center"]')
+        wait_for(lambda: q(a, rows) == 2, timeout=10, desc="center pick saved")
+        check("Use the map center saves a place and ends the pick", not q(a, pick_on))
+        q(a, "document.querySelectorAll('.place-row')[1].querySelector('.place-remove').click(); return true;")
+        wait_for(lambda: q(a, rows) == 1, timeout=10, desc="center pick removed")
+        a.escape()
+
         # Removing the place clears the card line without an announcement.
         open_places(a)
         a.click(".place-remove")
