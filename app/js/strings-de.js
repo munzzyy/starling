@@ -747,4 +747,6 @@ export const de = {
   "Miles": "Meilen",
   "Show everyone": "Alle zeigen",
   "Use the map center": "Kartenmitte nehmen",
+  "At {place} since {time}": "{place} seit {time}",
+  "Here now: {names}": "Gerade hier: {names}",
 };

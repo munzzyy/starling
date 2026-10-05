@@ -728,6 +728,7 @@ function render() {
     statusOf: displayStatus,
     onTap: focusMember,
     placeOf: (id) => placeTracker.placeFor(id)?.name || null,
+    sinceOf: (id) => placeTracker.arrivedAtFor(id),
   });
   ui.updateAvaStrip($("#ava-strip"), list, { statusOf: displayStatus, now });
   renderMarkers(list, now);
@@ -1568,6 +1569,7 @@ function renderFocus(list, now) {
     mePos: state.me,
     statusOf: displayStatus,
     place: placeTracker.placeFor(rec.id)?.name || null,
+    since: placeTracker.arrivedAtFor(rec.id),
     trailOn: focusTrailOn && state.settings.trail,
     onTrailToggle: () => {
       focusTrailOn = !focusTrailOn;
@@ -6373,7 +6375,7 @@ function openPlaces() {
   cancelPlacePick();
   keepLive((done) =>
     ui.openPlacesSheet({
-      api: { places: () => state.places },
+      api: { places: () => state.places, here: whoIsAt },
       onClose: done,
       onAdd: async (name) => {
         if (!state.me || !Number.isFinite(state.me.lat)) {
@@ -6407,6 +6409,19 @@ function openPlaces() {
       },
     }),
   );
+}
+
+// "Here now" is a claim about the present, so a dot that went quiet does not count.
+function whoIsAt(placeId) {
+  const now = Date.now();
+  const names = [];
+  if (state.me && Number.isFinite(state.me.lat) && placeTracker.placeFor(SELF_KEY)?.id === placeId) names.push(t("You"));
+  for (const rec of sortMembers(members(), now)) {
+    const st = statusOf(rec, now);
+    if (st === "stale" || st === "stopped") continue;
+    if (placeTracker.placeFor(rec.id)?.id === placeId) names.push(rec.name || t("Member"));
+  }
+  return names;
 }
 
 function startPlacePick(name) {
@@ -6773,6 +6788,7 @@ if (debugHooks()) window.__starlingInternals = {
   startDemo,
   exitDemo,
   startPlacePick,
+  openPlaces,
   toggleDemoMap,
   loadDemoMap,
   cancelDemoMap,

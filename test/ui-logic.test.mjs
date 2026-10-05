@@ -10,8 +10,9 @@ import {
   hueFromMemberId,
   resolveUnits,
   setUnits,
+  fmtClock,
 } from "../app/js/fmt.js";
-import { fmtCountdown } from "../app/js/ui.js";
+import { fmtCountdown, memberSubLine } from "../app/js/ui.js";
 import { loadLocale, setLocale } from "../app/js/i18n.js";
 
 test("haversineMeters: zero distance is exactly 0", () => {
@@ -176,4 +177,20 @@ test("fmtCountdown: an expired thing says so instead of counting up", () => {
   assert.equal(fmtCountdown(NaN), "expired");
   assert.equal(fmtCountdown(Infinity), "expired");
   assert.equal(fmtCountdown(undefined), "expired");
+});
+
+test("memberSubLine: a place carries 'since' only for a seen arrival under a day old", () => {
+  const now = Date.UTC(2026, 9, 5, 15, 0);
+  const rec = { ts: now };
+  const at = now - 47 * 60_000;
+  assert.equal(memberSubLine(rec, now, null, "Home", "live", at), `At Home since ${fmtClock(at)} · now`);
+  assert.equal(memberSubLine(rec, now, null, "Home", "live", null), "At Home · now", "first sight: no since");
+  assert.equal(memberSubLine(rec, now, null, "Home", "live"), "At Home · now");
+  assert.equal(memberSubLine(rec, now, null, "Home", "live", now - 24 * 60 * 60_000), "At Home · now", "a bare clock time past a day is ambiguous");
+  assert.equal(
+    memberSubLine(rec, now, null, "Home", "live", now - 24 * 60 * 60_000 + 1),
+    `At Home since ${fmtClock(now - 24 * 60 * 60_000 + 1)} · now`,
+  );
+  assert.equal(memberSubLine(rec, now, null, "Home", "live", now + 60_000), "At Home · now", "never a time still to come");
+  assert.equal(memberSubLine(rec, now, null, null, "live", at), "now", "no place, nothing to be at since");
 });

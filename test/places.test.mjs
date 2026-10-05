@@ -156,6 +156,68 @@ test("sinceFor reports when the member arrived", () => {
   assert.equal(t.sinceFor("nobody"), null);
 });
 
+test("arrivedAtFor: first sight inside is not an arrival anyone saw", () => {
+  const t = createPlaceTracker([HOME]);
+  t.update("m1", BASE.lat, BASE.lon, { ts: 900, now: 1000 });
+  assert.equal(t.placeFor("m1").name, "Home");
+  assert.equal(t.arrivedAtFor("m1"), null);
+  assert.equal(t.arrivedAtFor("nobody"), null);
+});
+
+test("arrivedAtFor: a seen arrival carries the inside fix's own time, and leaving clears it", () => {
+  const t = createPlaceTracker([HOME]);
+  let now = 1000;
+  t.update("m1", north(5000).lat, BASE.lon, { ts: now - 50, now });
+  assert.equal(t.arrivedAtFor("m1"), null);
+  now += MIN_FLIP_MS + 1000;
+  const fixTs = now - 4000;
+  t.update("m1", north(100).lat, BASE.lon, { ts: fixTs, now });
+  assert.equal(t.arrivedAtFor("m1"), fixTs, "the fix's time, not the time this phone heard about it");
+
+  // Staying put does not move the arrival.
+  now += MIN_FLIP_MS + 1000;
+  t.update("m1", BASE.lat, BASE.lon, { ts: now, now });
+  assert.equal(t.arrivedAtFor("m1"), fixTs);
+
+  now += MIN_FLIP_MS + 1000;
+  t.update("m1", north(exitAt(HOME) + 20).lat, BASE.lon, { ts: now, now });
+  assert.equal(t.placeFor("m1"), null);
+  assert.equal(t.arrivedAtFor("m1"), null);
+});
+
+test("arrivedAtFor: a sender clock running ahead cannot date an arrival in the future", () => {
+  const t = createPlaceTracker([HOME]);
+  let now = 1000;
+  t.update("m1", north(5000).lat, BASE.lon, { now });
+  now += MIN_FLIP_MS + 1000;
+  t.update("m1", BASE.lat, BASE.lon, { ts: now + 9 * 60_000, now });
+  assert.equal(t.arrivedAtFor("m1"), now);
+});
+
+test("arrivedAtFor: walking from one place into the next dates the second arrival", () => {
+  const near = { ...SCHOOL, lat: north(HOME.radius * EXIT_FACTOR + EXIT_PAD_M + 120).lat };
+  const t = createPlaceTracker([HOME, near]);
+  let now = 1000;
+  t.update("m1", BASE.lat, BASE.lon, { now });
+  now += MIN_FLIP_MS + 1000;
+  t.update("m1", near.lat, near.lon, { ts: now - 10, now });
+  assert.equal(t.placeFor("m1").name, "School");
+  assert.equal(t.arrivedAtFor("m1"), now - 10);
+});
+
+test("arrivedAtFor: deleting the place forgets the arrival", () => {
+  const t = createPlaceTracker([HOME]);
+  let now = 1000;
+  t.update("m1", north(5000).lat, BASE.lon, { now });
+  now += MIN_FLIP_MS + 1000;
+  t.update("m1", BASE.lat, BASE.lon, { ts: now, now });
+  assert.equal(t.arrivedAtFor("m1"), now);
+  t.setPlaces([]);
+  assert.equal(t.arrivedAtFor("m1"), null);
+  t.setPlaces([HOME]);
+  assert.equal(t.arrivedAtFor("m1"), null, "a place that comes back does not bring the old arrival with it");
+});
+
 test("forget drops a member's state", () => {
   const t = createPlaceTracker([HOME]);
   t.update("m1", BASE.lat, BASE.lon, { now: 1000 });

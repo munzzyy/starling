@@ -108,7 +108,7 @@ export function fenceSnap(places, lat, lon, { sos = false, precision = "precise"
 // Per-member arrive/leave tracking against the current set of places.
 export function createPlaceTracker(initialPlaces = []) {
   let places = sanitizePlaces(initialPlaces);
-  // memberId -> { placeId, since, flippedAt }; placeId null means "nowhere".
+  // memberId -> { placeId, since, flippedAt, arrivedAt }; null placeId is nowhere, null arrivedAt is unseen.
   const state = new Map();
 
   function setPlaces(next) {
@@ -119,6 +119,7 @@ export function createPlaceTracker(initialPlaces = []) {
       if (rec.placeId && !live.has(rec.placeId)) {
         rec.placeId = null;
         rec.flippedAt = 0;
+        rec.arrivedAt = null;
       }
     }
   }
@@ -141,7 +142,7 @@ export function createPlaceTracker(initialPlaces = []) {
       // First sight of a member: adopt where they already are without an
       // event. "Juno arrived at Home" is false if Juno was home all along.
       const here = placeContaining(places, lat, lon);
-      rec = { placeId: here?.id ?? null, since: now, flippedAt: 0, last: { lat, lon, at } };
+      rec = { placeId: here?.id ?? null, since: now, flippedAt: 0, arrivedAt: null, last: { lat, lon, at } };
       state.set(memberId, rec);
       return [];
     }
@@ -180,6 +181,7 @@ export function createPlaceTracker(initialPlaces = []) {
         rec.placeId = null;
         rec.since = now;
         rec.flippedAt = now;
+        rec.arrivedAt = null;
         events.push({ type: "leave", memberId, placeId: current.id, placeName: current.name });
       }
     }
@@ -195,6 +197,8 @@ export function createPlaceTracker(initialPlaces = []) {
         rec.placeId = entered.id;
         rec.since = now;
         rec.flippedAt = now;
+        // The fix's own time, but a sender clock running ahead cannot date an arrival in the future.
+        rec.arrivedAt = Math.min(at, now);
         events.push({ type: "arrive", memberId, placeId: entered.id, placeName: entered.name });
       }
     }
@@ -213,6 +217,11 @@ export function createPlaceTracker(initialPlaces = []) {
     return rec?.placeId ? rec.since : null;
   }
 
+  function arrivedAtFor(memberId) {
+    const rec = state.get(memberId);
+    return rec?.placeId ? rec.arrivedAt : null;
+  }
+
   function forget(memberId) {
     state.delete(memberId);
   }
@@ -222,6 +231,7 @@ export function createPlaceTracker(initialPlaces = []) {
     update,
     placeFor,
     sinceFor,
+    arrivedAtFor,
     forget,
     clear: () => state.clear(),
     places: () => places,

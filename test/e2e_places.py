@@ -145,6 +145,15 @@ def main():
         wait_for(lambda: "At Front Porch" in (member_sub(a, "Blair") or ""), timeout=45,
                  desc="A sees Blair at HQ", nudge=a.nudge_poll)
         check("B's card says At Front Porch after arriving", True)
+        check("B's card dates the arrival A watched",
+              "At Front Porch since " in (member_sub(a, "Blair") or ""), repr(member_sub(a, "Blair")))
+        open_places(a)
+        here = q(a,
+            "var h = document.querySelector('.place-row [data-testid=\"place-here\"]');"
+            "return h && !h.hidden ? h.textContent : '';") or ""
+        check("Places says who is here now", here.startswith("Here now:") and "You" in here and "Blair" in here, repr(here))
+        a.escape()
+        E.wait_overlay_gone(a)
         time.sleep(0.7)
         a.shot("21-member-at-place.png")
 

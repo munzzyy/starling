@@ -1863,16 +1863,35 @@ export function openPlacesSheet({ api, onAdd, onPick, onRename, onRadius, onFenc
     fenceIn.setAttribute("aria-label", t("Privacy fence for {name}", { name: place.name }));
     fenceIn.addEventListener("change", () => onFence?.(place.id, fenceIn.checked));
     fence.append(fenceIn, el("span", "place-fence-text", "Privacy fence"));
-    row.append(head, radiusSeg(place), alertsSeg(place), fence);
+    const here = el("p", "field-note place-here");
+    here.dataset.testid = "place-here";
+    hereEls.set(place.id, here);
+    row.append(head, here, radiusSeg(place), alertsSeg(place), fence);
     return row;
+  }
+
+  const hereEls = new Map();
+  function paintHere() {
+    for (const [id, node] of hereEls) {
+      const names = api.here?.(id) || [];
+      const text = names.length ? t("Here now: {names}", { names: listNames(names) }) : "";
+      if (node.textContent !== text) node.textContent = text;
+      node.hidden = !text;
+    }
   }
 
   let sig = null;
   function paint() {
+    rebuild();
+    paintHere();
+  }
+
+  function rebuild() {
     const places = api.places();
     const nextSig = JSON.stringify(places.map((p) => [p.id, p.name, p.radius, !!p.fence, p.alerts ?? "both"]));
     if (nextSig === sig) return;
     sig = nextSig;
+    hereEls.clear();
     listEl.replaceChildren(...places.map(placeRow));
     addBox.replaceChildren();
     if (places.length >= MAX_PLACES) {
@@ -1917,6 +1936,11 @@ export function openPlacesSheet({ api, onAdd, onPick, onRename, onRadius, onFenc
   paint();
 
   return { close: ov.close, refresh: paint };
+}
+
+function listNames(names) {
+  if (typeof Intl.ListFormat !== "function") return names.join(", ");
+  return new Intl.ListFormat(currentLocale(), { type: "conjunction" }).format(names);
 }
 
 function segControl({ label, note, noteFor, options, value, onChange }) {
@@ -2968,7 +2992,10 @@ function buildCard(id, onTap) {
 
 export const memberSaid = (rec, status) => `${rec.name || t("Member")}, ${t(CHIP_TEXT[status])}`;
 
-export function memberSubLine(rec, now, mePos, place, status) {
+// Past a day a bare clock time no longer says which day it means.
+const SINCE_MAX_MS = 24 * 60 * 60 * 1000;
+
+export function memberSubLine(rec, now, mePos, place, status, since = null) {
   const bits = [];
   if (status === "sos" && now - rec.ts > staleAfter(rec)) bits.push(t("Signal lost"));
   // The caption only speaks for a live presence: "omw" on a dot that
@@ -2976,7 +3003,10 @@ export function memberSubLine(rec, now, mePos, place, status) {
   if (rec.st && (status === "live" || status === "checkin" || status === "sos")) {
     bits.push(`"${rec.st}"`);
   }
-  if (place) bits.push(t("At {place}", { place }));
+  if (place) {
+    const known = Number.isFinite(since) && since <= now && now - since < SINCE_MAX_MS;
+    bits.push(known ? t("At {place} since {time}", { place, time: fmtClock(since) }) : t("At {place}", { place }));
+  }
   if (rec.due) bits.push(t("Check in by {time}", { time: fmtClock(rec.due) }));
   bits.push(fmtRelTime(now - rec.ts));
   if (mePos && Number.isFinite(rec.lat) && Number.isFinite(rec.lon)) {
@@ -2986,7 +3016,7 @@ export function memberSubLine(rec, now, mePos, place, status) {
   return bits.join(" · ");
 }
 
-export function updateMemberList(container, items, { now, mePos, statusOf, onTap, placeOf }) {
+export function updateMemberList(container, items, { now, mePos, statusOf, onTap, placeOf, sinceOf }) {
   const existing = new Map();
   for (const node of container.children) existing.set(node.dataset.member, node);
   for (const [i, rec] of items.entries()) {
@@ -2998,7 +3028,7 @@ export function updateMemberList(container, items, { now, mePos, statusOf, onTap
     card.style.setProperty("--m-hue", String(rec.hue ?? 0));
     $(".ava-emoji", card).textContent = rec.emoji || "";
     $(".mc-name", card).textContent = rec.name || t("Member");
-    const subLine = memberSubLine(rec, now, mePos, placeOf?.(rec.id), status);
+    const subLine = memberSubLine(rec, now, mePos, placeOf?.(rec.id), status, sinceOf?.(rec.id));
     $(".mc-sub", card).textContent = subLine;
     const chip = $(".chip", card);
     chip.textContent = t(CHIP_TEXT[status]);
@@ -3127,7 +3157,7 @@ export function updateAvaStrip(container, items, { statusOf, now }) {
 // -------------------------------------------------------------- focus card
 
 export function renderFocusCard(root, rec, ctx) {
-  const { now, mePos, statusOf, trailOn, onTrailToggle, onClose, place } = ctx;
+  const { now, mePos, statusOf, trailOn, onTrailToggle, onClose, place, since } = ctx;
   const status = statusOf(rec, now);
   if (root.dataset.member !== rec.id) {
     root.dataset.member = rec.id;
@@ -3164,7 +3194,7 @@ export function renderFocusCard(root, rec, ctx) {
   root.style.setProperty("--m-hue", String(rec.hue ?? 0));
   $(".ava-emoji", root).textContent = rec.emoji || "";
   $(".fc-name", root).textContent = rec.name || t("Member");
-  $(".fc-sub", root).textContent = `${t(CHIP_TEXT[status])} · ${memberSubLine(rec, now, mePos, place, status)}`;
+  $(".fc-sub", root).textContent = `${t(CHIP_TEXT[status])} · ${memberSubLine(rec, now, mePos, place, status, since)}`;
   const hasPos = Number.isFinite(rec.lat) && Number.isFinite(rec.lon);
   const latlon = hasPos ? `${rec.lat.toFixed(5)}, ${rec.lon.toFixed(5)}` : t("no position yet");
   $(".fc-latlon", root).textContent = latlon;
