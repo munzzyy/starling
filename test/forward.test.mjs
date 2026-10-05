@@ -254,7 +254,7 @@ test("the wrapper names no phone model, and points waiting on a retry stay in me
   const src = kt("Forward.kt");
   const post = src.slice(src.indexOf("private fun post("));
   assert.match(post, /c\.setRequestProperty\("User-Agent", USER_AGENT\)\s*c\.outputStream/);
-  assert.match(src, /private const val USER_AGENT = "Starling"\n/);
+  assert.match(src, /private const val USER_AGENT = "Starling"\r?\n/);
   assert.equal(src.match(/sender\.execute/g).length, 1);
   assert.match(src, /if \(queue\.add\(body\)\) sender\.execute \{ drain\(app\) \}/);
   assert.match(src, /private val queue = ForwardQueue\(\)/);
