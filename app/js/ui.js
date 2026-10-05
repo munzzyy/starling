@@ -2079,7 +2079,7 @@ export function openPasscodeSheet({ title, intro, cta, confirm = false, current 
   return ov;
 }
 
-export function openSettingsSheet({ api, values, demo, tor, keepSharing, background, forward, lock, lockActions, onChange, onMembers, onInvite, onPlaces, onPanic, onLeave, onExport, onClose }) {
+export function openSettingsSheet({ api, values, demo, tor, keepSharing, shareClock, background, forward, lock, lockActions, onChange, onMembers, onInvite, onPlaces, onPanic, onLeave, onExport, onClose }) {
   const ov = openOverlay({ title: "Settings", testid: "settings-sheet", className: "ov-settings", onClose });
   const b = ov.body;
 
@@ -2286,6 +2286,17 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, backgro
       onChange: (v) => onChange("keepSharing", v),
     });
     row.dataset.testid = "settings-keep-sharing";
+    gShare.append(row);
+  }
+
+  if (shareClock) {
+    const row = switchRow({
+      label: "Show the time on the sharing notification",
+      note: "Time left on a timed share, or how long you have been sharing. Your lock screen shows it too, unless Android is set to hide sensitive notification content.",
+      value: shareClock.enabled,
+      onChange: (v) => onChange("shareClock", v),
+    });
+    row.dataset.testid = "settings-share-clock";
     gShare.append(row);
   }
 

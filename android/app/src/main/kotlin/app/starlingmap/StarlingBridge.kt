@@ -295,6 +295,12 @@ class StarlingBridge(private val app: Context) {
     @JavascriptInterface
     fun setKeepSharing(on: Boolean) = PageHost.setKeepSharing(app, on)
 
+    @JavascriptInterface
+    fun shareClock(): Boolean = LocationService.clockShown(app)
+
+    @JavascriptInterface
+    fun setShareClock(on: Boolean) = LocationService.showClock(app, on)
+
     // ------------------------------------------------------------------ tor
 
     @JavascriptInterface

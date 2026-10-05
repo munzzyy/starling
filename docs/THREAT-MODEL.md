@@ -352,6 +352,9 @@ than Cloudflare can run their own relay; see the FAQ and
     the way SECURITY.md asks.
     Anyone holding the phone, locked or not, learns from it alone that
     Starling is installed and is transmitting your position right now.
+    If you turn on "Show the time on the sharing notification" (off by
+    default), they also learn how long the share has left or has run,
+    unless Android is set to hide sensitive content on the lock screen.
     That notification also carries a Stop button. On Android 12 and up,
     tapping it from a locked screen requires the device to be unlocked
     first (`Notification.Action.Builder.setAuthenticationRequired`); on

@@ -757,4 +757,6 @@ export const de = {
   "Checking in tells your whole circle you are okay.": "Wenn du dich meldest, weiß dein ganzer Kreis, dass alles in Ordnung ist.",
   "Could not reach your circle. Try again in a moment.": "Dein Kreis war nicht erreichbar. Versuch es gleich noch einmal.",
   "You already asked {who}": "Du hast schon {who} gebeten, sich zu melden",
+  "Show the time on the sharing notification": "Zeit in der Teilen-Benachrichtigung zeigen",
+  "Time left on a timed share, or how long you have been sharing. Your lock screen shows it too, unless Android is set to hide sensitive notification content.": "Die Restzeit einer zeitlich begrenzten Freigabe oder wie lange du schon teilst. Dein Sperrbildschirm zeigt sie auch, außer Android ist so eingestellt, dass sensible Inhalte von Benachrichtigungen ausgeblendet werden.",
 };

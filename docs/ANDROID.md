@@ -265,6 +265,19 @@ got and closes. Until that is seen asking for the PIN on the Android 9 and 10
 emulators (this machine has no Android 11 phone image), THREAT-MODEL.md keeps
 treating Stop as reachable from a locked phone on Android 11 and below.
 
+### The time on the sharing notification
+
+Settings, Sharing, "Show the time on the sharing notification" is off by
+default. With it on, the notification counts down to the end of a timed
+share, or up from the start of an open one, using Android's own chronometer.
+The window end is the copy the page already hands over for a restart
+(`ShareResume`), and a window picked mid-share reaches the clock at once. If
+the page is frozen past the end, the next minute tick switches the clock to
+counting up instead of below zero. It is off by default because Android shows
+a notification's full content on a locked phone unless the owner has turned
+on hiding sensitive content, so the lock screen would say how long a share
+has left. The generic version Android shows in that case never has a clock.
+
 ### A reminder when sharing stays off
 
 Settings, Sharing has "Remind me if sharing stays off" (#6): Never, 1 h, 4 h

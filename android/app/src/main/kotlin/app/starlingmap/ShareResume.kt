@@ -24,7 +24,14 @@ object ShareResume {
         prefs(ctx).edit().putLong(PREF_AT, at).putLong(PREF_DEADLINE, deadline).apply()
         // A share is running again, so an offer still showing is not true anymore.
         runCatching { Events.cancel(ctx, TAG) }
+        LocationService.refreshNotification()
     }
+
+    fun deadline(ctx: Context): Long = prefs(ctx).getLong(PREF_DEADLINE, 0L)
+
+    // What the notification's clock shows: a countdown to a window still open, or the time since the start.
+    fun clock(nowWall: Long, nowElapsed: Long, startedAt: Long, deadline: Long): Pair<Long, Boolean> =
+        if (deadline > nowWall) deadline to true else (nowWall - (nowElapsed - startedAt)) to false
 
     fun disarm(ctx: Context) {
         prefs(ctx).edit().remove(PREF_AT).remove(PREF_DEADLINE).apply()

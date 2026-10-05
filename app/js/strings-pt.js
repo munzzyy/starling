@@ -757,4 +757,6 @@ export const pt = {
   "Checking in tells your whole circle you are okay.": "Ao avisar, todo o seu círculo fica sabendo que você está bem.",
   "Could not reach your circle. Try again in a moment.": "Não foi possível falar com seu círculo. Tente de novo em instantes.",
   "You already asked {who}": "Você já pediu que {who} avise",
+  "Show the time on the sharing notification": "Mostrar o tempo na notificação de compartilhamento",
+  "Time left on a timed share, or how long you have been sharing. Your lock screen shows it too, unless Android is set to hide sensitive notification content.": "O tempo que falta num compartilhamento com temporizador, ou há quanto tempo você está compartilhando. Sua tela de bloqueio também mostra, a menos que o Android esteja configurado para ocultar o conteúdo sensível das notificações.",
 };

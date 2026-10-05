@@ -121,6 +121,17 @@ class LocationService : Service(), LocationListener {
             ContextCompat.startForegroundService(ctx, Intent(ctx, LocationService::class.java))
         }
 
+        // Off unless the person turns it on: a locked phone shows the clock too.
+        fun clockShown(ctx: Context): Boolean =
+            ctx.getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE).getBoolean(MainActivity.PREF_SHARE_CLOCK, false)
+
+        fun showClock(ctx: Context, on: Boolean) {
+            ctx.getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE).edit()
+                .putBoolean(MainActivity.PREF_SHARE_CLOCK, on)
+                .apply()
+            refreshNotification()
+        }
+
         fun stop(ctx: Context) {
             stopAsked = true
             ctx.stopService(Intent(ctx, LocationService::class.java))
@@ -185,6 +196,9 @@ class LocationService : Service(), LocationListener {
     private var providers: List<String> = emptyList()
     private var tickArmed = false
     private var watchedAt = 0L
+
+    @Volatile
+    private var countingDown = false
 
     // Spelled out rather than a lambda: on API 29 the other callbacks are not
     // default methods yet, and the platform calls them.
@@ -403,6 +417,8 @@ class LocationService : Service(), LocationListener {
             sink?.invoke(JSONObject().put("tick", true).toString())
         }
         if (!locationOff && now - maxOf(lastFixAt, watchedAt) >= REWATCH_MS) rewatch()
+        // A frozen page misses its own timer, and the countdown would run on below zero.
+        if (countingDown && System.currentTimeMillis() >= ShareResume.deadline(this)) refreshNotification()
         PageHost.checkPage()
         armTick()
     }
@@ -507,7 +523,14 @@ class LocationService : Service(), LocationListener {
             .setContentText(getString(R.string.notif_text))
             .setContentIntent(open)
             .setOngoing(true)
+            .setShowWhen(false)
             .build()
+        val clock = if (clockShown(this)) {
+            ShareResume.clock(System.currentTimeMillis(), SystemClock.elapsedRealtime(), startedAt, ShareResume.deadline(this))
+        } else {
+            null
+        }
+        countingDown = clock?.second == true
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_starling)
             .setContentTitle(getString(R.string.notif_title))
@@ -519,6 +542,14 @@ class LocationService : Service(), LocationListener {
             .setVisibility(Notification.VISIBILITY_PRIVATE)
             .setPublicVersion(publicVersion)
             .addAction(stopAction)
+            .apply {
+                if (clock != null) {
+                    setWhen(clock.first)
+                    setShowWhen(true)
+                    setUsesChronometer(true)
+                    setChronometerCountDown(clock.second)
+                }
+            }
             .build()
     }
 }

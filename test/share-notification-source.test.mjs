@@ -75,3 +75,34 @@ test("the Stop activity is private, shows nothing, never shows over the lock scr
   );
   assert.doesNotMatch(src, /ShowWhenLocked|TurnScreenOn|DismissKeyguard|SHOW_WHEN_LOCKED|DISMISS_KEYGUARD|MainActivity|getStringExtra|extras/);
 });
+
+test("the clock on the sharing notification is off unless turned on, and never on the generic version", () => {
+  const svc = kt("LocationService.kt");
+  assert.match(
+    svc,
+    /fun clockShown\(ctx: Context\): Boolean =\s*ctx\.getSharedPreferences\(MainActivity\.PREFS, MODE_PRIVATE\)\.getBoolean\(MainActivity\.PREF_SHARE_CLOCK, false\)/,
+  );
+  assert.match(svc, /fun showClock\(ctx: Context, on: Boolean\) \{[^}]*putBoolean\(MainActivity\.PREF_SHARE_CLOCK, on\)[^}]*\.apply\(\)\s*refreshNotification\(\)\s*\}/);
+
+  const build = fn(svc, "buildNotification");
+  const pub = build.slice(build.indexOf("val publicVersion"), build.indexOf(".build()", build.indexOf("val publicVersion")));
+  assert.match(pub, /\.setShowWhen\(false\)/);
+  assert.doesNotMatch(pub, /setWhen|Chronometer/);
+  assert.match(
+    build,
+    /val clock = if \(clockShown\(this\)\) \{\s*ShareResume\.clock\(System\.currentTimeMillis\(\), SystemClock\.elapsedRealtime\(\), startedAt, ShareResume\.deadline\(this\)\)\s*\} else \{\s*null\s*\}/,
+  );
+  assert.match(
+    build,
+    /\.apply \{\s*if \(clock != null\) \{\s*setWhen\(clock\.first\)\s*setShowWhen\(true\)\s*setUsesChronometer\(true\)\s*setChronometerCountDown\(clock\.second\)\s*\}\s*\}\s*\.build\(\)\s*\}$/,
+  );
+  assert.equal(svc.match(/setUsesChronometer|setWhen\(/g).length, 2, "the private version's two calls and nothing else");
+
+  const tick = fn(svc, "onTick");
+  assert.match(tick, /if \(countingDown && System\.currentTimeMillis\(\) >= ShareResume\.deadline\(this\)\) refreshNotification\(\)/);
+  assert.match(fn(kt("ShareResume.kt"), "arm"), /LocationService\.refreshNotification\(\)/, "a window picked mid-share reaches the clock");
+
+  const bridge = kt("StarlingBridge.kt");
+  assert.match(bridge, /fun shareClock\(\): Boolean = LocationService\.clockShown\(app\)/);
+  assert.match(bridge, /fun setShareClock\(on: Boolean\) = LocationService\.showClock\(app, on\)/);
+});

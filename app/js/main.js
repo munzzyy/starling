@@ -5016,6 +5016,14 @@ async function openSettings() {
       keepSharing = null;
     }
   }
+  let shareClock = null;
+  if (typeof n?.setShareClock === "function" && !state.demo) {
+    try {
+      shareClock = { enabled: !!n.shareClock() };
+    } catch {
+      shareClock = null;
+    }
+  }
   const background =
     typeof n?.batteryState === "function" && !state.demo
       ? {
@@ -5050,6 +5058,7 @@ async function openSettings() {
       demo: state.demo,
       tor,
       keepSharing,
+      shareClock,
       background,
       forward:
         typeof n?.setForward === "function" && typeof n?.forwardStatus === "function" && !state.demo
@@ -5141,6 +5150,13 @@ async function onSettingChange(key, value) {
           ? t("Closing the app will not stop a share now.")
           : t("Closing the app stops a share again."),
       );
+    } catch {
+      ui.toast(t("Could not change that setting."), "warn");
+    }
+  } else if (key === "shareClock") {
+    // The wrapper owns it, like keepSharing: nothing at rest here.
+    try {
+      native()?.setShareClock(!!value);
     } catch {
       ui.toast(t("Could not change that setting."), "warn");
     }
