@@ -872,6 +872,19 @@ test("a nickname rides every copy of the pinned roster and stays sealed under th
   assert.equal(back.get(peer.memberId).nick, "Mum");
 });
 
+test("a muted switch rides every copy of the pinned roster, and only a real true counts", () => {
+  const peer = { memberId: "a".repeat(32), alg: "ed25519", pk: "cGs", epk: "ZXBr", verified: false, name: "Ana" };
+  assert.equal(packPinned([{ ...peer, muted: true }])[0].muted, true);
+  for (const junk of [false, "true", 1, null, undefined]) {
+    assert.ok(!("muted" in packPinned([{ ...peer, muted: junk }])[0]), `not muted by ${String(junk)}`);
+  }
+  const a = { ...circle("family"), pinned: [{ ...peer, muted: true }] };
+  assert.equal(pinnedMap(packPinned(a.pinned)).get(peer.memberId).muted, true);
+  assert.equal(unpackCircles(packCircles([a]), [a.identity])[0].pinned[0].muted, true, "through the inactive array");
+  const staged = readStagedGen(packStagedGen({ ...a, ck: randomSecret(), pinned: new Map([[peer.memberId, { ...peer, muted: true }]]) }));
+  assert.equal(staged.pinned[0].muted, true, "through the staged generation a re-key writes");
+});
+
 test("an invitation round-trips its 32 bytes and refuses anything else", () => {
   const a = circle("family");
   const inv = inviteFor(a, 5, 9);

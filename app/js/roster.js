@@ -195,11 +195,11 @@ export async function describeKeyChange({ known, presented, now }) {
 // reports the change, so this is the floor under that rather than a second
 // opinion: a human tapping accept must not be the way a bad point gets in.
 //
-// The name and any nickname carry over. They are local, they are not in the
-// record on the wire, and a person who accepts new keys for somebody they named
-// has not renamed them. Verification does not: the safety number changed, so
-// whatever was checked in person was checked against keys that are no longer
-// these.
+// The name, any nickname and a muted switch carry over. They are local, they
+// are not in the record on the wire, and a person who accepts new keys for
+// somebody they named has not renamed them. Verification does not: the safety
+// number changed, so whatever was checked in person was checked against keys
+// that are no longer these.
 export async function acceptedKeyChange({ known, presented }) {
   let epk;
   try {
@@ -210,7 +210,9 @@ export async function acceptedKeyChange({ known, presented }) {
   if (!epk || !(await validEcdhKey(epk))) return null;
   const entry = { ...presented, verified: false, name: known?.name || "" };
   delete entry.nick;
+  delete entry.muted;
   if (known?.nick) entry.nick = known.nick;
+  if (known?.muted === true) entry.muted = true;
   return canonPinned(entry);
 }
 

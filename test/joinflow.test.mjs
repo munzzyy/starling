@@ -453,15 +453,16 @@ test("a record too big to pad drops the name, which is the only part nobody need
   assert.equal(recordOverflows({ eph: "e".repeat(PAD_LEN), w: "w" }), true);
 });
 
-test("a welcome never carries the nickname this phone gave a member", () => {
+test("a welcome never carries the nickname or the muted switch this phone gave a member", () => {
   const self = { memberId: "a".repeat(32), alg: "p256", pk: "PK", epk: "EPK", name: "Me" };
-  const peer = { memberId: "b".repeat(32), alg: "p256", pk: "PK2", epk: "EPK2", name: "Ana", verified: true, nick: "Gran" };
+  const peer = { memberId: "b".repeat(32), alg: "p256", pk: "PK2", epk: "EPK2", name: "Ana", verified: true, nick: "Gran", muted: true };
   const plan = welcomePlan({ roster: welcomeRoster({ self, members: [peer], joinerId: "c".repeat(32) }), g: 1, e0: 2 });
   for (const item of plan.filter((p) => p.t === "member")) {
     assert.deepEqual(Object.keys(item.body).sort(), ["alg", "epk", "name", "pk"]);
   }
   assert.equal(plan[1].body.name, "Ana", "the name they chose, not ours for them");
   assert.ok(!JSON.stringify(plan).includes("Gran"));
+  assert.ok(!JSON.stringify(plan).includes("muted"));
 });
 
 // --- being let in -----------------------------------------------------------

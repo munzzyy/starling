@@ -122,6 +122,7 @@ export function packPinned(pinned) {
         verified: !!r.verified,
         name: typeof r.name === "string" ? r.name.slice(0, 24) : "",
         ...(nick ? { nick } : {}),
+        ...(r.muted === true ? { muted: true } : {}),
       };
     });
 }

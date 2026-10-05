@@ -188,9 +188,10 @@ const state = {
   // hang off a circle secret that lived forever hangs off this instead, and a
   // re-key replaces the whole of it.
   gen: null,
-  // memberId -> { alg, pk, epk, verified, name, nick }. Who this device
+  // memberId -> { alg, pk, epk, verified, name, nick, muted }. Who this device
   // believes is in the circle, and which keys each of them is. `nick` is a name
-  // only this phone uses for them.
+  // only this phone uses for them; `muted` silences their place and battery
+  // alerts here and nothing else.
   pinned: new Map(),
   // The subset of that roster which may re-key: the members this generation
   // opened with. See onControl for why first sight is not enough.
@@ -2105,6 +2106,19 @@ async function setNickname(id, nick) {
   delete next.nick;
   const clean = String(nick ?? "").trim().slice(0, 24);
   if (clean) next.nick = clean;
+  state.pinned.set(id, next);
+  persistPinned();
+  render();
+  return true;
+}
+
+// Only place and battery announcements read this; an SOS, a missed check-in and a key change never do.
+async function setMuted(id, on) {
+  const rec = state.pinned.get(id);
+  if (!rec) return false;
+  const next = { ...rec };
+  delete next.muted;
+  if (on) next.muted = true;
   state.pinned.set(id, next);
   persistPinned();
   render();
@@ -6439,6 +6453,8 @@ function checkAlerts() {
       if (told) cancelEventNotification(`due-${rec.id}`);
     }
 
+    const muted = !state.demo && state.pinned.get(rec.id)?.muted === true;
+
     // Place transitions are tracked whether or not announcements are on, so
     // the "At Home" line stays truthful either way.
     if (Number.isFinite(rec.lat) && Number.isFinite(rec.lon)) {
@@ -6448,7 +6464,7 @@ function checkAlerts() {
         now,
         acc: rec.acc,
       });
-      if (state.settings.placeAlerts) {
+      if (state.settings.placeAlerts && !muted) {
         for (const ev of evs) {
           if (!announces(placeTracker.places().find((p) => p.id === ev.placeId), ev.type)) continue;
           const msg =
@@ -6465,8 +6481,10 @@ function checkAlerts() {
         batWarned.add(rec.id);
         const pct = Math.max(1, Math.round(rec.bat * 100));
         const msg = t("{who}'s phone is at {pct}%", { who, pct });
-        ui.toast(msg, "warn");
-        notifyEvent(msg, t("Their dot may go dark soon."), `bat-${rec.id}`);
+        if (!muted) {
+          ui.toast(msg, "warn");
+          notifyEvent(msg, t("Their dot may go dark soon."), `bat-${rec.id}`);
+        }
       } else if (rec.bat > 0.25) {
         if (batWarned.delete(rec.id)) cancelEventNotification(`bat-${rec.id}`);
       }
@@ -6637,6 +6655,7 @@ const api = {
   acceptKeyChange,
   markVerified,
   setNickname,
+  setMuted,
   safetyNumberFor,
   // Safety number as a code, and a scanned code checked against the pinned
   // roster. The scanner lives in the app: the hosted site's headers deny the

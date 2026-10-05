@@ -17,6 +17,13 @@ All notable changes to Starling are recorded here. Versions follow
   each person. Cards, markers and alerts use it, the sheet still shows the
   name they go by, and it never leaves the phone.
 
+- **Mute one person's place and battery alerts.** Somebody who walks past
+  a saved place every day or always runs low on battery made those alerts
+  noise for the whole circle. Each person in People and keys now has a
+  switch that keeps their arrivals, departures and low battery quiet on your
+  phone. Their card still says where they are, and an SOS, a missed
+  check-in or a key change from them still comes through.
+
 ## [0.17.1]
 
 - **Scanning a code works again on Android.** The camera was refused to

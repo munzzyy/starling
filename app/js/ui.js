@@ -764,6 +764,17 @@ function memberRow(api, id, { onChanged }) {
   nickField.append(el("span", "field-label", "Your name for them"), nickIn);
   const nickNote = el("p", "field-note");
 
+  const muteRow = switchRow({
+    label: "Mute place and battery alerts",
+    note: "Their arrivals, departures and low battery stay silent on this phone. An SOS or a missed check-in from them still comes through.",
+    value: false,
+    onChange: async (on) => {
+      await api.setMuted(id, on);
+      onChanged();
+    },
+  });
+  muteRow.dataset.testid = "member-mute";
+
   const actions = el("div", "mem-actions");
   const verifyBtn = btn("btn btn-secondary btn-small", "Mark verified");
   verifyBtn.dataset.testid = "member-verify";
@@ -778,7 +789,7 @@ function memberRow(api, id, { onChanged }) {
   confirmGo.dataset.testid = "member-remove-confirm";
   confirm.append(confirmText, confirmGo);
 
-  node.append(head, safety, change, hint, nickField, nickNote, actions, confirm);
+  node.append(head, safety, change, hint, nickField, nickNote, muteRow, actions, confirm);
 
   let cur = { name: "Member", verified: false };
 
@@ -830,9 +841,10 @@ function memberRow(api, id, { onChanged }) {
     onChanged();
   });
 
-  function update({ name: who, nick, posted, verified, safety: number, change: ch }) {
+  function update({ name: who, nick, posted, muted, verified, safety: number, change: ch }) {
     cur = { name: who, verified: !!verified };
     name.textContent = who;
+    muteRow.setValue(muted);
     if (document.activeElement !== nickIn) nickIn.value = nick || "";
     nickIn.placeholder = posted || "";
     nickNote.textContent =
@@ -1004,6 +1016,7 @@ export function openMembersSheet({ api, onClose }) {
         name: heard?.name || rec.nick || rec.name || t("Member"),
         nick: rec.nick || "",
         posted: (heard ? (rec.nick ? heard.posted : heard.name) : "") || rec.name || "",
+        muted: rec.muted === true,
         verified: rec.verified,
         safety: numbers.get(id) || null,
         change: ch,

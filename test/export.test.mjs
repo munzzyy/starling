@@ -44,6 +44,7 @@ const HOSTILE_STATE = {
       memberId: "a".repeat(32),
       name: "Blair",
       nick: "Gran",
+      muted: true,
       verified: true,
       alg: "ed25519",
       pk: "PUBKEYB64THATMUSTNOTLEAK",
@@ -75,6 +76,8 @@ test("the export carries the user's data", () => {
   assert.equal(out.people[0].verified, true);
   assert.equal(out.people[0].nick, "Gran", "a nickname is data this device keeps, so it is in the export");
   assert.equal(buildDataExport({ pinned: [{ memberId: "b".repeat(32), name: "Cy" }] }).people[0].nick, null);
+  assert.equal(out.people[0].muted, true, "so is a muted switch");
+  assert.equal(buildDataExport({ pinned: [{ memberId: "b".repeat(32), name: "Cy" }] }).people[0].muted, false);
   assert.equal(out.exported, new Date(1725600000000).toISOString());
 });
 

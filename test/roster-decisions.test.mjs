@@ -284,6 +284,14 @@ test("a nickname survives accepting new keys, and none appears where there was n
   assert.ok(!("nick" in (await acceptedKeyChange({ known: a.pinned, presented: { ...presented, nick: "Spoof" } }))));
 });
 
+test("a muted switch survives accepting new keys, and the presented record cannot set one", async () => {
+  const a = await member("Ada");
+  const b = await member();
+  const presented = { memberId: a.memberId, alg: b.pinned.alg, pk: b.pinned.pk, epk: b.pinned.epk };
+  assert.equal((await acceptedKeyChange({ known: { ...a.pinned, muted: true }, presented })).muted, true);
+  assert.ok(!("muted" in (await acceptedKeyChange({ known: a.pinned, presented: { ...presented, muted: true } }))));
+});
+
 // ------------------------------------------------------- roster convergence
 
 // One rotator's claim about the circle, as it is sealed inside a re-key wrap:

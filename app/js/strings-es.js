@@ -744,4 +744,6 @@ export const es = {
   "Your name for them": "Tu nombre para esta persona",
   "Only this phone sees this name.": "Solo este teléfono ve este nombre.",
   "Only this phone sees this name. In the circle they go by {name}.": "Solo este teléfono ve este nombre. En el círculo se hace llamar {name}.",
+  "Mute place and battery alerts": "Silenciar avisos de lugares y batería",
+  "Their arrivals, departures and low battery stay silent on this phone. An SOS or a missed check-in from them still comes through.": "Sus llegadas, salidas y batería baja no suenan en este teléfono. Si esta persona manda un SOS o no avisa a tiempo, te sigue llegando.",
 };
