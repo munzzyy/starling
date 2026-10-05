@@ -23,7 +23,7 @@ const HOSTILE_STATE = {
       secret: new Uint8Array([1, 2, 3]),
       identity: { sk: "SECRETKEYMATERIAL" },
       pinned: new Map([
-        ["a".repeat(32), { memberId: "a".repeat(32), name: "Blair", verified: true, pk: "PUBKEYB64THATMUSTNOTLEAK", epk: "EPHKEYB64THATMUSTNOTLEAK" }],
+        ["a".repeat(32), { memberId: "a".repeat(32), name: "Blair", nick: "Gran", muted: true, verified: true, pk: "PUBKEYB64THATMUSTNOTLEAK", epk: "EPHKEYB64THATMUSTNOTLEAK" }],
       ]),
     },
     {
@@ -35,7 +35,7 @@ const HOSTILE_STATE = {
       channelId: "CHANNELTHATSTAYSHOME",
       identity: { sk: "OTHERSECRETKEYMATERIAL" },
       pinned: [
-        { memberId: "c".repeat(32), alg: "ed25519", name: "Casey", verified: false, pk: "CASEYPKTHATMUSTNOTLEAK", epk: "CASEYEPKTHATMUSTNOTLEAK" },
+        { memberId: "c".repeat(32), alg: "ed25519", name: "Casey", nick: "Cas", muted: true, verified: false, pk: "CASEYPKTHATMUSTNOTLEAK", epk: "CASEYEPKTHATMUSTNOTLEAK" },
       ],
     },
   ],
@@ -99,14 +99,14 @@ test("every circle is in the export with its own people and sharing choices, the
     active: true,
     precision: "precise",
     cadence: 15,
-    people: [{ name: "Blair", memberId: "a".repeat(32), verified: true }],
+    people: [{ name: "Blair", nick: "Gran", muted: true, memberId: "a".repeat(32), verified: true }],
   });
   assert.deepEqual(climbing, {
     name: "Climbing",
     active: false,
     precision: "coarse",
     cadence: 300,
-    people: [{ name: "Casey", memberId: "c".repeat(32), verified: false }],
+    people: [{ name: "Casey", nick: "Cas", muted: true, memberId: "c".repeat(32), verified: false }],
   });
   assert.deepEqual(out.people, family.people, "the top-level list stays the active circle's for one more release");
 });
