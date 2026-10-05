@@ -333,17 +333,39 @@ while-in-use location only. A location service started from a boot or update
 receiver was measured on the emulators, with the same signer installed over
 itself (`adb install -r`) and a real `adb reboot`, and fixes fed in with `adb
 emu geo fix`. As a control, the same service started with the app on screen
-got 10 or 11 fixes from 8 injections on every image. The last column is the
-same start with Allow all the time granted. That was a throwaway build on
-2026-10-05. The build that ships it has not been run yet, and neither have 9
-and 10.
+got 10 or 11 fixes from 8 injections on every image. The fourth column is the
+same start with Allow all the time granted, on a throwaway build on
+2026-10-05. The last is the 0.18.0 debug build with Also after a restart and
+Also after an update on, measured the same day against a local relay over TLS,
+counting the posts the relay stored after the restart or the `adb install -r`.
 
-| Android | Service started at boot or update | Fixes | With Allow all the time |
-| --- | --- | --- | --- |
-| 9 (API 28) | starts, notification shows | arrive | not needed |
-| 10 (API 29) | starts, notification shows | arrive | not measured yet |
-| 13 (API 33) | starts, notification shows | none in 24 s | 11 at boot, 11 after an update |
-| 16 (API 36) | `startForeground` throws `SecurityException` | none | starts typed location; 10 at boot, 11 after an update |
+| Android | Service started at boot or update | Fixes | With Allow all the time | 0.18.0 coming back by itself |
+| --- | --- | --- | --- | --- |
+| 9 (API 28) | starts, notification shows | arrive | not needed | first post 7 s after boot, 13 in the first minute |
+| 10 (API 29) | starts, notification shows | arrive | not measured | not measured |
+| 13 (API 33) | starts, notification shows | none in 24 s | 11 at boot, 11 after an update | first post 16 s after boot, 11 to 13 a minute for 13 minutes; first post 5 s after an update |
+| 16 (API 36) | `startForeground` throws `SecurityException` | none | starts typed location; 10 at boot, 11 after an update | first post 8 s after boot, 10 to 13 a minute for 14 minutes; first post 6 s after an update |
+
+In every one of those runs no Starling activity was created, the service ran
+in the foreground (type location, `0x8`, where `dumpsys` prints it), and the
+shade held both "Sharing again after a restart" (or "after an update") and the
+"Sharing resumed" alert. Opening the app afterwards showed the came-back card,
+and the sharing report said the share came back by itself. The headless page
+froze and was woken two or three times during the long runs and kept posting
+to the end.
+
+The controls on 33 and 36 each gave no posts and no service, and the tap where
+the share was still due: the switch off, the app lock on, notifications
+revoked, Allow all the time revoked (checked revoked before and after the
+restart), and Stop on the notification before the restart, which left no tap
+either. With the switch forced on behind the app lock, the service started,
+the page reported locked, and the service was gone within 1.2 s with the tap
+posted and nothing sent; IndexedDB held only the sealed vault records. With a
+PIN set nothing ran until the first unlock, and posts started 11 to 17 s after
+it. With Tor mode on and no Orbot installed, the notification said "Waiting
+for Orbot", the relay saw no connection at all, and after 300 s the service
+stopped and "Orbot did not connect, so nothing was sent" was posted. On 33 a
+panic wipe left Allow all the time revoked.
 
 That matches Android's own rules. From Android 11 a foreground service started
 in the background cannot use location without background location, and from

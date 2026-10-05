@@ -588,7 +588,11 @@ and why none of it weakens the core claim (the relay never sees a position).
   switches cannot be on, the key stays sealed by the passcode, and the tap
   is offered instead. If a switch were somehow on anyway, the page boots
   locked, writes nothing, says so, and the service stops with the tap
-  offered.
+  offered. On the Android 13 and 16 emulators that took under 1.2 s and sent
+  nothing, and every other control (switch off, lock on, notifications or
+  Allow all the time revoked, Stop before the restart, a PIN before the first
+  unlock, Tor mode with no Orbot) sent nothing either; docs/ANDROID.md has
+  the runs.
 - **Keeping the page running with the screen off.** Chromium freezes a
   hidden page after a minute or five, which stopped every share whose phone
   was put down. During a share the wrapper makes the page visible to
