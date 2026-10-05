@@ -188,8 +188,9 @@ const state = {
   // hang off a circle secret that lived forever hangs off this instead, and a
   // re-key replaces the whole of it.
   gen: null,
-  // memberId -> { alg, pk, epk, verified, name }. Who this device believes is
-  // in the circle, and which keys each of them is.
+  // memberId -> { alg, pk, epk, verified, name, nick }. Who this device
+  // believes is in the circle, and which keys each of them is. `nick` is a name
+  // only this phone uses for them.
   pinned: new Map(),
   // The subset of that roster which may re-key: the members this generation
   // opened with. See onControl for why first sight is not enough.
@@ -455,12 +456,19 @@ function keepLive(make) {
   return sheet;
 }
 
-const members = () => (state.demo ? demoMembers : roster ? roster.list() : []);
-// Who a member id belongs to, in the words a person would use. The live roster
-// name is the one they are posting under; the pinned name is what they were
-// called when we pinned them, and is all that is left after they are removed.
+// The one place a nickname replaces the posted name, so every card, marker and alert agrees.
+const withNicks = (list) =>
+  list.map((r) => {
+    const nick = state.pinned.get(r.id)?.nick;
+    return nick ? { ...r, name: nick, posted: r.name || "" } : r;
+  });
+const members = () => (state.demo ? demoMembers : roster ? withNicks(roster.list()) : []);
+// Who a member id belongs to, in the words a person would use. A nickname wins;
+// then the live roster name, which is the one they are posting under; then the
+// pinned name, which is what they were called when we pinned them, and is all
+// that is left after they are removed.
 const displayName = (id, fallback = t("A member")) =>
-  members().find((r) => r.id === id)?.name || state.pinned.get(id)?.name || fallback;
+  members().find((r) => r.id === id)?.name || state.pinned.get(id)?.nick || state.pinned.get(id)?.name || fallback;
 const myHue = () => (state.identity ? hueFromMemberId(state.identity.memberId) : 205);
 
 // ------------------------------------------------------------------ theme
@@ -728,7 +736,7 @@ function quietMembers(list) {
   const live = new Set(list.map((r) => r.id));
   return [...state.pinned.values()]
     .filter((r) => r.memberId !== me && !live.has(r.memberId))
-    .map((r) => ({ id: r.memberId, name: r.name || "", hue: hueFromMemberId(r.memberId) }));
+    .map((r) => ({ id: r.memberId, name: r.nick || r.name || "", hue: hueFromMemberId(r.memberId) }));
 }
 
 function renderChrome() {
@@ -2052,7 +2060,7 @@ async function onKeyChange(id, presented) {
   roster?.drop(id);
   mapView?.removeMarker(id);
   if (focusedId === id) unfocus();
-  ui.toast(t("{who}'s keys changed. Their location is hidden until you accept it.", { who: known?.name || t("A member") }), "warn");
+  ui.toast(t("{who}'s keys changed. Their location is hidden until you accept it.", { who: known?.nick || known?.name || t("A member") }), "warn");
   // At peek the sheet body is inert and the warning would be invisible. The
   // chrome banner shows either way; this puts the card itself in front too.
   if (state.screen === "map" && sheet && sheet.getSnap() === "peek") sheet.snapTo("half");
@@ -2084,6 +2092,20 @@ async function markVerified(id, verified = true) {
   const rec = state.pinned.get(id);
   if (!rec) return false;
   state.pinned.set(id, { ...rec, verified: !!verified });
+  persistPinned();
+  render();
+  return true;
+}
+
+// Like verification, a nickname never leaves this phone.
+async function setNickname(id, nick) {
+  const rec = state.pinned.get(id);
+  if (!rec) return false;
+  const next = { ...rec };
+  delete next.nick;
+  const clean = String(nick ?? "").trim().slice(0, 24);
+  if (clean) next.nick = clean;
+  state.pinned.set(id, next);
   persistPinned();
   render();
   return true;
@@ -6614,6 +6636,7 @@ const api = {
   keyChanges: () => [...state.keyChanges.entries()].map(([memberId, c]) => ({ memberId, ...c })),
   acceptKeyChange,
   markVerified,
+  setNickname,
   safetyNumberFor,
   // Safety number as a code, and a scanned code checked against the pinned
   // roster. The scanner lives in the app: the hosted site's headers deny the

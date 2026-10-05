@@ -6,6 +6,7 @@
 const peopleOf = (pinned) =>
   [...(pinned instanceof Map ? pinned.values() : pinned || [])].map((r) => ({
     name: r.name || null,
+    nick: r.nick || null,
     memberId: r.memberId,
     verified: !!r.verified,
   }));

@@ -846,6 +846,32 @@ test("the pinned roster round-trips from a Map and drops entries that name no me
   assert.equal(pinnedMap(list).get(good.memberId).name, "Ana");
 });
 
+test("a nickname rides every copy of the pinned roster and stays sealed under the lock", async () => {
+  const peer = { memberId: "a".repeat(32), alg: "ed25519", pk: "cGs", epk: "ZXBr", verified: false, name: "Ana" };
+  const [nicked] = packPinned([{ ...peer, nick: "  Mum  " }]);
+  assert.equal(nicked.nick, "Mum", "trimmed");
+  assert.equal(packPinned([{ ...peer, nick: "x".repeat(30) }])[0].nick, "x".repeat(24), "clipped like the posted name");
+  for (const junk of [7, "", "   ", null, { toString: () => "Mum" }]) {
+    assert.ok(!("nick" in packPinned([{ ...peer, nick: junk }])[0]), `no nickname from ${String(junk)}`);
+  }
+  assert.ok(!("nick" in packPinned([peer])[0]), "a record without one keeps the shape it always had");
+  assert.equal(pinnedMap([nicked]).get(peer.memberId).nick, "Mum");
+
+  const a = { ...circle("family"), pinned: [{ ...peer, nick: "Mum" }] };
+  assert.equal(unpackCircles(packCircles([a]), [a.identity])[0].pinned[0].nick, "Mum", "through the inactive array");
+  // A re-key lands in the staged slot first, and boot rebuilds the roster from it.
+  const staged = readStagedGen(packStagedGen({ ...a, ck: randomSecret(), pinned: new Map([[peer.memberId, { ...peer, nick: "Mum" }]]) }));
+  assert.equal(staged.pinned[0].nick, "Mum", "through the staged generation");
+
+  const store = new Map();
+  const lock = { enabled: true, vaultKey: newVaultKey() };
+  await writeRecordAtRest(plainKv(store), lock, PINNED_SLOT, packPinned(a.pinned));
+  assert.deepEqual([...store.keys()], [PINNED_SLOT.sealed], "only the sealed roster is on disk");
+  assert.ok(!JSON.stringify(store.get(PINNED_SLOT.sealed)).includes("Mum"));
+  const back = pinnedMap(await readRecordAtRest(plainKv(store), lock, PINNED_SLOT));
+  assert.equal(back.get(peer.memberId).nick, "Mum");
+});
+
 test("an invitation round-trips its 32 bytes and refuses anything else", () => {
   const a = circle("family");
   const inv = inviteFor(a, 5, 9);

@@ -755,6 +755,15 @@ function memberRow(api, id, { onChanged }) {
 
   const hint = el("p", "field-note");
 
+  const nickField = el("label", "field");
+  const nickIn = el("input", "text-input");
+  nickIn.type = "text";
+  nickIn.maxLength = 24;
+  nickIn.autocomplete = "off";
+  nickIn.dataset.testid = "member-nick";
+  nickField.append(el("span", "field-label", "Your name for them"), nickIn);
+  const nickNote = el("p", "field-note");
+
   const actions = el("div", "mem-actions");
   const verifyBtn = btn("btn btn-secondary btn-small", "Mark verified");
   verifyBtn.dataset.testid = "member-verify";
@@ -769,7 +778,7 @@ function memberRow(api, id, { onChanged }) {
   confirmGo.dataset.testid = "member-remove-confirm";
   confirm.append(confirmText, confirmGo);
 
-  node.append(head, safety, change, hint, actions, confirm);
+  node.append(head, safety, change, hint, nickField, nickNote, actions, confirm);
 
   let cur = { name: "Member", verified: false };
 
@@ -805,6 +814,11 @@ function memberRow(api, id, { onChanged }) {
     onChanged();
   });
 
+  nickIn.addEventListener("change", async () => {
+    await api.setNickname(id, nickIn.value);
+    onChanged();
+  });
+
   acceptBtn.addEventListener("click", async () => {
     acceptBtn.disabled = true;
     const who = cur.name;
@@ -816,9 +830,15 @@ function memberRow(api, id, { onChanged }) {
     onChanged();
   });
 
-  function update({ name: who, verified, safety: number, change: ch }) {
+  function update({ name: who, nick, posted, verified, safety: number, change: ch }) {
     cur = { name: who, verified: !!verified };
     name.textContent = who;
+    if (document.activeElement !== nickIn) nickIn.value = nick || "";
+    nickIn.placeholder = posted || "";
+    nickNote.textContent =
+      nick && posted && posted !== nick
+        ? t("Only this phone sees this name. In the circle they go by {name}.", { name: posted })
+        : t("Only this phone sees this name.");
     // Marking somebody verified while their keys are in question would be
     // verifying the wrong thing, so that action is not offered until the
     // change is answered.
@@ -979,8 +999,11 @@ export function openMembersSheet({ api, onClose }) {
       }
       const ch = changes.get(id) || null;
       if (!ch) need(id);
+      const heard = live.get(id);
       row.update({
-        name: live.get(id)?.name || rec.name || t("Member"),
+        name: heard?.name || rec.nick || rec.name || t("Member"),
+        nick: rec.nick || "",
+        posted: (heard ? (rec.nick ? heard.posted : heard.name) : "") || rec.name || "",
         verified: rec.verified,
         safety: numbers.get(id) || null,
         change: ch,
@@ -1142,7 +1165,7 @@ function openScanVerdict(api, verdict, { onChanged }) {
   const ov = openOverlay({ title: "Scan result", testid: "scan-result" });
   const id = verdict.memberId || "";
   const rec = id ? api.pinnedList().find((p) => p.memberId === id) : null;
-  const who = id ? api.members().find((m) => m.id === id)?.name || rec?.name || t("Member") : "";
+  const who = id ? api.members().find((m) => m.id === id)?.name || rec?.nick || rec?.name || t("Member") : "";
   if (verdict.outcome === "match") {
     ov.body.append(el("p", "ov-note", t("The code matches the keys this phone holds for {who}. Nobody is in between.", { who })));
     ov.body.append(safetyBlock(verdict.number, "scan-number"));

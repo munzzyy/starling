@@ -11,6 +11,12 @@ All notable changes to Starling are recorded here. Versions follow
   people already in the circle. They now keep a dimmed card that says there
   is no recent update, and a tap on it opens People and keys.
 
+- **Give anyone in your circle a name only your phone uses.** Two people
+  can both call themselves Mom, and anyone can rename themselves to look
+  like someone else. People and keys now has a field for your own name for
+  each person. Cards, markers and alerts use it, the sheet still shows the
+  name they go by, and it never leaves the phone.
+
 ## [0.17.1]
 
 - **Scanning a code works again on Android.** The camera was refused to

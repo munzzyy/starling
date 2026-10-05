@@ -737,4 +737,7 @@ export const pt = {
   "You can see the last {window} of your circle. A phone taken from you gives up that same {window}, and nothing older.":
     "Você consegue ver {window} para trás no seu círculo. Um celular tirado de você entrega também {window}, e nada mais antigo.",
   "No recent update": "Sem novidades recentes",
+  "Your name for them": "Seu nome para essa pessoa",
+  "Only this phone sees this name.": "Só este celular vê este nome.",
+  "Only this phone sees this name. In the circle they go by {name}.": "Só este celular vê este nome. No círculo, essa pessoa aparece como {name}.",
 };

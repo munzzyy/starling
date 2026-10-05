@@ -276,6 +276,14 @@ test("accepted new keys are pinned canonically, unverified, under the name alrea
   assert.equal(out.name, "Ada", "the local name is not the thing that changed");
 });
 
+test("a nickname survives accepting new keys, and none appears where there was none", async () => {
+  const a = await member("Ada");
+  const b = await member();
+  const presented = { memberId: a.memberId, alg: b.pinned.alg, pk: b.pinned.pk, epk: b.pinned.epk };
+  assert.equal((await acceptedKeyChange({ known: { ...a.pinned, nick: "Gran" }, presented })).nick, "Gran");
+  assert.ok(!("nick" in (await acceptedKeyChange({ known: a.pinned, presented: { ...presented, nick: "Spoof" } }))));
+});
+
 // ------------------------------------------------------- roster convergence
 
 // One rotator's claim about the circle, as it is sealed inside a re-key wrap:

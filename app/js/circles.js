@@ -112,14 +112,18 @@ export function packPinned(pinned) {
   const list = pinned instanceof Map ? [...pinned.entries()].map(([memberId, r]) => ({ memberId, ...r })) : pinned || [];
   return list
     .filter((r) => r && isMemberId(r.memberId) && typeof r.pk === "string" && typeof r.epk === "string")
-    .map((r) => ({
-      memberId: r.memberId,
-      alg: r.alg === "ed25519" ? "ed25519" : "p256",
-      pk: r.pk,
-      epk: r.epk,
-      verified: !!r.verified,
-      name: typeof r.name === "string" ? r.name.slice(0, 24) : "",
-    }));
+    .map((r) => {
+      const nick = typeof r.nick === "string" ? r.nick.trim().slice(0, 24) : "";
+      return {
+        memberId: r.memberId,
+        alg: r.alg === "ed25519" ? "ed25519" : "p256",
+        pk: r.pk,
+        epk: r.epk,
+        verified: !!r.verified,
+        name: typeof r.name === "string" ? r.name.slice(0, 24) : "",
+        ...(nick ? { nick } : {}),
+      };
+    });
 }
 
 export function readPinned(raw) {
