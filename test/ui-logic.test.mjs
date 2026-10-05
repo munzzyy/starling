@@ -8,8 +8,11 @@ import {
   fmtRelTime,
   coarsePos,
   hueFromMemberId,
+  resolveUnits,
+  setUnits,
 } from "../app/js/fmt.js";
 import { fmtCountdown } from "../app/js/ui.js";
+import { loadLocale, setLocale } from "../app/js/i18n.js";
 
 test("haversineMeters: zero distance is exactly 0", () => {
   assert.equal(haversineMeters(40.7794, -73.9632, 40.7794, -73.9632), 0);
@@ -46,6 +49,53 @@ test("fmtDistance: exact strings", () => {
   assert.equal(fmtDistance(9949), "9.9 km");
   assert.equal(fmtDistance(10000), "10 km");
   assert.equal(fmtDistance(12345), "12 km");
+});
+
+test("fmtDistance: miles, with feet for the last tenth of a mile", () => {
+  setUnits("imperial");
+  try {
+    assert.equal(fmtDistance(0), "0 ft");
+    assert.equal(fmtDistance(30), "100 ft");
+    assert.equal(fmtDistance(160), "520 ft");
+    assert.equal(fmtDistance(161), "0.1 mi");
+    assert.equal(fmtDistance(1609), "1.0 mi");
+    assert.equal(fmtDistance(16000), "9.9 mi");
+    assert.equal(fmtDistance(16093), "10 mi");
+    assert.equal(fmtDistance(-1), "");
+  } finally {
+    setUnits("metric");
+  }
+  assert.equal(fmtDistance(1234), "1.2 km", "back to metric once set back");
+});
+
+test("fmtDistance: decimals follow the language", async () => {
+  await loadLocale("de");
+  setLocale("de");
+  try {
+    assert.equal(fmtDistance(1234), "1,2 km");
+    assert.equal(fmtDistance(38.4), "38 m");
+    setUnits("imperial");
+    assert.equal(fmtDistance(1609), "1,0 mi");
+  } finally {
+    setUnits("metric");
+    setLocale("en");
+  }
+  assert.equal(fmtDistance(1234), "1.2 km");
+});
+
+test("resolveUnits: a choice stands, Auto reads the region and defaults to metric", () => {
+  assert.equal(resolveUnits("metric", "en-US"), "metric");
+  assert.equal(resolveUnits("imperial", "de-DE"), "imperial");
+  assert.equal(resolveUnits("auto", "en-US"), "imperial");
+  assert.equal(resolveUnits("auto", "es-US"), "imperial");
+  assert.equal(resolveUnits("auto", "en-LR"), "imperial");
+  assert.equal(resolveUnits("auto", "my-MM"), "imperial");
+  assert.equal(resolveUnits("auto", "en-GB"), "metric");
+  assert.equal(resolveUnits("auto", "pt-BR"), "metric");
+  assert.equal(resolveUnits("auto", "en"), "metric", "no region is no evidence of miles");
+  assert.equal(resolveUnits("auto", ""), "metric");
+  assert.equal(resolveUnits("auto", "not a tag"), "metric");
+  assert.equal(resolveUnits(undefined, "en-US"), "imperial", "a settings record from before the choice existed is Auto");
 });
 
 test("fmtDistance: garbage in, empty string out", () => {

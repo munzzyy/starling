@@ -205,10 +205,8 @@ def main():
                  desc="rename reaches the member card")
         check("rename reaches the member card", True)
         clicked = q(a,
-            "var cells = document.querySelectorAll('.place-row .seg-cell');"
-            "for (var i = 0; i < cells.length; i++) {"
-            "  if (cells[i].textContent.indexOf('500') >= 0) { cells[i].click(); return true; }"
-            "} return false;")
+            "var cell = document.querySelector('.place-row .seg-cell[data-radius=\"500\"]');"
+            "if (!cell) return false; cell.click(); return true;")
         check("radius cell clickable", clicked)
         a.escape()
         E.wait_overlay_gone(a)
@@ -224,7 +222,7 @@ def main():
         open_places(a)
         check("radius survived as 500 m", q(a,
             "var sel = document.querySelector('.place-row .seg-cell.sel');"
-            "return sel && sel.textContent.indexOf('500') >= 0;"))
+            "return !!sel && sel.dataset.radius === '500';"))
         a.escape()
 
         # Removing the place clears the card line without an announcement.

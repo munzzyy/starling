@@ -619,9 +619,11 @@ def cross_visibility(a, b):
     blair = next((c for c in cards if c["name"] == "Blair"), None)
     if not blair:
         raise E2EError(f"A member card missing Blair: {cards}")
-    m = re.search(r"(\d+(?:\.\d+)?)\s*km", blair["sub"])
-    if not m or not (1.0 <= float(m.group(1)) <= 1.4):
-        raise E2EError(f"A card distance implausible (want ~1.2 km): {blair['sub']!r}")
+    # Auto units follow the browser's region, so an en-US Firefox prints miles.
+    m = re.search(r"(\d+(?:\.\d+)?)\s*(km|mi)\b", blair["sub"])
+    lo, hi = (1.0, 1.4) if m and m.group(2) == "km" else (0.6, 0.9)
+    if not m or not (lo <= float(m.group(1)) <= hi):
+        raise E2EError(f"A card distance implausible (want ~1.2 km or ~0.75 mi): {blair['sub']!r}")
     log(f"A card: Blair / {blair['sub']!r}")
 
 

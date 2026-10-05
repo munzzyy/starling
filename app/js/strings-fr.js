@@ -742,4 +742,7 @@ export const fr = {
   "Only this phone sees this name. In the circle they go by {name}.": "Seul ce téléphone voit ce nom. Dans le cercle, son nom est {name}.",
   "Mute place and battery alerts": "Couper les alertes de lieux et de batterie",
   "Their arrivals, departures and low battery stay silent on this phone. An SOS or a missed check-in from them still comes through.": "Ses arrivées, ses départs et sa batterie faible restent silencieux sur ce téléphone. Si cette personne envoie un SOS ou ne donne pas de nouvelles à temps, l'alerte vous parvient toujours.",
+  "Distance units": "Unités de distance",
+  "Kilometers": "Kilomètres",
+  "Miles": "Miles",
 };

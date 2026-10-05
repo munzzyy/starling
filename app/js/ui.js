@@ -1805,8 +1805,9 @@ export function openPlacesSheet({ api, onAdd, onPick, onRename, onRadius, onFenc
     seg.setAttribute("role", "radiogroup");
     seg.setAttribute("aria-label", t("{name} radius", { name: place.name }));
     for (const r of PLACE_RADII) {
-      const cell = btn("seg-cell", r < 1000 ? `${r} m` : `${r / 1000} km`);
+      const cell = btn("seg-cell", fmtDistance(r));
       cell.setAttribute("role", "radio");
+      cell.dataset.radius = String(r);
       const sel = place.radius === r;
       cell.classList.toggle("sel", sel);
       cell.setAttribute("aria-checked", String(sel));
@@ -2472,6 +2473,16 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, backgro
       options: LOCALE_CHOICES.map((c) => ({ value: c.id, label: c.label })),
       value: values.settings.lang,
       onChange: (v) => onChange("lang", v),
+    }),
+    segControl({
+      label: "Distance units",
+      options: [
+        { value: "auto", label: "Auto" },
+        { value: "metric", label: "Kilometers" },
+        { value: "imperial", label: "Miles" },
+      ],
+      value: values.settings.units || "auto",
+      onChange: (v) => onChange("units", v),
     }),
     switchRow({
       label: "Keep screen awake",

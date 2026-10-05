@@ -1,5 +1,5 @@
 // Pure formatting and geometry helpers. Unit-tested; the one word in here
-// ("now") goes through the translation layer.
+// ("now") goes through the translation layer, and numbers follow its locale.
 
 import { t, currentLocale } from "./i18n.js";
 
@@ -15,11 +15,50 @@ export function haversineMeters(lat1, lon1, lat2, lon2) {
   return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
+let units = "metric";
+
+export function setUnits(u) {
+  units = u === "imperial" ? "imperial" : "metric";
+}
+
+// The caller passes the tag: reading navigator in here would put every Node test in miles.
+const IMPERIAL_REGIONS = new Set(["US", "LR", "MM"]);
+export function resolveUnits(pref, lang) {
+  if (pref === "metric" || pref === "imperial") return pref;
+  let region = "";
+  try {
+    region = new Intl.Locale(String(lang || "")).region || "";
+  } catch {
+    region = "";
+  }
+  return IMPERIAL_REGIONS.has(region) ? "imperial" : "metric";
+}
+
+const numFormats = new Map();
+function num(n, digits) {
+  const key = `${currentLocale()}|${digits}`;
+  let f = numFormats.get(key);
+  if (!f) {
+    f = new Intl.NumberFormat(currentLocale(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    numFormats.set(key, f);
+  }
+  return f.format(n);
+}
+
+const METERS_PER_MILE = 1609.344;
+const METERS_PER_FOOT = 0.3048;
+
 export function fmtDistance(m) {
   if (!Number.isFinite(m) || m < 0) return "";
-  if (m < 1000) return `${Math.round(m)} m`;
-  if (m < 10000) return `${(m / 1000).toFixed(1)} km`;
-  return `${Math.round(m / 1000)} km`;
+  if (units === "imperial") {
+    const mi = m / METERS_PER_MILE;
+    if (mi < 0.1) return `${num(Math.round(m / METERS_PER_FOOT / 10) * 10, 0)} ft`;
+    const tenths = Math.round(mi * 10) / 10;
+    return tenths < 10 ? `${num(tenths, 1)} mi` : `${num(Math.round(mi), 0)} mi`;
+  }
+  if (m < 1000) return `${num(Math.round(m), 0)} m`;
+  if (m < 10000) return `${num(m / 1000, 1)} km`;
+  return `${num(Math.round(m / 1000), 0)} km`;
 }
 
 export function fmtRelTime(msAgo) {

@@ -13,7 +13,7 @@ import { parseBeaconFragment, deriveHelpChannelId, deriveHelpEncKey } from "./cr
 import { createRoster, createPoller, statusOf, STALE_MS, epochAt } from "./net.js";
 import { createMapView } from "./map.js";
 import { t, loadLocale, setLocale, resolveLocale, translateDom } from "./i18n.js";
-import { fmtClock, fmtDistance, fmtRelTime } from "./fmt.js";
+import { fmtClock, fmtDistance, fmtRelTime, resolveUnits, setUnits } from "./fmt.js";
 
 // A helper opening this in an emergency gets their browser's language, and
 // the page's static copy translates before anything else runs.
@@ -124,6 +124,7 @@ function takeSecret() {
 }
 
 async function boot() {
+  setUnits(resolveUnits("auto", navigator.language));
   const parsed = takeSecret();
   if (!parsed) {
     showPanel(

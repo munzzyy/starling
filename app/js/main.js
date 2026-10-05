@@ -144,7 +144,7 @@ import { createOutbox } from "./outbox.js";
 import { buildDataExport } from "./export.js";
 import { startBeacon } from "./helpsession.js";
 import { startWatch, batteryLevel } from "./geo.js";
-import { haversineMeters, coarsePos, hueFromMemberId, fmtRelTime, fmtClock } from "./fmt.js";
+import { haversineMeters, coarsePos, hueFromMemberId, fmtRelTime, fmtClock, resolveUnits, setUnits } from "./fmt.js";
 import { parseHealth, shareProblems, sentNote, noteAfter, sendErrorKind, shareReport } from "./sharehealth.js";
 import { VERSION } from "./version.js";
 import { createDemo, demoPlaces, DEMO_CENTER } from "./demo.js";
@@ -214,6 +214,7 @@ const state = {
     placeAlerts: true, // say when a member arrives at or leaves a saved place
     batAlerts: true, // say when a member's battery runs low
     shareReminder: 0, // ms after a stop you chose before the phone says sharing is off; 0 is never
+    units: "auto", // "metric", "imperial", or the region in the phone's language
   },
   // Named spots that live only on this device; never sent anywhere. Loaded by
   // loadPlaces() under the same at-rest rule as the chain key.
@@ -5019,6 +5020,10 @@ function dataExportJson() {
   return JSON.stringify(out, null, 2);
 }
 
+function applyUnits() {
+  setUnits(resolveUnits(state.settings.units, navigator.language));
+}
+
 async function onSettingChange(key, value) {
   if (key === "circleName") {
     state.circleName = value;
@@ -5068,6 +5073,7 @@ async function onSettingChange(key, value) {
     state.settings = { ...state.settings, [key]: value };
     await dbSet("settings", state.settings);
     if (key === "theme") applyTheme();
+    if (key === "units") applyUnits();
     if (key === "lang") {
       const code = resolveLocale(value);
       await loadLocale(code).catch((e) => window.__starlingErrors.push(`locale: ${String(e)}`));
@@ -6969,6 +6975,7 @@ async function boot() {
   await loadLocale(locale).catch((e) => window.__starlingErrors.push(`locale: ${String(e)}`));
   setLocale(locale);
   translateDom();
+  applyUnits();
 
   if (!shareCapable()) {
     // Hosted web: landing and demo only. A circle stored by the old web app
