@@ -5,43 +5,97 @@ All notable changes to Starling are recorded here. Versions follow
 
 ## [Unreleased]
 
+## [0.18.0]
+
+- **A share can come back by itself after a restart or an update (#22).**
+  Two new switches sit under Keep sharing when the app is closed, both off by
+  default: Also after a restart and Also after an update. On Android 10 and
+  later each needs Android's Allow all the time, which Starling asks for only
+  when you turn one on, after saying why. A share that comes back shows the
+  sharing notification, titled to say why, an alert that it came back, and a
+  card the next time you open the app. It never brings back a share you
+  stopped, a timed share that ran out, or anything after a panic wipe.
+  Nothing comes back after a restart until the phone has been unlocked once,
+  nor with the app lock on or Starling's notifications turned off. With Tor mode on it
+  sends nothing until Orbot connects, and after 5 minutes without Orbot you
+  get the tap instead. The map loads no tiles until somebody opens the app.
+  The app now declares ACCESS_BACKGROUND_LOCATION, so app stores list it;
+  Android grants it only if you allow it, and a panic wipe gives it back.
+  docs/ANDROID.md has the emulator runs on Android 9, 13 and 16.
+- **Stop on the lock screen asks for your PIN on Android 9 to 11 too.**
+  Below Android 12 anyone holding a locked phone could end a share from the
+  notification. Stop now goes through the lock screen first, as it already
+  did on 12 and later. Seen on the Android 9 and 10 emulators; Android 11
+  takes the same path.
+- **Ask someone to check in.** A member's card has Ask to check in. The
+  person asked gets a notice and a card with Check in now the next time
+  Starling runs on their phone in the next 15 minutes. It rides on your own
+  posts, so nothing new is sent and older versions ignore it.
+- **A check-in from a phone that is not sharing no longer sends an old
+  position.** The check mark sent the last position the phone had, marked as
+  current, so the circle could see where you were hours ago as where you are
+  now. A check-in now carries a position only while you share.
 - **People whose phones have gone quiet stay on the sheet.** A member who
   had not posted in a day dropped off the list, and when that was everyone
   the sheet said "Just you here so far" and asked you to send invites to
   people already in the circle. They now keep a dimmed card that says there
   is no recent update, and a tap on it opens People and keys.
-
 - **Give anyone in your circle a name only your phone uses.** Two people
   can both call themselves Mom, and anyone can rename themselves to look
   like someone else. People and keys now has a field for your own name for
   each person. Cards, markers and alerts use it, the sheet still shows the
   name they go by, and it never leaves the phone.
-
-- **Mute one person's place and battery alerts.** Somebody who walks past
-  a saved place every day or always runs low on battery made those alerts
-  noise for the whole circle. Each person in People and keys now has a
-  switch that keeps their arrivals, departures and low battery quiet on your
-  phone. Their card still says where they are, and an SOS, a missed
-  check-in or a key change from them still comes through.
-
+- **Mute one person's place and battery alerts.** Each person in People and
+  keys has a switch that keeps their arrivals, departures and low battery
+  quiet on your phone. Their card still says where they are, and an SOS, a
+  missed check-in or a key change from them still comes through.
+- **Distances in miles where people count in miles.** Settings has Distance
+  units: Auto, Kilometers or Miles. Auto follows the region of your phone's
+  language, and numbers use your language's decimal sign.
+- **Show everyone.** A button on the map frames the whole circle again after
+  you have panned or zoomed away.
+- **Picking a place on the map says what it is doing.** A banner names the
+  place and offers Use the map center and Cancel, a crosshair marks the spot,
+  and Escape backs out. It works from a keyboard or a screen reader now.
+- **Who is at each place.** Places lists who is there now, and a card says
+  "At Home since 2:05 PM" when your phone saw them arrive.
+- **More of the app is translated.** The alert cards, the invite sheet, the
+  settings section titles, the passcode fields and about thirty other strings
+  showed English in every language.
+- **Your data opens in the Android app and covers every circle.** The export
+  sheet failed before it showed anything in the app. It now opens, and each
+  circle lists its own people, nicknames and sharing choices. Keys and
+  channel ids stay out as before.
+- **The focus card is quieter for screen readers.** It was read out again
+  every five seconds while open. Now only the name and a change of status are
+  said, and keyboard focus moves into the card and back to the member.
+- **Your own server gets the points it missed.** A tunnel or a server
+  restart dropped every forwarded point in the gap (#10). Up to 20 now wait in
+  memory and go out oldest first when the server answers again. Requests say
+  User-Agent: Starling instead of naming your phone model.
+- **The time on the sharing notification, if you want it.** A new switch,
+  off by default, shows the time left on a timed share or how long you have
+  been sharing. Your lock screen shows it too, which is why it is off.
+- **One tap to fix a paused share.** With location off, the sharing
+  notification has Turn on location next to Stop, and the Battery Saver card
+  opens Battery Saver settings.
+- **Themed icon.** On Android 13 and later with themed icons on, the
+  launcher icon follows your theme. The status bar keeps the plain pin, so a
+  locked phone does not name the app.
+- **Safer messages between versions.** Every post is checked to fit its
+  padding, typed names and captions lose control characters before sending,
+  and a message kind from a newer version is ignored instead of turning an
+  SOS into a plain dot.
+- **A re-key made while your phone was away is no longer missed.** Opening
+  the app, coming back to it or reconnecting threw away the keys a waiting
+  re-key needed before reading it, which left the phone on a circle everyone
+  else had moved on from. It now reads the relay first.
+- **A second SOS can no longer be lost.** When an SOS was sent again while
+  the first was still in flight, the first one landing could clear the
+  second from the retry queue.
 - **People and keys keeps working after you accept someone's new keys.**
   Their row lost track of who it belonged to, so Mark verified and Remove
   did nothing for that person until Starling was restarted.
-
-- **A share can come back by itself after a restart or an update (#22).**
-  Two new switches sit under Keep sharing when the app is closed, both off by
-  default: Also after a restart and Also after an update. Each needs
-  Android's Allow all the time, which Starling asks for only when you turn
-  one on, after saying why. A share that comes back shows the sharing
-  notification, titled to say why, an alert that it came back, and a card
-  the next time you open the app. It never brings back a share you stopped,
-  a timed share that ran out, or anything after a panic wipe. Nothing comes
-  back before the first unlock after a restart, with the app lock on, or
-  with Starling's notifications turned off. With Tor mode on it sends nothing
-  until Orbot connects, and after 5 minutes without Orbot you get the tap
-  instead. The map loads no tiles until somebody opens the app. The app now
-  declares ACCESS_BACKGROUND_LOCATION, so app stores list it; Android grants
-  it only if you allow it, and a panic wipe gives it back.
 
 ## [0.17.1]
 
