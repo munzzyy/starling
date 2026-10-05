@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { DUE_WARN_MS, DUE_WINDOW_MS, dueFrom, storedTimer, warnDue } from "../app/js/checkin.js";
+import { ASK_WINDOW_MS, DUE_WARN_MS, DUE_WINDOW_MS, askFrom, dueFrom, storedTimer, warnDue } from "../app/js/checkin.js";
 
 const NOW = 1_800_000_000_000;
 
@@ -74,4 +74,24 @@ test("storedTimer returns only due and member, whatever else was stored", () => 
   const out = storedTimer({ due: NOW, member: "m1", name: "A", lat: 44.98, __proto__: { extra: 1 } }, "m1", NOW);
   assert.deepEqual(Object.keys(out).sort(), ["due", "member"]);
   assert.equal(out.extra, undefined);
+});
+
+test("askFrom keeps 8 lowercase hex and a time within 15 minutes of the message, nothing else", () => {
+  const ok = { to: "0a1b2c3d", at: NOW };
+  assert.deepEqual(askFrom({ ts: NOW, ask: "0a1b2c3d", ak: NOW }), ok);
+  assert.deepEqual(askFrom({ ts: NOW + ASK_WINDOW_MS, ask: "0a1b2c3d", ak: NOW }), ok, "the window is inclusive");
+  assert.deepEqual(askFrom({ ts: NOW - ASK_WINDOW_MS, ask: "0a1b2c3d", ak: NOW }), ok);
+  assert.equal(askFrom({ ts: NOW + ASK_WINDOW_MS + 1, ask: "0a1b2c3d", ak: NOW }), null);
+  assert.equal(askFrom({ ts: NOW - ASK_WINDOW_MS - 1, ask: "0a1b2c3d", ak: NOW }), null);
+  for (const ask of ["0A1B2C3D", "0a1b2c3", "0a1b2c3d4", "0a1b2c3g", " 0a1b2c3", "0a1b2c3d".repeat(4), 12345678, null, undefined, ["0a1b2c3d"]]) {
+    assert.equal(askFrom({ ts: NOW, ask, ak: NOW }), null, `ask ${String(ask)}`);
+  }
+  for (const ak of [undefined, null, NaN, Infinity, NOW + 0.5, String(NOW), [NOW], true]) {
+    assert.equal(askFrom({ ts: NOW, ask: "0a1b2c3d", ak }), null, `ak ${String(ak)}`);
+  }
+  for (const ts of [undefined, null, NaN, String(NOW)]) {
+    assert.equal(askFrom({ ts, ask: "0a1b2c3d", ak: NOW }), null, `ts ${String(ts)}`);
+  }
+  assert.equal(askFrom(null), null);
+  assert.equal(askFrom({}), null);
 });

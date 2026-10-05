@@ -825,3 +825,23 @@ test("a held chain starts the cursor at zero, never at this device's last trim",
   assert.equal(sinceOf(calls[0].url), 0, "the relay learns nothing about when this device was last open");
   assert.ok(gen.ratchet.retainedEpochs()[0] >= head - 5, "and the read released the hold");
 });
+
+test("an ask to check in lands on the record, bounded, and goes when a post leaves it out", async () => {
+  const c = await circle();
+  const alice = await generateIdentity();
+  const t0 = rAt(RE0) + 1000;
+  const roster = rosterFor(c);
+  const post = async (ts, extra) => roster.ingest([await entryFor(c, alice, [{ e: RE0, msg: rLoc(ts, extra) }])], ts);
+
+  await post(t0, { ask: "0a1b2c3d", ak: t0 });
+  assert.deepEqual(roster.get(alice.memberId).ask, { to: "0a1b2c3d", at: t0 });
+  await post(t0 + 1000, { ask: "0a1b2c3d", ak: t0 });
+  assert.deepEqual(roster.get(alice.memberId).ask, { to: "0a1b2c3d", at: t0 }, "it rides every post while it lasts");
+  await post(t0 + 2000, { ask: "0A1B2C3D", ak: t0 });
+  assert.equal(roster.get(alice.memberId).ask, null, "a malformed ask is dropped, not kept from before");
+  await post(t0 + 3000, { ask: "0a1b2c3d", ak: t0 + 3000 - 16 * 60 * 1000 });
+  assert.equal(roster.get(alice.memberId).ask, null, "an ask from too long before the post is dropped");
+  await post(t0 + 4000, { ask: "0a1b2c3d", ak: t0 + 4000 });
+  await post(t0 + 5000);
+  assert.equal(roster.get(alice.memberId).ask, null, "a post without it clears it");
+});

@@ -107,7 +107,7 @@ import {
   zero,
 } from "./lock.js";
 import { createPlaceTracker, sanitizePlaces, newPlaceId, fenceSnap, announces, DEFAULT_RADIUS } from "./places.js";
-import { DUE_GRACE_MS, DUE_WARN_MS, overdue, storedTimer, warnDue } from "./checkin.js";
+import { ASK_GAP_MS, ASK_WINDOW_MS, DUE_GRACE_MS, DUE_WARN_MS, overdue, storedTimer, warnDue } from "./checkin.js";
 import { debugHooks, apiUrl, customRelayInUse, isWrapped, isBundled, native, pageShown, shareUrlBase, normalizeRelay, normalizeForward, normalizeForwardTid, setApiBase, shareCapable } from "./env.js";
 import {
   isSealedRecordError,
@@ -436,6 +436,11 @@ const batWarned = new Set();
 // Per member, cleared when their next SOS starts.
 const sosQuietTold = new Set();
 const sosCardHidden = new Set();
+// Asks to check in, memory only: the one going out, when each member was last asked from here, and asks heard.
+let askOut = null;
+const askSentAt = new Map();
+const asksHeard = new Map();
+const askHeardFrom = new Map();
 // The tracker key for this device's own position. Member ids are 32 hex chars,
 // so this can never collide with one.
 const SELF_KEY = "self";
@@ -938,6 +943,41 @@ function alertItems() {
       text: t("Their timer ran out at {time}. Their last position is on the map.", { time: fmtClock(rec.due) }),
       toasted: true,
       actions: [{ label: "Show on map", variant: "btn-primary", testid: "alert-due-show", onClick: () => focusMember(rec.id) }],
+    });
+  }
+
+  for (const rec of members()) {
+    const ask = askForMe(rec, now);
+    const heard = ask && asksHeard.get(`${rec.id}|${ask.at}`);
+    if (!heard?.shown || heard.hidden) continue;
+    const done = () => {
+      heard.hidden = true;
+      cancelEventNotification(`ask-${rec.id}`);
+    };
+    items.push({
+      id: `ask:${rec.id}|${ask.at}`,
+      kind: "info",
+      title: t("{who} asked you to check in", { who: rec.name || t("A member") }),
+      text: t("Checking in tells your whole circle you are okay."),
+      actions: [
+        {
+          label: "Check in now",
+          variant: "btn-primary",
+          testid: "alert-ask-checkin",
+          onClick: () => {
+            done();
+            doCheckin();
+          },
+        },
+        {
+          label: "Not now",
+          testid: "alert-ask-later",
+          onClick: () => {
+            done();
+            render();
+          },
+        },
+      ],
     });
   }
 
@@ -1578,6 +1618,8 @@ function renderFocus(list, now) {
       render();
     },
     onClose: unfocus,
+    ask: askState(rec.id),
+    onAsk: () => askToCheckIn(rec.id),
   });
 }
 
@@ -3309,6 +3351,10 @@ function lockNow() {
   // none.
   endGraceWatch();
   endTrimHold();
+  askOut = null;
+  askSentAt.clear();
+  asksHeard.clear();
+  askHeardFrom.clear();
   poller?.stop();
   poller = null;
   sender?.cancel?.();
@@ -5992,7 +6038,8 @@ async function sendLoc(force = false) {
 let ownBat = null;
 let ownBatHidden = false;
 
-async function sendMsg(type) {
+// share false is an ask from a phone that is not sharing: no position and no battery.
+async function sendMsg(type, { share = true } = {}) {
   if (state.demo || !sender) return;
   // A re-key can null the live sender during the battery read below.
   const via = sender;
@@ -6011,7 +6058,11 @@ async function sendMsg(type) {
   };
   const due = timerDue();
   if (due) fields.due = due;
-  if (state.me) {
+  if (askOut && askOut.by === state.identity?.memberId && Date.now() - askOut.at < ASK_WINDOW_MS) {
+    fields.ask = askOut.to;
+    fields.ak = askOut.at;
+  }
+  if (share && state.me) {
     let { lat, lon } = state.me;
     // Privacy fences: inside a fenced place the circle sees the place's
     // center, never the spot within it. Snapped BEFORE sealing, exactly
@@ -6036,13 +6087,51 @@ async function sendMsg(type) {
       fields.acc = state.me.acc;
     }
   }
-  const bat = await batteryLevel();
+  const bat = share ? await batteryLevel() : null;
   if (bat != null) {
     fields.bat = bat;
     ownBat = bat;
     if (bat > 0.25) ownBatHidden = false;
   }
   await via.send(fields);
+}
+
+// null hides the button: the demo, the lock, yourself, or a share with no position to send yet.
+function askState(id) {
+  if (state.demo || state.locked || !sender || !state.identity || id === state.identity.memberId) return null;
+  if (state.sharing && !(state.me && (!locationPaused || state.sosActive))) return null;
+  return Date.now() - (askSentAt.get(id) ?? -Infinity) < ASK_GAP_MS ? "asked" : "ready";
+}
+
+async function askToCheckIn(id) {
+  const rec = members().find((r) => r.id === id);
+  if (!rec || askState(id) !== "ready") return false;
+  const now = Date.now();
+  askSentAt.set(id, now);
+  askOut = { to: id.slice(0, 8), at: now, by: state.identity.memberId };
+  if (state.sharing) {
+    sendLoc(true);
+  } else {
+    try {
+      await sendMsg("bye", { share: false });
+    } catch {
+      askSentAt.delete(id);
+      askOut = null;
+      ui.toast(t("Could not reach your circle. Try again in a moment."), "warn");
+      render();
+      return false;
+    }
+  }
+  const who = rec.name || t("Member");
+  ui.toast(t("Asked {who} to check in. They see it if Starling is running on their phone in the next 15 minutes.", { who }));
+  render();
+  return true;
+}
+
+function askForMe(rec, now) {
+  const ask = rec.ask;
+  if (!ask || !state.identity || ask.to !== state.identity.memberId.slice(0, 8)) return null;
+  return now - ask.at <= ASK_WINDOW_MS ? ask : null;
 }
 
 async function doCheckin() {
@@ -6482,6 +6571,7 @@ function backOutOfPick() {
 function checkAlerts() {
   const now = Date.now();
   checkOwnTimer(now);
+  for (const [key, heard] of asksHeard) if (now - heard.at > 2 * ASK_WINDOW_MS) asksHeard.delete(key);
   // Your own position feeds the tracker too, so the sheet can say where you
   // are. It never fires an announcement: you were there.
   if (state.me && Number.isFinite(state.me.lat)) {
@@ -6503,6 +6593,18 @@ function checkAlerts() {
       notifyEvent(t("{who} checked in", { who }), t("The SOS is cleared."), `sos-${rec.id}`);
     }
     prevStatus.set(rec.id, st);
+
+    const ask = askForMe(rec, now);
+    if (ask && !asksHeard.has(`${rec.id}|${ask.at}`)) {
+      const shown = !(now - (askHeardFrom.get(rec.id) ?? -Infinity) < ASK_GAP_MS);
+      asksHeard.set(`${rec.id}|${ask.at}`, { shown, at: ask.at });
+      if (shown) {
+        askHeardFrom.set(rec.id, now);
+        const msg = t("{who} asked you to check in", { who });
+        ui.toast(msg);
+        notifyEvent(msg, "", `ask-${rec.id}`);
+      }
+    }
 
     if (st === "sos" && statusOf(rec, now) === "stale" && !sosQuietTold.has(rec.id)) {
       sosQuietTold.add(rec.id);
@@ -6836,6 +6938,8 @@ if (debugHooks()) window.__starlingInternals = {
   activeRecord,
   fireSos,
   doCheckin,
+  askToCheckIn,
+  askState,
   sendStatus: () => ({ busy: sendBusy, again: sendAgain, whenReady: sendWhenReady, stats: { ...shareStats }, locationPaused }),
   buildShareReport,
   dataExportJson,

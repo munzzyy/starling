@@ -14,6 +14,19 @@ export function dueFrom(obj) {
   return Math.abs(due - obj.ts) <= DUE_WINDOW_MS ? due : null;
 }
 
+// An ask to check in rides the asker's posts this long, and a receiver drops it after that.
+export const ASK_WINDOW_MS = 15 * 60 * 1000;
+export const ASK_GAP_MS = 10 * 60 * 1000;
+
+// `ask` is the first 8 hex of the member asked, `ak` when; bounded against ts like due.
+export function askFrom(obj) {
+  const to = obj?.ask;
+  const at = obj?.ak;
+  if (typeof to !== "string" || !/^[0-9a-f]{8}$/.test(to)) return null;
+  if (!Number.isSafeInteger(at) || !Number.isFinite(obj.ts)) return null;
+  return Math.abs(at - obj.ts) <= ASK_WINDOW_MS ? { to, at } : null;
+}
+
 export function overdue(rec, now) {
   return !!rec?.due && now >= rec.due + DUE_GRACE_MS;
 }

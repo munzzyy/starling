@@ -565,6 +565,8 @@ function worstCase(text = "\u6f22".repeat(24)) {
     lon: LONGEST_DOUBLE,
     acc: LONGEST_DOUBLE,
     bat: 0.99,
+    ask: "ffffffff",
+    ak: Number.MAX_SAFE_INTEGER,
   };
 }
 
@@ -591,7 +593,7 @@ test("a name and caption made of control characters still fit once cleaned", asy
 
 test("sendMsg sends only the fields the worst case covers, and cleans the typed ones", () => {
   const src = readFileSync(new URL("../app/js/main.js", import.meta.url), "utf8");
-  const start = src.indexOf("async function sendMsg(type) {");
+  const start = src.indexOf("async function sendMsg(");
   assert.ok(start > 0, "sendMsg is where this test expects it");
   const body = src.slice(start, src.indexOf("\n}\n", start));
   const literal = body.slice(body.indexOf("const fields = {"), body.indexOf("\n  };"));

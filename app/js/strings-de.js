@@ -750,4 +750,10 @@ export const de = {
   "At {place} since {time}": "{place} seit {time}",
   "Here now: {names}": "Gerade hier: {names}",
   "Neighborhood rounds your position to about half a mile on your device before it is encrypted": "Umgebung rundet deine Position auf deinem Gerät auf etwa eine halbe Meile, bevor sie verschlüsselt wird",
+  "{who} asked you to check in": "{who} bittet dich, dich zu melden",
+  "Ask to check in": "Bitten, sich zu melden",
+  "Asked to check in": "Um Meldung gebeten",
+  "Asked {who} to check in. They see it if Starling is running on their phone in the next 15 minutes.": "Du hast {who} gebeten, sich zu melden. Die Bitte kommt an, wenn Starling dort in den nächsten 15 Minuten läuft.",
+  "Checking in tells your whole circle you are okay.": "Wenn du dich meldest, weiß dein ganzer Kreis, dass alles in Ordnung ist.",
+  "Could not reach your circle. Try again in a moment.": "Dein Kreis war nicht erreichbar. Versuch es gleich noch einmal.",
 };

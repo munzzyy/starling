@@ -3168,7 +3168,7 @@ export function updateAvaStrip(container, items, { statusOf, now }) {
 // -------------------------------------------------------------- focus card
 
 export function renderFocusCard(root, rec, ctx) {
-  const { now, mePos, statusOf, trailOn, onTrailToggle, onClose, place, since } = ctx;
+  const { now, mePos, statusOf, trailOn, onTrailToggle, onClose, place, since, ask, onAsk } = ctx;
   const status = statusOf(rec, now);
   if (root.dataset.member !== rec.id) {
     root.dataset.member = rec.id;
@@ -3199,7 +3199,8 @@ export function renderFocusCard(root, rec, ctx) {
     dir.target = "_blank";
     dir.rel = "noopener noreferrer";
     actions.append(trailBtn, dir);
-    root.append(head, coords, compass, actions);
+    const askBtn = btn("btn-mini fc-ask", "Ask to check in");
+    root.append(head, coords, compass, actions, askBtn);
   }
   root.className = `focus-card fc-${status}`;
   root.style.setProperty("--m-hue", String(rec.hue ?? 0));
@@ -3238,6 +3239,11 @@ export function renderFocusCard(root, rec, ctx) {
   trailBtn.setAttribute("aria-pressed", String(trailOn));
   trailBtn.classList.toggle("on", trailOn);
   trailBtn.onclick = onTrailToggle;
+  const askBtn = $(".fc-ask", root);
+  askBtn.hidden = !ask;
+  askBtn.disabled = ask === "asked";
+  askBtn.textContent = ask === "asked" ? t("Asked to check in") : t("Ask to check in");
+  askBtn.onclick = onAsk || null;
   const dir = $(".fc-directions", root);
   if (hasPos) {
     // An https maps URL works everywhere; geo: has no handler on iOS Safari

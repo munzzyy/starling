@@ -750,4 +750,10 @@ export const pt = {
   "At {place} since {time}": "Em {place} desde {time}",
   "Here now: {names}": "Aqui agora: {names}",
   "Neighborhood rounds your position to about half a mile on your device before it is encrypted": "Bairro arredonda sua posição para cerca de meia milha no seu dispositivo antes de criptografá-la",
+  "{who} asked you to check in": "{who} pediu que você avise que está bem",
+  "Ask to check in": "Pedir que avise",
+  "Asked to check in": "Pedido enviado",
+  "Asked {who} to check in. They see it if Starling is running on their phone in the next 15 minutes.": "Você pediu que {who} avise que está bem. O pedido aparece se o Starling estiver funcionando no telefone dessa pessoa nos próximos 15 minutos.",
+  "Checking in tells your whole circle you are okay.": "Ao avisar, todo o seu círculo fica sabendo que você está bem.",
+  "Could not reach your circle. Try again in a moment.": "Não foi possível falar com seu círculo. Tente de novo em instantes.",
 };

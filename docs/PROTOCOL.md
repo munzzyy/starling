@@ -282,6 +282,22 @@ sender overdue once a minute has passed after the deadline, so two clocks that
 disagree a little do not raise an alarm. Older receivers ignore the field and
 are never told.
 
+`ask` and `ak` are there while the sender is asking another member to check in.
+`ask` is the first 8 hex characters of that member's id and `ak` is when the
+sender asked, in milliseconds since the Unix epoch. Every `loc`, `checkin`,
+`sos` and `bye` carries both for 15 minutes after `ak`, and the ones after that
+leave them out. A sender who is not sharing carries the ask on one `bye` with no
+position and no battery level. A receiver keeps the ask from the newest message
+it accepted and treats an `ask` that is not 8 lowercase hex characters, or an
+`ak` more than 15 minutes from that message's `ts`, as absent. It acts only on
+an ask aimed at its own member id and no older than 15 minutes by its own clock:
+it says so once per sender and `ak`, at most once per sender in 10 minutes, and
+offers a check-in, which goes to the whole circle as usual. Every member can
+read who was asked; only the member asked is told. Eight characters keep the
+message small, and two members who share them would both be asked, about one
+chance in 36 million for a full circle. Nothing is pushed: a phone hears an ask
+only while Starling is running on it. Older receivers ignore both fields.
+
 On a circle channel `t` is one of `loc`, `checkin`, `sos`, `bye` or `rekey`. On
 an invite channel it is `join`, `ack`, `welcome` or `member`; a `member` record
 is refused anywhere else, see [Member records are
