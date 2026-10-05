@@ -14,6 +14,26 @@
 // Opt-in through installDom({ interactive: true }); off, every stub answers exactly as before.
 let interactive = false;
 
+// Interactive only: a node lives in one parent, and taking it out drops any focus inside it, as Chromium does.
+function detach(node, { keepFocus = false } = {}) {
+  const parent = node?.parentNode;
+  if (!parent) return;
+  parent.children.splice(parent.children.indexOf(node), 1);
+  node.parentNode = null;
+  const active = globalThis.document?.activeElement;
+  if (!keepFocus && active && node.contains?.(active)) globalThis.document.activeElement = globalThis.document.body;
+}
+
+function place(parent, node, ref, opts) {
+  if (ref === node) ref = parent.children[parent.children.indexOf(node) + 1] ?? null;
+  detach(node, opts);
+  const at = ref ? parent.children.indexOf(ref) : -1;
+  if (ref && at < 0) throw new Error("NotFoundError: the reference node is not a child of this node");
+  if (at < 0) parent.children.push(node);
+  else parent.children.splice(at, 0, node);
+  if (node && typeof node === "object") node.parentNode = parent;
+}
+
 function makeEl(tag = "div") {
   const listeners = new Map();
   const el = {
@@ -55,12 +75,35 @@ function makeEl(tag = "div") {
       for (const fn of [...(listeners.get(ev?.type) || [])]) fn.call(this, ev);
       return true;
     },
-    append(...kids) { this.children.push(...kids); },
-    appendChild(kid) { this.children.push(kid); return kid; },
-    insertBefore(kid) { this.children.push(kid); return kid; },
-    prepend(...kids) { this.children.unshift(...kids); },
-    replaceChildren(...kids) { this.children = kids; },
-    remove() {},
+    append(...kids) {
+      if (interactive) for (const k of kids) place(this, k, null);
+      else this.children.push(...kids);
+    },
+    appendChild(kid) {
+      if (interactive) place(this, kid, null);
+      else this.children.push(kid);
+      return kid;
+    },
+    insertBefore(kid, ref) {
+      if (interactive) place(this, kid, ref ?? null);
+      else this.children.push(kid);
+      return kid;
+    },
+    prepend(...kids) {
+      if (interactive) for (const k of [...kids].reverse()) place(this, k, this.children[0] ?? null);
+      else this.children.unshift(...kids);
+    },
+    replaceChildren(...kids) {
+      if (!interactive) {
+        this.children = kids;
+        return;
+      }
+      for (const c of [...this.children]) detach(c);
+      for (const k of kids) place(this, k, null);
+    },
+    remove() {
+      if (interactive) detach(this);
+    },
     contains(other) {
       if (!interactive || !other) return false;
       return other === this || this.children.some((c) => c?.contains?.(other));
@@ -80,6 +123,12 @@ function makeEl(tag = "div") {
     setPointerCapture() {},
     releasePointerCapture() {},
   };
+  if (interactive) {
+    el.parentNode = null;
+    el.moveBefore = function moveBefore(kid, ref) {
+      place(this, kid, ref ?? null, { keepFocus: true });
+    };
+  }
   return el;
 }
 

@@ -155,3 +155,37 @@ test("a tap that opens the card leaves focus where it was", () => {
   assert.equal(focusCard.hidden, true);
   assert.notEqual(document.activeElement, card, "closing a card a tap opened does not pull focus into the list");
 });
+
+test("focus handed back to a member card survives the repaints and reorders after it", async () => {
+  const list = harness.node("#member-list");
+  const juno = () => list.children.find((n) => n.dataset.member === who.memberId);
+  juno().dispatchEvent({ type: "keydown", key: "Enter", preventDefault() {} });
+  const close = focusCard.children[0].children[2];
+  close.focus();
+  close.dispatchEvent({ type: "click" });
+  assert.equal(document.activeElement, juno());
+
+  const pax = await generateIdentity();
+  const t1 = t0 + 40_000;
+  const t2 = t0 + 50_000;
+  try {
+    Date.now = () => t0 + 35_000;
+    internals.render();
+    assert.equal(document.activeElement, juno(), "a repaint leaves a card that is already in place alone");
+
+    await internals.roster().ingest([await memberEntry(state.gen, pax, { t: "sos", name: "Pax", lat: 40.7, lon: -73.9 }, t1)], t1);
+    Date.now = () => t1 + 1000;
+    internals.render();
+    assert.equal(list.children[0].dataset.member, pax.memberId, "the newer SOS sorts first");
+    assert.equal(document.activeElement, juno());
+
+    await internals.roster().ingest([await memberEntry(state.gen, who, { t: "sos", name: "Juno", lat: 40.78, lon: -73.97 }, t2)], t2);
+    Date.now = () => t2 + 1000;
+    internals.render();
+  } finally {
+    Date.now = realNow;
+  }
+  assert.equal(list.children[0], juno(), "Juno's newer SOS moved her card to the top");
+  assert.equal(list.children.length, 2);
+  assert.equal(document.activeElement, juno(), "and focus moved with the card");
+});

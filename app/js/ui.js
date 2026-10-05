@@ -2942,7 +2942,7 @@ export function memberSubLine(rec, now, mePos, place, status) {
 export function updateMemberList(container, items, { now, mePos, statusOf, onTap, placeOf }) {
   const existing = new Map();
   for (const node of container.children) existing.set(node.dataset.member, node);
-  for (const rec of items) {
+  for (const [i, rec] of items.entries()) {
     let card = existing.get(rec.id);
     if (!card) card = buildCard(rec.id, onTap);
     else existing.delete(rec.id);
@@ -2976,7 +2976,12 @@ export function updateMemberList(container, items, { now, mePos, statusOf, onTap
       "aria-label",
       `${rec.name || t("Member")}, ${t(CHIP_TEXT[status])}${subLine ? `, ${subLine}` : ""}${batBit}`,
     );
-    container.append(card);
+    // Moving a node blurs it, so a card in place stays put and moveBefore keeps focus on one that moves.
+    const at = container.children[i] ?? null;
+    if (at !== card) {
+      if (container.moveBefore && card.parentNode === container) container.moveBefore(card, at);
+      else container.insertBefore(card, at);
+    }
   }
   for (const node of existing.values()) node.remove();
 }
