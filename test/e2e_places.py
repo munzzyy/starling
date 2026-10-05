@@ -265,6 +265,8 @@ def main():
         a.send_keys('[data-testid="place-name-input"]', "Corner")
         a.click('[data-testid="place-add-pick"]')
         wait_for(lambda: q(a, pick_on), timeout=10, desc="pick banner")
+        # The Places sheet fades out for 280 ms; its rows must not be counted.
+        E.wait_overlay_gone(a)
         check("pick banner names the place",
               q(a, "return document.getElementById('banner-pick-text').textContent") == "Tap the map where Corner is.")
         check("crosshair while picking",
@@ -277,6 +279,13 @@ def main():
         a.send_keys('[data-testid="place-name-input"]', "Corner")
         a.click('[data-testid="place-add-pick"]')
         wait_for(lambda: q(a, pick_on), timeout=10, desc="pick banner again")
+        E.wait_overlay_gone(a)
+        a.click('[data-testid="settings-open"]')
+        wait_for(lambda: q(a, "return !!document.querySelector('[data-testid=\"settings-sheet\"]')"),
+                 timeout=10, desc="Settings over the pick")
+        a.escape()
+        E.wait_overlay_gone(a)
+        check("Escape closes Settings opened over a pick, and only Settings", q(a, pick_on))
         a.click('[data-testid="pick-center"]')
         wait_for(lambda: q(a, rows) == 2, timeout=10, desc="center pick saved")
         check("Use the map center saves a place and ends the pick", not q(a, pick_on))
