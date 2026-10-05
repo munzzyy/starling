@@ -23,23 +23,23 @@ export function createOutbox({ send, onSettle, backoff = BACKOFF_MS }) {
     if (!rec) return Promise.resolve(false);
     return send(type).then(
       () => {
-        const tries = rec.tries;
+        // A newer enqueue or a drop owns the slot now; this landing speaks for neither.
+        if (line.get(type) !== rec) return true;
         drop(type);
         // tries is how many FAILURES came first: 0 means the plain success
         // a caller already handled, 1+ means a recovery worth announcing.
-        settle(type, true, null, tries);
+        settle(type, true, null, rec.tries);
         return true;
       },
       (err) => {
-        const cur = line.get(type);
-        if (!cur) return false;
-        cur.tries += 1;
-        const wait = backoff[Math.min(cur.tries - 1, backoff.length - 1)];
-        clearTimeout(cur.timer);
-        cur.timer = setTimeout(() => attempt(type), wait);
+        if (line.get(type) !== rec) return false;
+        rec.tries += 1;
+        const wait = backoff[Math.min(rec.tries - 1, backoff.length - 1)];
+        clearTimeout(rec.timer);
+        rec.timer = setTimeout(() => attempt(type), wait);
         // In Node (the tests), a pending retry must not pin the process.
-        cur.timer.unref?.();
-        settle(type, false, err, cur.tries);
+        rec.timer.unref?.();
+        settle(type, false, err, rec.tries);
         return false;
       },
     );

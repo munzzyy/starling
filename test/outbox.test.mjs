@@ -109,3 +109,46 @@ test("a newer enqueue of the same type replaces the older schedule", async () =>
   assert.deepEqual(box.pending(), ["bye"], "one slot, not two");
   box.clear();
 });
+
+test("a late success clears only its own attempt, so the newer one still retries", async () => {
+  const pending = [];
+  let calls = 0;
+  const box = createOutbox({
+    send: () => {
+      calls += 1;
+      return new Promise((resolve, reject) => pending.push({ resolve, reject }));
+    },
+    backoff: [5],
+  });
+  const first = box.enqueue("sos");
+  const second = box.enqueue("sos");
+  pending[0].resolve();
+  assert.equal(await first, true);
+  assert.deepEqual(box.pending(), ["sos"], "the older landing did not take the newer one with it");
+  pending[1].reject(new Error("offline"));
+  assert.equal(await second, false);
+  await tick(20);
+  assert.equal(calls, 3, "the newer one was retried");
+  pending[2].resolve();
+  await tick(5);
+  assert.deepEqual(box.pending(), []);
+});
+
+test("a check-in that lands after an SOS dropped it does not speak for the line", async () => {
+  const events = [];
+  const pending = [];
+  const box = createOutbox({
+    send: () => new Promise((resolve, reject) => pending.push({ resolve, reject })),
+    onSettle: (type, ok, _err, tries) => events.push([type, ok, tries]),
+    backoff: [5],
+  });
+  const first = box.enqueue("checkin");
+  pending[0].reject(new Error("offline"));
+  await first;
+  await tick(20);
+  assert.equal(pending.length, 2, "the retry is in flight");
+  box.drop("checkin");
+  pending[1].resolve();
+  await tick(5);
+  assert.deepEqual(events, [["checkin", false, 1]], "no recovered check-in to clear the SOS that replaced it");
+});
