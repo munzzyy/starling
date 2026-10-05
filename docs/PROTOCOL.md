@@ -32,6 +32,7 @@ is as load bearing as the rest and should be read before the wire format.
 | `MAX_CATCHUP_EPOCHS`  | 4320 (30 days)      | hard cap on forward ratcheting in one operation  |
 | `HISTORY_EPOCHS`      | 6 (1 h), settable   | how many past epoch keys a device keeps          |
 | `PAD_LEN`             | 512                 | every plaintext padded to exactly this           |
+| `PAD_RESERVE`         | 48                  | bytes the largest message the app builds leaves free under `PAD_LEN` |
 | `MEMBER_CAP`          | 16                  | member slots per channel                         |
 | `TTL_MS`              | 86400000 (24 h)     | relay retention                                  |
 | `INVITE_TTL_MS`       | 3600000 (1 h)       | how long an unaccepted invitation stays valid    |
@@ -233,6 +234,13 @@ Plaintext is JSON, padded to exactly `PAD_LEN` bytes with trailing spaces
   "acc": 12, "name": "Ana", "emoji": "🦊", "hue": 210, "bat": 0.62,
   "mode": "precise", "cadence": 15 }
 ```
+
+A sender cuts `name` and `st` to 24 UTF-16 code units and `emoji` to 8, after
+removing control characters and unpaired surrogates, which JSON escapes to six
+bytes each. With every field at its longest the message still leaves
+`PAD_RESERVE` bytes of `PAD_LEN` unused; `test/crypto.test.mjs` builds that
+message from the fields the app actually sends and holds the line, so a new
+field that would not fit is caught before it ships.
 
 `cadence` is how many seconds the sender waits between posts while standing
 still: 15, 60 or 300, chosen per circle. A receiver that reads it calls the

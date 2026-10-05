@@ -5,6 +5,7 @@
 
 export const PROTO = "starling/v2";
 export const PAD_LEN = 512;          // plaintext padded to exactly this
+export const PAD_RESERVE = 48;       // left free under PAD_LEN by the largest post the app builds
 export const MAX_BODY = 2048;        // relay rejects bigger POST bodies
 export const MEMBER_CAP = 16;        // member slots per channel
 export const TRAIL_CAP = 240;        // stored points per member
@@ -118,6 +119,13 @@ export async function validEcdhKey(epkBytes) {
   } catch {
     return false;
   }
+}
+
+// Control characters and lone surrogates JSON-escape to six bytes each, enough to push a post past PAD_LEN.
+export function cleanText(s, max) {
+  if (typeof s !== "string") return "";
+  const cut = s.replace(/[\p{Cc}\p{Cs}]/gu, "").slice(0, max);
+  return /[\ud800-\udbff]$/.test(cut) ? cut.slice(0, -1) : cut;
 }
 
 export const isChannelId = (s) => typeof s === "string" && /^[0-9a-f]{32}$/.test(s);

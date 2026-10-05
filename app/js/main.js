@@ -68,6 +68,7 @@ import {
   epochPlausible,
   b64uDecode,
   b64uEncode,
+  cleanText,
   memberIdFromKeys,
   safetyNumber,
   sigBase,
@@ -5971,8 +5972,8 @@ async function sendMsg(type) {
   const via = sender;
   const fields = {
     t: type,
-    name: state.profile?.name || "Someone",
-    emoji: state.profile?.emoji || "\u{1F9ED}",
+    name: cleanText(state.profile?.name, 24) || "Someone",
+    emoji: cleanText(state.profile?.emoji, 8) || "\u{1F9ED}",
     hue: myHue(),
     mode: activePrecision(),
     // Seconds between posts while still, so a receiver that reads it can wait
@@ -5980,7 +5981,7 @@ async function sendMsg(type) {
     cadence: cadenceS(),
     // The self-set caption ("omw", "here"). Rides inside the same padded
     // plaintext as everything else; empty string means no caption.
-    st: (state.profile?.st || "").slice(0, 24),
+    st: cleanText(state.profile?.st, 24),
   };
   const due = timerDue();
   if (due) fields.due = due;

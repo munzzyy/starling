@@ -5,10 +5,13 @@
 // question of what must NOT open.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
-  PROTO, PAD_LEN, aadFor, b64uEncode, b64uDecode, bytesToHex, isChannelId,
-  memberIdFromKeys, sigBase, verifySig, checkPostShape,
+  PROTO, PAD_LEN, PAD_RESERVE, aadFor, b64uEncode, b64uDecode, bytesToHex, isChannelId,
+  memberIdFromKeys, sigBase, verifySig, checkPostShape, cleanText,
 } from "../app/js/wire.js";
+import { CADENCES } from "../app/js/circles.js";
+import { EMOJI } from "../app/js/ui.js";
 import { EPOCH_MS, chainInit, createRatchet } from "../app/js/ratchet.js";
 import {
   randomBytes, newSeed, generateIdentity, signBase, sealMessage, openMessage, buildPost,
@@ -529,4 +532,76 @@ test("randomBytes and newSeed shapes", () => {
   assert.equal(s.length, 32);
   assert.notDeepEqual(newSeed(), s);
   assert.equal(PROTO, "starling/v2");
+});
+
+test("cleanText drops control characters and lone surrogates, keeps every script", () => {
+  assert.equal(cleanText("Ana\u0000\u0007\n\u007f\u0085\u009f", 24), "Ana");
+  assert.equal(cleanText("\u{1F98A} \u{1F468}\u200D\u{1F469}\u200D\u{1F467}", 24), "\u{1F98A} \u{1F468}\u200D\u{1F469}\u200D\u{1F467}");
+  assert.equal(cleanText("\u5c0f\u660e \u0645\u0631\u064a\u0645 \u05e9\u05e8\u05d4\u200f", 24), "\u5c0f\u660e \u0645\u0631\u064a\u0645 \u05e9\u05e8\u05d4\u200f");
+  assert.equal(cleanText("a\ud800b\udc00c", 24), "abc");
+  // A cut through a surrogate pair would leave half of it behind.
+  assert.equal(cleanText("x".repeat(23) + "\u{1F98A}", 24), "x".repeat(23));
+  assert.equal(cleanText("x".repeat(22) + "\u{1F98A}", 24), "x".repeat(22) + "\u{1F98A}");
+  assert.equal(cleanText("abcdef", 3), "abc");
+  for (const v of [undefined, null, 42, {}]) assert.equal(cleanText(v, 24), "");
+});
+
+// The largest plaintext sendMsg can build: every field it sets, each at its longest.
+const LONGEST_DOUBLE = -0.0000012345678901234567;
+const longestEmoji = EMOJI.reduce((a, b) => (te.encode(b).length > te.encode(a).length ? b : a));
+function worstCase(text = "\u6f22".repeat(24)) {
+  return {
+    v: 2,
+    ts: Number.MAX_SAFE_INTEGER,
+    t: "checkin",
+    name: cleanText(text, 24),
+    emoji: cleanText("\u6f22".repeat(8), 8),
+    hue: 359,
+    mode: "precise",
+    cadence: Math.max(...CADENCES),
+    st: cleanText(text, 24),
+    due: Number.MAX_SAFE_INTEGER,
+    lat: LONGEST_DOUBLE,
+    lon: LONGEST_DOUBLE,
+    acc: LONGEST_DOUBLE,
+    bat: 0.99,
+  };
+}
+
+test("the largest message the app builds fits PAD_LEN with the reserve to spare", async () => {
+  assert.equal(String(LONGEST_DOUBLE).length, 25);
+  assert.ok(te.encode(cleanText("\u6f22".repeat(8), 8)).length >= te.encode(longestEmoji).length);
+  const msg = worstCase();
+  const bytes = te.encode(JSON.stringify(msg)).length;
+  assert.ok(bytes <= PAD_LEN - PAD_RESERVE, `worst case is ${bytes} bytes, the budget is ${PAD_LEN - PAD_RESERVE}`);
+  const sealed = await sealMessage(await keyAt(), CHANNEL, MEMBER, E, TS, msg);
+  assert.equal(sealed.c.length, PAD_LEN + 16);
+});
+
+test("a name and caption made of control characters still fit once cleaned", async () => {
+  const key = await keyAt();
+  const hostile = "\u0001".repeat(12) + "\ud800".repeat(12);
+  const raw = { ...worstCase(), name: hostile, st: hostile, emoji: hostile.slice(0, 8) };
+  await assert.rejects(sealMessage(key, CHANNEL, MEMBER, E, TS, raw), /message too large/);
+  const cleaned = worstCase(hostile + "\u6f22".repeat(24));
+  assert.equal(cleaned.name, "\u6f22".repeat(24));
+  const sealed = await sealMessage(key, CHANNEL, MEMBER, E, TS, cleaned);
+  assert.equal(sealed.c.length, PAD_LEN + 16);
+});
+
+test("sendMsg sends only the fields the worst case covers, and cleans the typed ones", () => {
+  const src = readFileSync(new URL("../app/js/main.js", import.meta.url), "utf8");
+  const start = src.indexOf("async function sendMsg(type) {");
+  assert.ok(start > 0, "sendMsg is where this test expects it");
+  const body = src.slice(start, src.indexOf("\n}\n", start));
+  const literal = body.slice(body.indexOf("const fields = {"), body.indexOf("\n  };"));
+  const keys = new Set([
+    ...[...literal.matchAll(/^ {4}(\w+):/gm)].map((m) => m[1]),
+    ...[...body.matchAll(/fields\.(\w+) =/g)].map((m) => m[1]),
+  ]);
+  const covered = new Set(Object.keys(worstCase()).filter((k) => k !== "v" && k !== "ts"));
+  assert.deepEqual([...keys].sort(), [...covered].sort());
+  assert.match(literal, /name: cleanText\(state\.profile\?\.name, 24\)/);
+  assert.match(literal, /emoji: cleanText\(state\.profile\?\.emoji, 8\)/);
+  assert.match(literal, /st: cleanText\(state\.profile\?\.st, 24\)/);
 });
