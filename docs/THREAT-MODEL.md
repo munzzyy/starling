@@ -362,12 +362,18 @@ than Cloudflare can run their own relay; see the FAQ and
     unless Android is set to hide sensitive content on the lock screen.
     That notification also carries a Stop button. On Android 12 and up,
     tapping it from a locked screen requires the device to be unlocked
-    first (`Notification.Action.Builder.setAuthenticationRequired`); on
-    Android 11 and below there is no such gate, and Stop fires straight from
-    the lock screen. Either way, since this fix, ending a share by tapping
-    Stop posts the same "Sharing stopped" notification that swiping the app
-    away already posted, so a share someone else ended from a locked phone
-    is not silently indistinguishable from one still running.
+    first (`Notification.Action.Builder.setAuthenticationRequired`).
+    Android 11 and below have no such flag, so there Stop opens a small
+    activity with no screen, and Android asks for the unlock before it
+    starts one. On the Android 9 and 10 emulators with a PIN set, Stop on
+    the lock screen brought up the PIN pad, backing out of it left the share
+    running and posting, and the share ended only after the PIN, with
+    Starling staying in the background. Android 11 takes the same path but
+    has not been seen doing it, because no Android 11 phone image was at
+    hand. Either way, ending a share by tapping Stop posts the same "Sharing
+    stopped" notification that swiping the app away already posted, so a
+    share someone else ended is not silently indistinguishable from one
+    still running.
 18. **Localization is young.** The app has a translation layer (gettext
     style: English source strings as keys, catalogs shipped with the app,
     nothing fetched) and ships Spanish, German, French and Brazilian
@@ -568,8 +574,8 @@ and why none of it weakens the core claim (the relay never sees a position).
   purpose. A phone kept powered and locked keeps a running share, as it
   always did, and an update in that state brings the share back if Also
   after an update is on. A thief with an unlocked phone sees the share carry
-  on across restarts, which is the point; Stop still needs device
-  authentication on Android 12 and later. Someone setting this up on another
+  on across restarts, which is the point; Stop on the lock screen still asks
+  for the unlock. Someone setting this up on another
   person's phone needs it unlocked, a circle, Keep sharing on, a switch on,
   Allow all the time granted in system settings, and Starling's
   notifications left on, because nothing comes back while they are hidden.

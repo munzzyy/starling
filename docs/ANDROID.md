@@ -265,9 +265,12 @@ the lock screen. It does dismiss the lock screen before it starts an activity,
 so below 12 Stop now opens `StopShareActivity`. It has no screen, is not
 exported, is never shown over the lock screen, and runs in its own task so
 Starling does not come forward. It sends the service the same stop it always
-got and closes. Until that is seen asking for the PIN on the Android 9 and 10
-emulators (this machine has no Android 11 phone image), THREAT-MODEL.md keeps
-treating Stop as reachable from a locked phone on Android 11 and below.
+got and closes. On the Android 9 and 10 emulators with a PIN set (2026-10-05),
+Stop on the lock screen brought up the PIN pad and the share kept running
+until the PIN went in. Backing out of the PIN pad left it running, and after
+the PIN the event log showed `StopShareActivity` created and finished in
+under 30 ms while the home screen stayed in front. There is no Android 11
+phone image on this machine, so 11 has not been seen.
 
 ### The time on the sharing notification
 
