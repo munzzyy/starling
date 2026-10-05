@@ -79,6 +79,8 @@ export function sortMembers(list, now) {
   });
 }
 
+const POSITION_KINDS = new Set(["loc", "checkin", "sos", "bye"]);
+
 // Roster: verify, decrypt and merge incoming points into per-member records.
 //
 // `pinned` is the caller's durable map of memberId -> { alg, pk, epk, verified,
@@ -231,6 +233,8 @@ export function createRoster({ channelId, ratchet, selfId, pinned, onControl, on
           await onControl?.(entry.m, obj, p.e);
           continue;
         }
+        // A kind from a newer version must not overwrite an SOS with "live".
+        if (typeof obj.t === "string" && !POSITION_KINDS.has(obj.t)) continue;
         if (!accepted(entry.m, p.e, p.ts)) continue;
 
         if (!rec) {

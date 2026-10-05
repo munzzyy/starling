@@ -267,7 +267,12 @@ the same length, so the relay cannot tell a location update from a re-key by
 size, or a welcome from the `ack` before it.
 
 A receiver ignores fields it does not know rather than rejecting the message,
-so a field added later does not partition a circle across app versions. `v` is
+so a field added later does not partition a circle across app versions. It
+ignores a message kind it does not know entirely: the sender's record, the
+replay mark and the status all stay as they were. A message with no `t` is a
+`loc`. Receivers up to 0.17.1 read any unknown `t` as a live position, which
+would replace an SOS on their screens, so new features still ride as fields
+and never as new kinds. `v` is
 2 on everything this version sends and nothing gates on it: the version is
 pinned by `PROTO` inside the AAD and the signed string, where it cannot be
 edited without breaking both.

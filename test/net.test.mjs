@@ -700,3 +700,33 @@ test("the cadence rides in the sealed message and lands on the record, bounded",
   await roster.ingest([await entryFor(c, alice, [{ e: RE0, msg: rLoc(t0 + 3000) }])], t0 + 3000);
   assert.equal(roster.get(alice.memberId).cadence, CADENCE_MAX_S, "a post that says nothing leaves it alone");
 });
+
+test("a message kind this version does not know never touches the record", async () => {
+  const c = await circle();
+  const alice = await generateIdentity();
+  const t0 = rAt(RE0) + 1000;
+  const roster = rosterFor(c);
+  const ingestAt = async (ts, msg) => roster.ingest([await entryFor(c, alice, [{ e: RE0, msg }])], ts);
+
+  await ingestAt(t0, rLoc(t0, { t: "sos" }));
+  assert.equal(statusOf(roster.get(alice.memberId), t0), "sos");
+
+  await ingestAt(t0 + 3000, rLoc(t0 + 3000, { t: "future", lat: 1, lon: 1 }));
+  const rec = roster.get(alice.memberId);
+  assert.equal(statusOf(rec, t0 + 3000), "sos", "an unknown kind read as live would erase the SOS");
+  assert.equal(rec.ts, t0);
+  assert.equal(rec.lat, 44.98);
+
+  await ingestAt(t0 + 4000, rLoc(t0 + 4000, { t: "welcome", name: "Mallory" }));
+  assert.equal(roster.get(alice.memberId).name, undefined, "an invite channel kind changes nothing here");
+  assert.equal(roster.get(alice.memberId).type, "sos");
+
+  // Earlier than the dropped kinds: had they moved the replay mark, this would be refused.
+  await ingestAt(t0 + 2000, rLoc(t0 + 2000));
+  assert.equal(roster.get(alice.memberId).ts, t0 + 2000, "the dropped kinds left the replay mark alone");
+  assert.equal(roster.get(alice.memberId).type, "loc");
+
+  await ingestAt(t0 + 5000, { v: 2, ts: t0 + 5000, lat: 2, lon: 2 });
+  assert.equal(roster.get(alice.memberId).type, "loc", "a message without t is still a position");
+  assert.equal(roster.get(alice.memberId).lat, 2);
+});
