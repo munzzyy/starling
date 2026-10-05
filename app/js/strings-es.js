@@ -753,4 +753,5 @@ export const es = {
   "Use the map center": "Usar el centro del mapa",
   "At {place} since {time}": "En {place} desde {time}",
   "Here now: {names}": "Ahora aquí: {names}",
+  "Neighborhood rounds your position to about half a mile on your device before it is encrypted": "Vecindario redondea tu posición a aproximadamente media milla en tu dispositivo antes de cifrarla",
 };

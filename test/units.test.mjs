@@ -9,7 +9,7 @@ import { installDom, loadApp, settle } from "./dom-harness.mjs";
 const setLang = (tag) => Object.defineProperty(globalThis.navigator, "language", { value: tag, configurable: true });
 setLang("en-US");
 
-const harness = installDom();
+const harness = installDom({ listen: true });
 globalThis.indexedDB ??= {
   open() {
     throw new Error("no indexeddb in the harness");
@@ -77,4 +77,32 @@ test("the place radius chips speak the chosen units", async () => {
   assert.deepEqual(await chips("metric"), ["100 m", "250 m", "500 m"]);
   assert.deepEqual(await chips("imperial"), ["330 ft", "0.2 mi", "0.3 mi"]);
   await api.setSetting("units", "auto");
+});
+
+test("the Neighborhood note in Settings follows the units while the sheet is open", async () => {
+  const ui = await import("../app/js/ui.js");
+  internals.state.gen = { fake: true };
+  internals.startDemo();
+  internals.exitDemo();
+  const note = () => {
+    let out = null;
+    const walk = (n) => {
+      if (n?.dataset?.testid === "precision-note") out = n.textContent;
+      for (const kid of n?.children || []) walk(kid);
+    };
+    walk(harness.node("#overlays").children.at(-1));
+    return out;
+  };
+  try {
+    await api.setSetting("units", "metric");
+    harness.fire(harness.node('[data-testid="settings-open"]'), "click");
+    await settle();
+    assert.equal(note(), "Neighborhood rounds your position to about 1 km on your device before it is encrypted");
+    await api.setSetting("units", "imperial");
+    assert.equal(note(), "Neighborhood rounds your position to about half a mile on your device before it is encrypted");
+  } finally {
+    ui.closeAllOverlays();
+    internals.state.gen = null;
+    await api.setSetting("units", "auto");
+  }
 });

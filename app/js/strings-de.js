@@ -749,4 +749,5 @@ export const de = {
   "Use the map center": "Kartenmitte nehmen",
   "At {place} since {time}": "{place} seit {time}",
   "Here now: {names}": "Gerade hier: {names}",
+  "Neighborhood rounds your position to about half a mile on your device before it is encrypted": "Umgebung rundet deine Position auf deinem Gerät auf etwa eine halbe Meile, bevor sie verschlüsselt wird",
 };

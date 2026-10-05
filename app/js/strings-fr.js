@@ -749,4 +749,5 @@ export const fr = {
   "Use the map center": "Utiliser le centre de la carte",
   "At {place} since {time}": "À {place} depuis {time}",
   "Here now: {names}": "Ici en ce moment : {names}",
+  "Neighborhood rounds your position to about half a mile on your device before it is encrypted": "Quartier arrondit votre position à environ un demi-mile sur votre appareil avant le chiffrement",
 };

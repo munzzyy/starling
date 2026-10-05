@@ -5,7 +5,7 @@
 // Hard rule respected throughout: user-controlled strings (names, statuses,
 // anything decrypted) only ever pass through textContent, never innerHTML.
 
-import { bearingDeg, compassWord, fmtClock, fmtDistance, fmtRelTime, haversineMeters } from "./fmt.js";
+import { bearingDeg, compassWord, fmtClock, fmtDistance, fmtRelTime, getUnits, haversineMeters } from "./fmt.js";
 import { HISTORY_CHOICES } from "./ratchet.js";
 import { t, currentLocale, LOCALE_CHOICES } from "./i18n.js";
 import { isBundled, native, pageShown } from "./env.js";
@@ -2235,18 +2235,28 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, backgro
     shareFor.textContent = t("For {name}. Each circle keeps its own precision and timing.", { name: demo ? t("Demo circle") : circleLabel(name) });
   };
   paintShareFor(values.circleName);
+  const precisionField = segControl({
+    label: "Precision",
+    options: [
+      { value: "precise", label: "Precise" },
+      { value: "coarse", label: "Neighborhood" },
+    ],
+    value: values.share.precision,
+    onChange: (v) => onChange("precision", v),
+  });
+  const precisionNote = el("p", "field-note");
+  precisionNote.dataset.testid = "precision-note";
+  const paintPrecisionNote = () => {
+    precisionNote.textContent =
+      getUnits() === "imperial"
+        ? t("Neighborhood rounds your position to about half a mile on your device before it is encrypted")
+        : t("Neighborhood rounds your position to about 1 km on your device before it is encrypted");
+  };
+  paintPrecisionNote();
+  precisionField.append(precisionNote);
   gShare.append(
     shareFor,
-    segControl({
-      label: "Precision",
-      note: "Neighborhood rounds your position to about 1 km on your device before it is encrypted",
-      options: [
-        { value: "precise", label: "Precise" },
-        { value: "coarse", label: "Neighborhood" },
-      ],
-      value: values.share.precision,
-      onChange: (v) => onChange("precision", v),
-    }),
+    precisionField,
     segControl({
       label: "Send every",
       note: "How often your circle hears from you while you stay put. Moving sends sooner unless Steady sending is on. Slower is easier on the battery. An SOS always goes every 15 seconds.",
@@ -2806,6 +2816,7 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, backgro
       historyField?.setValue(api.state.settings.history);
       steadyRow?.setValue(api.state.settings.steady);
       paintBackground?.();
+      paintPrecisionNote();
     },
   };
 }

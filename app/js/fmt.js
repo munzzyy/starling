@@ -21,6 +21,8 @@ export function setUnits(u) {
   units = u === "imperial" ? "imperial" : "metric";
 }
 
+export const getUnits = () => units;
+
 // The caller passes the tag: reading navigator in here would put every Node test in miles.
 const IMPERIAL_REGIONS = new Set(["US", "LR", "MM"]);
 export function resolveUnits(pref, lang) {
