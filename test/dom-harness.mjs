@@ -34,6 +34,22 @@ function place(parent, node, ref, opts) {
   if (node && typeof node === "object") node.parentNode = parent;
 }
 
+// Off unless a check opts in with installDom({ listen: true }): then elements
+// and the document keep their listeners, and fire() runs them.
+let listening = false;
+
+function listenable(target) {
+  target.listeners = {};
+  target.addEventListener = (type, fn) => {
+    (target.listeners[type] ||= []).push(fn);
+  };
+  target.removeEventListener = (type, fn) => {
+    const list = target.listeners[type];
+    if (list) target.listeners[type] = list.filter((f) => f !== fn);
+  };
+  return target;
+}
+
 function makeEl(tag = "div") {
   const listeners = new Map();
   const el = {
@@ -129,7 +145,7 @@ function makeEl(tag = "div") {
       place(this, kid, ref ?? null, { keepFocus: true });
     };
   }
-  return el;
+  return listening ? listenable(el) : el;
 }
 
 // Leaflet is a classic script in the page, so map.js only ever touches
@@ -177,8 +193,9 @@ function makeLeaflet() {
 
 // Install the fake page. Returns a handle with the pieces a check may want to
 // steer: the fetch queue and the collected toasts.
-export function installDom({ hostname = "127.0.0.1", interactive: live = false } = {}) {
+export function installDom({ hostname = "127.0.0.1", interactive: live = false, listen = false } = {}) {
   interactive = live;
+  listening = listen;
   const head = makeEl("head");
   const body = makeEl("body");
   // Nodes are cached by the string that asked for them, so #join-waiting-text
@@ -206,6 +223,7 @@ export function installDom({ hostname = "127.0.0.1", interactive: live = false }
     dispatchEvent() { return true; },
   };
   if (live) doc.activeElement = body;
+  if (listen) listenable(doc);
   globalThis.document = doc;
   globalThis.window = globalThis;
   globalThis.self = globalThis;
@@ -280,6 +298,21 @@ export function installDom({ hostname = "127.0.0.1", interactive: live = false }
     makeEl,
     // The element a selector resolves to, for reading back what was rendered.
     node,
+    // Runs what the app registered for this event; needs installDom({ listen: true }).
+    fire(target, type, init = {}) {
+      const ev = {
+        type,
+        target,
+        defaultPrevented: false,
+        preventDefault() {
+          this.defaultPrevented = true;
+        },
+        stopPropagation() {},
+        ...init,
+      };
+      for (const fn of [...(target.listeners?.[type] || [])]) fn.call(target, ev);
+      return ev;
+    },
     stopTimers() {
       stopped = true;
       for (const id of timers) {

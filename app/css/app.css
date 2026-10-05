@@ -878,6 +878,10 @@ a.land-download {
   transform: scale(0.94);
 }
 
+#fab-fit {
+  bottom: calc(var(--peek, 210px) + var(--safe-bottom) + 76px);
+}
+
 /* ----------------------------------------------------------------- sheet */
 
 .sheet {

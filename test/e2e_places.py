@@ -101,6 +101,27 @@ def main():
         check("B's card does not claim the place",
               "At Front Porch" not in (member_sub(a, "Blair") or ""))
 
+        # Show everyone: with two dots on A's map the button is there, and
+        # after following B away from A one press brings both back in view.
+        check("Show everyone shows with two dots", q(a,
+            "var f = document.getElementById('fab-fit');"
+            "return !!f && !f.hidden && getComputedStyle(f).display !== 'none';"))
+        both_in_view = (
+            "var r = document.getElementById('map').getBoundingClientRect();"
+            "var ms = document.querySelectorAll('.mk');"
+            "if (ms.length < 2) return false;"
+            "for (var i = 0; i < ms.length; i++) {"
+            "  var b = ms[i].getBoundingClientRect();"
+            "  if (b.left < r.left || b.right > r.right || b.top < r.top || b.bottom > r.bottom) return false;"
+            "} return true;")
+        a.click('[data-testid="member-card"]')
+        time.sleep(1.0)
+        a.escape()
+        log(f"  both dots in view after following B: {q(a, both_in_view)}")
+        a.click("#fab-fit")
+        time.sleep(1.0)
+        check("Show everyone frames both dots", q(a, both_in_view))
+
         # B knows nothing about A's places: not in state, not on the map.
         check("B has no place rings",
               q(bb, "return document.querySelectorAll('.place-ring').length") == 0)

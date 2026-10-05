@@ -561,15 +561,17 @@ if (debugHooks()) window.__starlingState = () => {
   };
 };
 
-// Debug hook: frame everyone with a position, like the demo's opening shot.
-if (debugHooks()) window.__starlingFit = () => {
+// Frames everyone with a position, you included: the same set renderMarkers draws.
+function fitEveryone({ animate = true } = {}) {
   if (!mapView) return false;
   const pts = members().filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lon));
   if (state.me && Number.isFinite(state.me.lat)) pts.push({ lat: state.me.lat, lon: state.me.lon });
   if (!pts.length) return false;
-  mapView.fitAll(pts);
+  mapView.fitAll(pts, { animate });
   return true;
-};
+}
+
+if (debugHooks()) window.__starlingFit = () => fitEveryone({ animate: false });
 
 // --------------------------------------------------------------- screens
 
@@ -687,6 +689,7 @@ function ensureMapUI() {
   byTestid("settings-open").addEventListener("click", openSettings);
   byTestid("circle-open").addEventListener("click", openCircles);
   $("#fab-locate").addEventListener("click", locateMe);
+  $("#fab-fit").addEventListener("click", () => fitEveryone());
   $("#banner-demo-exit").addEventListener("click", exitDemo);
   $("#banner-demo-map").addEventListener("click", toggleDemoMap);
   $("#banner-demo-consent-go").addEventListener("click", loadDemoMap);
@@ -1517,6 +1520,7 @@ function renderMarkers(list, now) {
   for (const id of mapView.markerIds()) {
     if (!wanted.has(id)) mapView.removeMarker(id);
   }
+  $("#fab-fit").hidden = wanted.size < 2;
   if (focusedId && focusTrailOn && state.settings.trail) {
     const rec = list.find((r) => r.id === focusedId);
     if (rec?.trail?.length > 1) {

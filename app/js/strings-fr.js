@@ -745,4 +745,5 @@ export const fr = {
   "Distance units": "Unités de distance",
   "Kilometers": "Kilomètres",
   "Miles": "Miles",
+  "Show everyone": "Afficher tout le monde",
 };

@@ -308,14 +308,14 @@ export function createMapView(container, { onMarkerTap } = {}) {
     map.flyTo(c, z, { duration: reduced.matches ? 0 : 0.7 });
   }
 
-  function fitAll(positions) {
+  function fitAll(positions, { animate = false } = {}) {
     if (!positions.length) return;
     const bounds = L.latLngBounds(positions.map((p) => [p.lat, p.lon]));
     map.fitBounds(bounds, {
       paddingTopLeft: [48, 120],
       paddingBottomRight: [48, 280],
       maxZoom: 16,
-      animate: false,
+      animate: animate && !reduced.matches,
     });
   }
 
