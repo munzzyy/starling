@@ -104,6 +104,7 @@ jobs:
             | grep -v "android.permission.ACCESS_COARSE_LOCATION" \
             | grep -v "android.permission.FOREGROUND_SERVICE" \
             | grep -v "android.permission.FOREGROUND_SERVICE_LOCATION" \
+            | grep -v "android.permission.ACCESS_BACKGROUND_LOCATION" \
             | grep -v "android.permission.POST_NOTIFICATIONS" \
             | grep -v "android.permission.RECEIVE_BOOT_COMPLETED" \
             | grep -v "android.permission.WAKE_LOCK" \
