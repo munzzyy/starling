@@ -2372,6 +2372,14 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, autoRes
     paintStill();
     gShare.append(row, why);
   }
+  const actRow = switchRow({
+    label: "Show what I'm doing",
+    note: "Adds Still, Walking, Cycling or Driving under your name on your circle's map. This phone works it out from its own speed, and from the motion sensor while Save battery when still is on. It goes inside the encrypted post, so only your circle can read it, and it is left off inside a place with a privacy fence.",
+    value: values.settings.showActivity === true,
+    onChange: (v) => onChange("showActivity", v),
+  });
+  actRow.dataset.testid = "settings-activity";
+  gShare.append(actRow);
   gShare.append(
     switchRow({
       label: "Trail history",
@@ -3206,14 +3214,25 @@ export const memberSaid = (rec, status) => `${rec.name || t("Member")}, ${t(CHIP
 // Past a day a bare clock time no longer says which day it means.
 const SINCE_MAX_MS = 24 * 60 * 60 * 1000;
 
+function activityWord(act) {
+  if (act === "s") return t("Still");
+  if (act === "w") return t("Walking");
+  if (act === "c") return t("Cycling");
+  if (act === "d") return t("Driving");
+  return "";
+}
+
 export function memberSubLine(rec, now, mePos, place, status, since = null) {
   const bits = [];
   if (status === "sos" && now - rec.ts > staleAfter(rec)) bits.push(t("Signal lost"));
   // The caption only speaks for a live presence: "omw" on a dot that
   // stopped sharing an hour ago is a stale claim, not a status.
-  if (rec.st && (status === "live" || status === "checkin" || status === "sos")) {
+  const present = status === "live" || status === "checkin" || status === "sos";
+  if (rec.st && present) {
     bits.push(`"${rec.st}"`);
   }
+  const doing = activityWord(rec.act);
+  if (doing && present) bits.push(doing);
   if (place) {
     const known = Number.isFinite(since) && since <= now && now - since < SINCE_MAX_MS;
     bits.push(known ? t("At {place} since {time}", { place, time: fmtClock(since) }) : t("At {place}", { place }));

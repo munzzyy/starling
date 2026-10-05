@@ -795,4 +795,10 @@ export const pt = {
   "When the phone has not moved for 2 minutes, Starling stops asking for GPS every few seconds and sends every 5 minutes, until the motion sensor says you are on the move again. An SOS still goes every 15 seconds. The relay cannot read where you are, but it can tell from the slower timing that you are sitting still.": "Quando o telefone passa 2 minutos sem se mover, o Starling para de pedir o GPS a cada poucos segundos e envia a cada 5 minutos, até o sensor de movimento dizer que você está se movendo de novo. Um SOS continua saindo a cada 15 segundos. O relay não consegue ler onde você está, mas consegue ver pelo ritmo mais lento que você não está se movendo.",
   "This phone has no motion sensor that can wake it, so this stays off.": "Este telefone não tem um sensor de movimento que consiga despertá-lo, então isso fica desligado.",
   "Steady sending is on, which keeps the timing even, so this stays off.": "Envio constante está ligado e mantém o ritmo igual, então isso fica desligado.",
+  "Show what I'm doing": "Mostrar o que estou fazendo",
+  "Adds Still, Walking, Cycling or Driving under your name on your circle's map. This phone works it out from its own speed, and from the motion sensor while Save battery when still is on. It goes inside the encrypted post, so only your circle can read it, and it is left off inside a place with a privacy fence.": "Coloca Sem se mover, A pé, De bicicleta ou De carro abaixo do seu nome no mapa do seu círculo. Este telefone calcula isso pela própria velocidade, e pelo sensor de movimento enquanto Economizar bateria em repouso estiver ligado. Vai dentro da mensagem criptografada, então só o seu círculo consegue ler, e fica de fora dentro de um lugar com cerca de privacidade.",
+  "Still": "Sem se mover",
+  "Walking": "A pé",
+  "Cycling": "De bicicleta",
+  "Driving": "De carro",
 };

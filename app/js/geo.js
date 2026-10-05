@@ -124,3 +124,30 @@ export async function batteryLevel() {
     return null;
   }
 }
+
+// Still, walking, cycling, driving: the one-letter act a post may carry.
+export const ACTIVITIES = ["s", "w", "c", "d"];
+// m/s between each pair of neighbours above.
+const ACT_EDGES = [0.6, 2.5, 8];
+const ACT_MARGIN = 0.15;
+
+export function activityFor(prev, speed) {
+  if (!Number.isFinite(speed) || speed < 0) return null;
+  let i = ACT_EDGES.findIndex((e) => speed < e);
+  if (i < 0) i = ACT_EDGES.length;
+  const p = ACTIVITIES.indexOf(prev);
+  if (p >= 0 && p !== i) {
+    const lo = p > 0 ? ACT_EDGES[p - 1] * (1 - ACT_MARGIN) : -Infinity;
+    const hi = p < ACT_EDGES.length ? ACT_EDGES[p] * (1 + ACT_MARGIN) : Infinity;
+    if (speed >= lo && speed < hi) return prev;
+  }
+  return ACTIVITIES[i];
+}
+
+// Null with fewer than two readings: one GPS speed is too noisy to name anything.
+export function medianSpeed(speeds) {
+  const v = speeds.filter((s) => Number.isFinite(s) && s >= 0).sort((a, b) => a - b);
+  if (v.length < 2) return null;
+  const mid = v.length >> 1;
+  return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+}

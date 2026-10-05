@@ -273,7 +273,22 @@ ships.
 still: 15, 60 or 300, chosen per circle. A receiver that reads it calls the
 member stale only after two of those have passed with nothing heard, and never
 sooner than three minutes. A receiver that does not read it keeps the three
-minutes. An SOS always says 15.
+minutes. An SOS always says 15. On Android with "Save battery when still" on,
+a phone that has not moved for two minutes says 300 and posts about every five
+minutes until it moves again; the first post at the slower pace goes out the
+moment it starts, so no receiver waits on the old number.
+
+`act` is there only while the sender has "Show what I'm doing" on, and only on
+a message with a position: one letter, `s` still, `w` walking, `c` cycling or
+`d` driving. The phone works it out from the median speed of its fixes over the
+last minute, with some room past each edge (0.6, 2.5 and 8 m/s) before the word
+changes, or says `s` while still mode has the phone down as still. Without two
+speed readings in that minute it leaves the field out rather than guess, and it
+leaves it out inside a privacy fence, which hides where in the place the sender
+is and so hides moving about there too. A receiver keeps the `act` from the
+newest message it accepted, treats anything but those four letters as absent,
+and shows the word only while the sender is live, checked in or in an SOS.
+Older receivers ignore it.
 
 `due` is there only while the sender has a check-in timer running. It is the
 time, in milliseconds since the Unix epoch, by which they said they would check

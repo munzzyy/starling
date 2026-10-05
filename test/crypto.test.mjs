@@ -567,6 +567,7 @@ function worstCase(text = "\u6f22".repeat(24)) {
     bat: 0.99,
     ask: "ffffffff",
     ak: Number.MAX_SAFE_INTEGER,
+    act: "d",
   };
 }
 

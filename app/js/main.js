@@ -144,7 +144,7 @@ import { createPoller, createRoster, createSender, statusOf, displayStatus, sort
 import { createOutbox } from "./outbox.js";
 import { buildDataExport } from "./export.js";
 import { startBeacon } from "./helpsession.js";
-import { startWatch, batteryLevel } from "./geo.js";
+import { startWatch, batteryLevel, activityFor, medianSpeed } from "./geo.js";
 import { haversineMeters, coarsePos, hueFromMemberId, fmtRelTime, fmtClock, resolveUnits, setUnits } from "./fmt.js";
 import { parseHealth, shareProblems, sentNote, noteAfter, sendErrorKind, shareReport } from "./sharehealth.js";
 import { VERSION } from "./version.js";
@@ -214,6 +214,7 @@ const state = {
     history: "default", // an id from ratchet.js HISTORY_CHOICES
     steady: false, // post on a fixed cadence whether or not you have moved
     stillSave: false, // let the wrapper slow down while the phone lies still; never with steady
+    showActivity: false, // put still, walking, cycling or driving on your own posts
     lang: "auto", // UI language; "auto" follows the system, English is the source
     placeAlerts: true, // say when a member arrives at or leaves a saved place
     batAlerts: true, // say when a member's battery runs low
@@ -432,6 +433,10 @@ let shareStats = { startedAt: 0, ok: 0, failed: 0, lastOkAt: 0, lastErr: "", las
 let locationPaused = null;
 // The share service's word that the phone is lying still.
 let phoneStill = false;
+// Fix speeds from the last minute, and the word they last added up to.
+let speedSamples = [];
+let ownAct = null;
+const ACT_WINDOW_MS = 60 * 1000;
 // Settings cards waved off for this share.
 const healthDismissed = new Set();
 const prevStatus = new Map();
@@ -5420,6 +5425,8 @@ async function setSharing(on, { keepArmed = false } = {}) {
     sendWhenReady = false;
     locationPaused = null;
     phoneStill = false;
+    speedSamples = [];
+    ownAct = null;
     healthDismissed.clear();
     healthAt = 0;
     // Before the start, so the service's first heartbeat is already this
@@ -5464,6 +5471,8 @@ async function setSharing(on, { keepArmed = false } = {}) {
     stopForeground();
     lastSentPos = null;
     phoneStill = false;
+    speedSamples = [];
+    ownAct = null;
     // Synchronous, before any await: a kept share held the lock off, and a page
     // with no window cannot promise to get past the next await.
     armAutoLock();
@@ -6147,6 +6156,11 @@ async function copyShareReport() {
 function onFix(fix) {
   const first = !state.me;
   state.me = fix;
+  if (Number.isFinite(fix.spd)) {
+    const now = Date.now();
+    speedSamples = speedSamples.filter((s) => now - s.at <= ACT_WINDOW_MS);
+    speedSamples.push({ at: now, spd: fix.spd });
+  }
   state.geoDenied = false;
   state.geoFailed = false;
   locationPaused = null;
@@ -6231,6 +6245,8 @@ function stopSharingInternals() {
   state.sharing = false;
   state.sosActive = false;
   phoneStill = false;
+  speedSamples = [];
+  ownAct = null;
   clearCaption();
   endBeacon().catch(() => {});
   clearInterval(shareTimer);
@@ -6332,6 +6348,14 @@ async function sendLoc(force = false) {
   pulseWrapper();
 }
 
+// Nothing when the switch is off or the speeds say too little; never a guess.
+function ownActivity(now = Date.now()) {
+  if (state.settings.showActivity !== true) return null;
+  if (phoneStill) return (ownAct = "s");
+  ownAct = activityFor(ownAct, medianSpeed(speedSamples.filter((s) => now - s.at <= ACT_WINDOW_MS).map((s) => s.spd)));
+  return ownAct;
+}
+
 let ownBat = null;
 let ownBatHidden = false;
 
@@ -6384,6 +6408,9 @@ async function sendMsg(type, { share = true } = {}) {
     if (!fence && activePrecision() === "precise" && Number.isFinite(state.me.acc)) {
       fields.acc = state.me.acc;
     }
+    // A fence hides where you are inside a place, so it hides moving about in there too.
+    const act = fence ? null : ownActivity();
+    if (act) fields.act = act;
   }
   const bat = share ? await batteryLevel() : null;
   if (bat != null) {
