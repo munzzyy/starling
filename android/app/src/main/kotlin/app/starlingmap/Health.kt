@@ -84,6 +84,10 @@ object Health {
         o.put("ticks", LocationService.ticks)
         o.put("rewatches", LocationService.rewatches)
         o.put("locationOff", LocationService.locationOff)
+        o.put("stillSupported", LocationService.stillSupported(ctx))
+        o.put("still", LocationService.stillNow)
+        o.put("stillSpells", LocationService.stillSpells)
+        o.put("stillMs", LocationService.stillMs(now))
 
         o.put("windowShown", PageHost.windowShown)
         o.put("headless", PageHost.activity == null)

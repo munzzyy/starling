@@ -11,6 +11,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.hardware.Sensor
+import android.hardware.SensorManager
+import android.hardware.TriggerEvent
+import android.hardware.TriggerEventListener
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -65,6 +69,15 @@ class LocationService : Service(), LocationListener {
 
         // Silence this long with location on renews the requests.
         private const val REWATCH_MS = 5 * 60000L
+
+        // Still mode keeps one slow heartbeat, which also checks the phone has not moved.
+        private const val STILL_HEARTBEAT_MS = HEARTBEAT_MAX_MS
+        private const val STILL_REWATCH_MS = 2 * STILL_HEARTBEAT_MS
+
+        // The page's say: the switch is on, no SOS, no steady sending.
+        @Volatile
+        var stillWanted = false
+            private set
 
         // Ceiling only: the page lets go as soon as its post settles.
         private const val FIX_WAKE_MS = 30000L
@@ -122,6 +135,21 @@ class LocationService : Service(), LocationListener {
             private set
         @Volatile var locationOff = false
             private set
+        @Volatile var stillNow = false
+            private set
+        @Volatile var stillSpells = 0
+            private set
+        @Volatile private var stillSince = 0L
+        @Volatile private var stillDone = 0L
+
+        fun stillMs(now: Long = SystemClock.elapsedRealtime()): Long =
+            stillDone + if (stillSince > 0L) now - stillSince else 0L
+
+        // A one-shot wake-up sensor: without one, still mode could not notice the phone moving.
+        fun stillSupported(ctx: Context): Boolean = motionSensor(ctx) != null
+
+        private fun motionSensor(ctx: Context): Sensor? =
+            (ctx.getSystemService(SENSOR_SERVICE) as? SensorManager)?.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION)
 
         private var wake: PowerManager.WakeLock? = null
 
@@ -178,6 +206,12 @@ class LocationService : Service(), LocationListener {
             instance?.let { s -> ContextCompat.getMainExecutor(s).execute { s.rearmHeartbeat() } }
         }
 
+        fun setStillMode(on: Boolean) {
+            if (on == stillWanted) return
+            stillWanted = on
+            instance?.let { s -> ContextCompat.getMainExecutor(s).execute { s.stillWantedChanged() } }
+        }
+
         // Not reference counted: each fix pushes the deadline out, one release ends it.
         // Never with no page: nothing would be left to post, or to let go.
         fun holdAwake(ctx: Context, ms: Long = FIX_WAKE_MS) {
@@ -226,6 +260,16 @@ class LocationService : Service(), LocationListener {
 
     @Volatile
     private var countingDown = false
+
+    private val still = StillClock()
+    private var motionArmed = false
+
+    private val motion = object : TriggerEventListener() {
+        override fun onTrigger(event: TriggerEvent?) {
+            motionArmed = false
+            onMotion()
+        }
+    }
 
     // Spelled out rather than a lambda: on API 29 the other callbacks are not
     // default methods yet, and the platform calls them.
@@ -297,6 +341,10 @@ class LocationService : Service(), LocationListener {
             networkFixes = 0
             ticks = 0
             rewatches = 0
+            stillNow = false
+            stillSpells = 0
+            stillSince = 0L
+            stillDone = 0L
         }
         running = true
         instance = this
@@ -313,6 +361,8 @@ class LocationService : Service(), LocationListener {
             return START_NOT_STICKY
         }
         startWatching()
+        // A page that started over asks again and has to hear where things stand.
+        if (still.on) sink?.invoke(JSONObject().put("still", true).toString())
         if (resume) {
             if (live) ShareResume.serviceUp(this) else ShareResume.startFailed(this)
         }
@@ -345,6 +395,10 @@ class LocationService : Service(), LocationListener {
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
         armTick()
+        if (stillWanted) {
+            still.restart(SystemClock.elapsedRealtime())
+            armMotion()
+        }
         // Location already off at the start is reported like a switch mid-share.
         providersChanged(force = true)
     }
@@ -353,8 +407,12 @@ class LocationService : Service(), LocationListener {
         val got = mutableListOf<String>()
         for (provider in wanted) {
             try {
-                lm.requestLocationUpdates(provider, MIN_TIME_MS, MIN_DIST_M, this, mainLooper)
-                lm.requestLocationUpdates(provider, heartbeatMs, 0f, heartbeat, mainLooper)
+                if (still.on) {
+                    lm.requestLocationUpdates(provider, STILL_HEARTBEAT_MS, 0f, heartbeat, mainLooper)
+                } else {
+                    lm.requestLocationUpdates(provider, MIN_TIME_MS, MIN_DIST_M, this, mainLooper)
+                    lm.requestLocationUpdates(provider, heartbeatMs, 0f, heartbeat, mainLooper)
+                }
                 got += provider
             } catch (e: SecurityException) {
                 // permission revoked between the page's start call and here
@@ -381,7 +439,7 @@ class LocationService : Service(), LocationListener {
     // Only the heartbeat moves with the cadence. The distance-filtered
     // listener stays as it is, which is what lets a moving phone post sooner.
     private fun rearmHeartbeat() {
-        if (!watching) return
+        if (!watching || still.on) return
         val lm = getSystemService(LOCATION_SERVICE) as LocationManager
         lm.removeUpdates(heartbeat)
         for (provider in providers) {
@@ -409,6 +467,9 @@ class LocationService : Service(), LocationListener {
         if (location.hasAccuracy()) fix.put("acc", location.accuracy.toDouble())
         if (location.hasSpeed()) fix.put("spd", location.speed.toDouble())
         if (location.hasBearing()) fix.put("hdg", location.bearing.toDouble())
+        val acc = if (location.hasAccuracy()) location.accuracy.toDouble() else null
+        // Only with the motion sensor armed, so moving again is noticed; before the fix, so it goes on the right pace.
+        if (still.fix(location.latitude, location.longitude, acc, lastFixAt, stillWanted && motionArmed)) stillChanged()
         sink?.invoke(fix.toString())
         if (!resumePending) Forward.maybeSend(this, location)
     }
@@ -454,11 +515,61 @@ class LocationService : Service(), LocationListener {
             holdAwake(this)
             sink?.invoke(JSONObject().put("tick", true).toString())
         }
-        if (!locationOff && now - maxOf(lastFixAt, watchedAt) >= REWATCH_MS) rewatch()
+        val rewatchAfter = if (still.on) STILL_REWATCH_MS else REWATCH_MS
+        if (!locationOff && now - maxOf(lastFixAt, watchedAt) >= rewatchAfter) rewatch()
         // A frozen page misses its own timer, and the countdown would run on below zero.
         if (countingDown && System.currentTimeMillis() >= ShareResume.deadline(this)) refreshNotification()
         PageHost.checkPage()
         armTick()
+    }
+
+    private fun onMotion() {
+        if (!watching) return
+        val changed = still.motion(SystemClock.elapsedRealtime())
+        armMotion()
+        if (changed) stillChanged()
+    }
+
+    private fun armMotion() {
+        if (motionArmed || !stillWanted || !watching) return
+        val sensor = motionSensor(this) ?: return
+        motionArmed = (getSystemService(SENSOR_SERVICE) as SensorManager).requestTriggerSensor(motion, sensor)
+    }
+
+    private fun disarmMotion() {
+        if (!motionArmed) return
+        motionArmed = false
+        val sensor = motionSensor(this) ?: return
+        runCatching { (getSystemService(SENSOR_SERVICE) as SensorManager).cancelTriggerSensor(motion, sensor) }
+    }
+
+    private fun stillWantedChanged() {
+        if (!watching) return
+        if (stillWanted) {
+            still.restart(SystemClock.elapsedRealtime())
+            armMotion()
+        } else {
+            disarmMotion()
+            if (still.leave()) stillChanged()
+        }
+    }
+
+    // The page hears first, then the requests follow: one slow heartbeat while still, both listeners otherwise.
+    private fun stillChanged() {
+        val now = SystemClock.elapsedRealtime()
+        if (still.on) {
+            stillSpells++
+            stillSince = now
+        } else if (stillSince > 0L) {
+            stillDone += now - stillSince
+            stillSince = 0L
+        }
+        stillNow = still.on
+        sink?.invoke(JSONObject().put("still", still.on).toString())
+        val lm = getSystemService(LOCATION_SERVICE) as LocationManager
+        lm.removeUpdates(this)
+        lm.removeUpdates(heartbeat)
+        if (request(lm, providers).isEmpty()) noProvider()
     }
 
     // Swiping the app out of recents kills the page that encrypts and posts
@@ -504,6 +615,10 @@ class LocationService : Service(), LocationListener {
             runCatching { unregisterReceiver(tickReceiver) }
             watching = false
         }
+        disarmMotion()
+        if (stillSince > 0L) stillDone += SystemClock.elapsedRealtime() - stillSince
+        stillSince = 0L
+        stillNow = false
         if (tickArmed) {
             runCatching { (getSystemService(ALARM_SERVICE) as AlarmManager).cancel(tickIntent) }
             tickArmed = false

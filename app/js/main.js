@@ -213,6 +213,7 @@ const state = {
     wakeLock: false,
     history: "default", // an id from ratchet.js HISTORY_CHOICES
     steady: false, // post on a fixed cadence whether or not you have moved
+    stillSave: false, // let the wrapper slow down while the phone lies still; never with steady
     lang: "auto", // UI language; "auto" follows the system, English is the source
     placeAlerts: true, // say when a member arrives at or leaves a saved place
     batAlerts: true, // say when a member's battery runs low
@@ -291,7 +292,11 @@ const historyEpochs = (id = state.settings.history) =>
 const activePrecision = () => state.circleShare.precision || state.settings.precision;
 const activeCadence = () => readCadence(state.circleShare.cadence) || 15;
 // An SOS goes out on the floor whatever the circle asked for.
-const cadenceS = () => (state.sosActive ? 15 : activeCadence());
+const circleCadenceS = () => (state.sosActive ? 15 : activeCadence());
+// Off while steady sending is on: slower posts while still are timing the relay can read.
+const stillAllowed = () => state.settings.stillSave === true && !state.settings.steady && !state.sosActive;
+const STILL_CADENCE_S = 300;
+const cadenceS = () => (phoneStill && stillAllowed() ? STILL_CADENCE_S : circleCadenceS());
 const cadenceMs = () => cadenceS() * 1000;
 
 // The generation as it goes to disk: the oldest chain key still retained, plus
@@ -425,6 +430,8 @@ let sendWhenReady = false;
 // Counts and times only.
 let shareStats = { startedAt: 0, ok: 0, failed: 0, lastOkAt: 0, lastErr: "", lastErrAt: 0 };
 let locationPaused = null;
+// The share service's word that the phone is lying still.
+let phoneStill = false;
 // Settings cards waved off for this share.
 const healthDismissed = new Set();
 const prevStatus = new Map();
@@ -5061,6 +5068,14 @@ async function openSettings() {
       shareClock = null;
     }
   }
+  let still = null;
+  if (typeof n?.setStillMode === "function" && !state.demo) {
+    try {
+      still = { supported: !!n.stillSupported?.() };
+    } catch {
+      still = { supported: false };
+    }
+  }
   const autoResume =
     typeof n?.setAutoResume === "function" && typeof n?.autoResume === "function" && !state.demo
       ? {
@@ -5105,6 +5120,7 @@ async function openSettings() {
       tor,
       keepSharing,
       shareClock,
+      still,
       autoResume,
       background,
       forward:
@@ -5244,10 +5260,12 @@ async function onSettingChange(key, value) {
       if (value === "high-risk" && !state.settings.steady) {
         state.settings = { ...state.settings, steady: true };
         await dbSet("settings", state.settings);
+        applyCadence();
         ui.toast("Steady sending is on too, so the relay cannot read your movement from the timing.");
       }
     }
     if (key === "wakeLock") ensureWakeLock();
+    if (key === "stillSave" || key === "steady") applyCadence();
     if (key === "trail" && !value && mapView && focusedId) mapView.clearTrail(focusedId);
   }
   render();
@@ -5300,14 +5318,24 @@ async function panic() {
 // re-armed here when it changes under a running share.
 function applyCadence() {
   pushCadence();
+  rearmShareTimer();
+}
+
+function rearmShareTimer() {
   if (!state.sharing || state.demo) return;
   clearInterval(shareTimer);
   shareTimer = setInterval(() => sendLoc(true), cadenceMs());
 }
 
+// The wrapper's heartbeat follows the circle; still mode is its own business, and only with leave.
 function pushCadence() {
   try {
-    native()?.setShareCadence?.(cadenceS());
+    native()?.setShareCadence?.(circleCadenceS());
+  } catch {
+    // an older wrapper without the method
+  }
+  try {
+    native()?.setStillMode?.(stillAllowed());
   } catch {
     // an older wrapper without the method
   }
@@ -5391,6 +5419,7 @@ async function setSharing(on, { keepArmed = false } = {}) {
     shareStats = { startedAt: Date.now(), ok: 0, failed: 0, lastOkAt: 0, lastErr: "", lastErrAt: 0 };
     sendWhenReady = false;
     locationPaused = null;
+    phoneStill = false;
     healthDismissed.clear();
     healthAt = 0;
     // Before the start, so the service's first heartbeat is already this
@@ -5434,6 +5463,7 @@ async function setSharing(on, { keepArmed = false } = {}) {
     stopGeo = null;
     stopForeground();
     lastSentPos = null;
+    phoneStill = false;
     // Synchronous, before any await: a kept share held the lock off, and a page
     // with no window cannot promise to get past the next await.
     armAutoLock();
@@ -5951,6 +5981,13 @@ function onShareSignal(sig) {
   } else if ("paused" in sig) {
     locationPaused = sig.paused || null;
     healthAt = 0;
+  } else if ("still" in sig && state.sharing && phoneStill !== sig.still) {
+    const before = cadenceS();
+    phoneStill = sig.still;
+    healthAt = 0;
+    rearmShareTimer();
+    // Now, so receivers hear the slower pace before the old one calls this phone quiet.
+    if (cadenceS() > before) sendLoc(true);
   }
   render();
 }
@@ -6091,6 +6128,7 @@ function buildShareReport() {
       lastErr: shareStats.lastErr,
       lastErrAt: shareStats.lastErrAt,
       customRelay: !!state.relay,
+      still: state.settings.stillSave !== true ? "off" : state.settings.steady ? "steady" : state.sosActive ? "sos" : "on",
     },
     now: Date.now(),
   });
@@ -6192,6 +6230,7 @@ function clearCaption() {
 function stopSharingInternals() {
   state.sharing = false;
   state.sosActive = false;
+  phoneStill = false;
   clearCaption();
   endBeacon().catch(() => {});
   clearInterval(shareTimer);

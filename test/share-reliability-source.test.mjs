@@ -154,7 +154,10 @@ test("a service Android stops on its own is reported, and every stop this app ma
 test("requests that have produced nothing for minutes with location on are made again", () => {
   const svc = kt("LocationService.kt");
   const tick = fn(svc, "onTick");
-  assert.match(tick, /if \(!locationOff && now - maxOf\(lastFixAt, watchedAt\) >= REWATCH_MS\) rewatch\(\)/);
+  assert.match(
+    tick,
+    /val rewatchAfter = if \(still\.on\) STILL_REWATCH_MS else REWATCH_MS\s*if \(!locationOff && now - maxOf\(lastFixAt, watchedAt\) >= rewatchAfter\) rewatch\(\)/,
+  );
   const again = fn(svc, "rewatch");
   assert.match(again, /removeUpdates\(this\)/);
   assert.match(again, /removeUpdates\(heartbeat\)/);

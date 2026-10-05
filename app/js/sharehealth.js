@@ -104,6 +104,7 @@ const BACKGROUND_WORDS = {
   noLocation: "no location permission",
 };
 const CAME_BACK = { boot: "after a restart", update: "after an update", "": "no" };
+const STILL_SETTING = { on: "on", off: "off", steady: "off, Steady sending is on", sos: "off during the SOS" };
 const opWord = oneOf("allowed", "foreground", "ignored", "errored", "default");
 const failWord = (v) =>
   typeof v === "string" && (/^http \d{3}$/.test(v) || ["clock", "timeout", "aborted", "network", "cancelled", "no key", "other"].includes(v))
@@ -152,6 +153,11 @@ export function shareReport({ h, page, now }) {
     lines.push(`Share service: ${h.service ? `running for ${span(h.sharingMs)}` : "not running"}`);
     lines.push(`Fixes: ${num(h.fixes)} (GPS ${num(h.gpsFixes)}, network ${num(h.networkFixes)}), last ${age(h.lastFixMs)}`);
     lines.push(`Minutes with no fix: ${num(h.ticks)}, location requests renewed ${num(h.rewatches)} times`);
+    if ("stillSupported" in h) {
+      const setting = h.stillSupported !== true ? "no motion sensor on this phone" : Object.hasOwn(STILL_SETTING, p.still) ? STILL_SETTING[p.still] : "unknown";
+      lines.push(`Save battery when still: ${setting}`);
+      lines.push(`Still: ${h.still === true ? "now" : "no"}, ${num(h.stillSpells)} times this share, ${span(h.stillMs)} in all`);
+    }
     lines.push(`Page frozen during shares: ${num(h.freezes)} times, woken ${num(h.nudges)} times, last answered ${age(h.lastPulseMs)}`);
     if (h.holderFailed) lines.push("Could not hold the page after the app closed");
   }

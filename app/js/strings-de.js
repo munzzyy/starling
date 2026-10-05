@@ -791,4 +791,8 @@ export const de = {
   "Alert sounds": "Töne für Hinweise",
   "Open alert sound settings": "Einstellungen für Hinweistöne öffnen",
   "Arrivals, departures and check-ins each have their own channel in Android's notification settings, so each can have its own sound. A sound of its own also tells anyone near the phone which kind of alert came in.": "Ankommen, Gehen und Meldungen haben in den Benachrichtigungseinstellungen von Android jeweils einen eigenen Kanal, also kann jeder seinen eigenen Ton haben. Ein eigener Ton verrät aber auch allen in der Nähe des Handys, welche Art Hinweis gerade kam.",
+  "Save battery when still": "Akku sparen, wenn du still bist",
+  "When the phone has not moved for 2 minutes, Starling stops asking for GPS every few seconds and sends every 5 minutes, until the motion sensor says you are on the move again. An SOS still goes every 15 seconds. The relay cannot read where you are, but it can tell from the slower timing that you are sitting still.": "Wenn sich das Handy 2 Minuten lang nicht bewegt hat, fragt Starling nicht mehr alle paar Sekunden nach GPS und sendet nur noch alle 5 Minuten, bis der Bewegungssensor meldet, dass du wieder unterwegs bist. Ein SOS geht weiter alle 15 Sekunden raus. Das Relay kann nicht lesen, wo du bist, sieht aber am langsameren Takt, dass du still sitzt.",
+  "This phone has no motion sensor that can wake it, so this stays off.": "Dieses Handy hat keinen Bewegungssensor, der es wecken kann, also bleibt das aus.",
+  "Steady sending is on, which keeps the timing even, so this stays off.": "Gleichmäßig senden ist an und hält den Takt gleich, also bleibt das aus.",
 };

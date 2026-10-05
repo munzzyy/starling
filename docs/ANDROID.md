@@ -520,6 +520,50 @@ wakes once per cadence, every 15 seconds unless the circle is set to a minute
 or five, for as long as it takes to seal and post, usually well under a
 second.
 
+### Save battery when still
+
+Issue #25 measured Starling at about three times Life360's battery on a Pixel
+6a. Most of that is GPS: the distance-filtered listener asks for a fix every
+3 seconds, which keeps the GPS engine on for the whole share, and a still
+phone still seals and posts on every cadence. Settings, Sharing, "Save battery
+when still" (off by default) changes that for a phone that is not going
+anywhere:
+
+- The service watches for two minutes with no fix outside
+  max(25 m, 2 x the worse accuracy) of where the phone was, and no word from
+  the significant motion sensor. Fixes worse than 100 m count for nothing
+  either way. The detector is `StillClock.kt`, with JVM tests in
+  `StillTest.kt`.
+- Still, it drops the 3 second listener and keeps one heartbeat every
+  5 minutes, so the GPS wakes for one fix at a time instead of staying on.
+  The page re-arms its own timer to 5 minutes and posts once at once with
+  `cadence: 300`, so receivers move their quiet line to 10 minutes before the
+  old pace calls the phone quiet at 3. After that a post goes out about every
+  5 minutes, from the heartbeat fix or from the minute tick.
+- Moving again ends it: the significant motion sensor is a one-shot wake-up
+  sensor that fires when someone starts walking or riding, and a heartbeat
+  fix outside the radius does the same. Both listeners come back at once and
+  the first fix goes out on the circle's pace.
+- It needs a significant motion sensor. Without one there is nothing that can
+  wake a sleeping phone when it starts moving without a stream of sensor
+  wake-ups that would cost what it saves, so the switch stays off and says
+  why. The sensor needs no permission; nothing here uses activity
+  recognition or Google Play services, which de-googled phones do not have.
+- It never runs during an SOS or with Steady sending on. Steady sending
+  exists to keep the timing even, and slower posts while still are exactly
+  the timing it hides, so the switch shows off and disabled with a note.
+- The sharing report says whether it is on, whether the phone is still now,
+  and how many times and for how long it was still this share.
+
+Not measured yet, since there is no emulator in this round. What to check on
+API 36 and one older image: with the switch on, `adb emu geo fix` the same
+spot for three minutes, then `adb shell dumpsys location` shows only a 300 s
+request from `app.starlingmap` and a local relay gets a post about every
+5 minutes; `adb emu sensor set acceleration` jolts plus a moved fix bring the
+3 second request back within seconds and a post goes out at once; an SOS
+during still mode posts every 15 seconds. The emulator may have no
+significant motion sensor, in which case the switch must say so.
+
 ### Around the same failure
 
 

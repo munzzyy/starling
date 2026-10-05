@@ -39,6 +39,10 @@ function startNativeWatch(n, onFix, onError, { onSignal, afterEach } = {}) {
       onSignal?.(p.tick === true ? { tick: true } : { paused: p.paused || null });
       return;
     }
+    if (p && typeof p.still === "boolean") {
+      onSignal?.({ still: p.still });
+      return;
+    }
     if (!Number.isFinite(p?.lat) || !Number.isFinite(p?.lon)) return;
     onFix({
       lat: p.lat,

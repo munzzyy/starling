@@ -2156,7 +2156,7 @@ export function openPasscodeSheet({ title, intro, cta, confirm = false, current 
   return ov;
 }
 
-export function openSettingsSheet({ api, values, demo, tor, keepSharing, autoResume, shareClock, background, forward, lock, lockActions, onChange, onMembers, onInvite, onPlaces, onPanic, onLeave, onExport, onClose }) {
+export function openSettingsSheet({ api, values, demo, tor, keepSharing, autoResume, shareClock, still, background, forward, lock, lockActions, onChange, onMembers, onInvite, onPlaces, onPanic, onLeave, onExport, onClose }) {
   const ov = openOverlay({ title: "Settings", testid: "settings-sheet", className: "ov-settings", onClose });
   const b = ov.body;
 
@@ -2345,6 +2345,34 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, autoRes
       value: values.share.cadence,
       onChange: (v) => onChange("cadence", v),
     }),
+  );
+  // Wrapper only: the share service is what can stop asking for fixes.
+  let paintStill = null;
+  if (still) {
+    const row = switchRow({
+      label: "Save battery when still",
+      note: "When the phone has not moved for 2 minutes, Starling stops asking for GPS every few seconds and sends every 5 minutes, until the motion sensor says you are on the move again. An SOS still goes every 15 seconds. The relay cannot read where you are, but it can tell from the slower timing that you are sitting still.",
+      value: false,
+      onChange: (v) => onChange("stillSave", v),
+    });
+    row.dataset.testid = "settings-still";
+    const why = el("p", "field-note");
+    why.dataset.testid = "settings-still-why";
+    paintStill = () => {
+      const steady = api.state.settings.steady === true;
+      row.setValue(still.supported && !steady && api.state.settings.stillSave === true);
+      row.setDisabled(!still.supported || steady);
+      why.hidden = still.supported && !steady;
+      why.textContent = !still.supported
+        ? t("This phone has no motion sensor that can wake it, so this stays off.")
+        : steady
+          ? t("Steady sending is on, which keeps the timing even, so this stays off.")
+          : "";
+    };
+    paintStill();
+    gShare.append(row, why);
+  }
+  gShare.append(
     switchRow({
       label: "Trail history",
       note: "Show recent paths on the map",
@@ -2985,6 +3013,7 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, autoRes
     refresh: () => {
       historyField?.setValue(api.state.settings.history);
       steadyRow?.setValue(api.state.settings.steady);
+      paintStill?.();
       paintBackground?.();
       paintPrecisionNote();
       paintAutoResume?.();

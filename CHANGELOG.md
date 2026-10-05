@@ -5,6 +5,15 @@ All notable changes to Starling are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Save battery when still (#25).** A new switch under Sharing, off by
+  default, for Android. After two minutes without moving, Starling stops
+  asking for GPS every few seconds and sends every 5 minutes, and the motion
+  sensor brings it back the moment you move. Your circle keeps seeing you as
+  live. The relay can tell from the slower timing that you are sitting
+  still, so the switch says so, and it stays off with Steady sending on and
+  during an SOS. Phones without a significant motion sensor keep today's
+  pace.
+
 - **A sound for arrivals, another for departures (#24).** On Android,
   arrivals, departures and check-ins each post on a notification channel of
   their own, so each can have its own sound in Android's notification

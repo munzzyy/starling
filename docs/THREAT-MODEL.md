@@ -67,7 +67,12 @@ database) gets ciphertext and metadata only:
   fixed interval whether or not a member has moved, which hides *when* a
   member moves; it is a real, smaller property, not a substitute for cover
   traffic, and it does nothing about the fact that the relay still sees a
-  post arrive on that cadence from that IP.
+  post arrive on that cadence from that IP. "Save battery when still"
+  (Android, off by default) goes the other way: after two minutes without
+  moving, posts slow to one every 5 minutes until the motion sensor wakes the
+  phone, so the relay can tell sitting still from moving by the gaps. Its
+  settings note says so, and it stays off while steady cadence is on and
+  during an SOS.
 - **How many members post to a channel.** Channel shape (member slot count,
   update rhythm) is visible; ciphertext sizes carry nothing, because every
   message type pads to the same fixed length regardless of what it is.

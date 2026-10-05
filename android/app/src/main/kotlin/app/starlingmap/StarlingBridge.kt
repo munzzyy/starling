@@ -236,6 +236,13 @@ class StarlingBridge(private val app: Context) {
     @JavascriptInterface
     fun setShareCadence(seconds: Int) = LocationService.setCadence(seconds)
 
+    // True only while the page allows it: Save battery when still on, no SOS, no steady sending.
+    @JavascriptInterface
+    fun setStillMode(on: Boolean) = LocationService.setStillMode(on)
+
+    @JavascriptInterface
+    fun stillSupported(): Boolean = LocationService.stillSupported(app)
+
     // The app lock ends a share, since a locked page holds no keys. It leaves the
     // trace Android's own ends leave, and a notice when nobody is looking.
     @JavascriptInterface
