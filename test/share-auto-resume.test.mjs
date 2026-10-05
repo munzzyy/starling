@@ -284,6 +284,35 @@ test("no resume toast while nobody is looking, and the toast as before for a per
   await internals.setSharing(false);
 });
 
+test("the card waits for the first look, then is built and spoken once, even with the sheet at peek", async () => {
+  await world();
+  await internals.enterCircle();
+  await internals.enterCircle();
+  await settle();
+  assert.ok(harness.node("#sheet").classList.contains("sheet-peek"), "at peek a card only speaks through the toast");
+  const alerts = harness.node("#alerts");
+  const built = () => alerts.children.filter((n) => n.dataset.alert === "auto-resumed").length;
+  const spoken = () => toasts().filter((t) => t === "Sharing came back on by itself").length;
+  alerts.children.length = 0;
+  harness.node("#toasts").children.length = 0;
+  await internals.reportHeadlessBoot();
+  await settle();
+  assert.equal(card()?.title, "Sharing came back on by itself");
+  assert.equal(built(), 0, "nothing built for nobody");
+  assert.equal(spoken(), 0, "and nothing said to nobody");
+
+  bridge.shown = true;
+  document.visibilityState = "visible";
+  internals.releaseHeldBasemap();
+  await settle();
+  assert.ok(built() > 0, "built the first time a window shows the page");
+  assert.equal(spoken(), 1, "and spoken then");
+  await internals.enterCircle();
+  await settle();
+  assert.equal(spoken(), 1, "once");
+  await internals.setSharing(false);
+});
+
 test("the status note under the switches, for every state the wrapper can report", () => {
   const base = { boot: false, update: false, lock: false, keepSharing: true, notifications: true, background: "settings", tor: false };
   const note = (over) => autoResumeNote({ ...base, ...over });

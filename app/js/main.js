@@ -1414,6 +1414,8 @@ function alertItems() {
 let announcedAlerts = new Set();
 
 function renderAlerts() {
+  // A card built while nobody looks would never be heard, so it waits for the first look.
+  if (basemapHeld()) return;
   const items = alertItems();
   ui.updateAlerts($("#alerts"), items);
   // The alert cards live in the sheet body, which is aria-hidden and inert
@@ -5560,6 +5562,7 @@ function releaseHeldBasemap() {
   if (!basemapHeld() || !pageShown()) return;
   shownSinceBoot = true;
   if (mapView && !state.demo && state.gen) mapView.setBasemap(state.settings.basemap);
+  render();
 }
 document.addEventListener("visibilitychange", releaseHeldBasemap);
 

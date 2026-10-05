@@ -272,6 +272,7 @@ async function main() {
       warmed: !!document.querySelector('link[href="https://tile.openstreetmap.org"]'),
       toasts: [...document.querySelectorAll("#toasts *")].map((t) => t.textContent.trim()).filter(Boolean),
       card: window.__starlingInternals.alertItems().find((i) => i.id === "auto-resumed")?.title || null,
+      built: !!document.querySelector('#alerts [data-alert="auto-resumed"]'),
       errs: (window.__starlingErrors || []).slice(0, 5),
     }))()`);
     check("the share came back with nobody at the window", headless.sharing === true);
@@ -279,11 +280,14 @@ async function main() {
     check("no map tiles and no tile host warmed while nobody looks", headless.offgrid && headless.tiles === 0 && !headless.warmed, JSON.stringify(headless));
     check("no toast for nobody", !headless.toasts.some((t) => /back on/i.test(t)), JSON.stringify(headless.toasts));
     check("the card is waiting for whoever opens the app", headless.card === "Sharing came back on by itself", headless.card);
+    check("but not built where a screen reader would never hear it", headless.built === false);
     check("no page errors with no window", headless.errs.length === 0, JSON.stringify(headless.errs));
 
     await c.evalJs(`window.__shown = true; document.dispatchEvent(new Event("visibilitychange"))`);
     const looked = await c.evalJs(`!document.getElementById("map").classList.contains("offgrid")`);
     check("the map gets its saved basemap the first time a window shows it", looked === true);
+    const shownCard = await c.evalJs(`!!document.querySelector('#alerts [data-alert="auto-resumed"][role="alert"]')`);
+    check("and the card is built, as an alert, the same moment", shownCard === true);
 
     // The same restart behind the app lock: a locked page holds no keys.
     check("the app lock goes on", (await c.evalJs(`window.__starlingInternals.enableLock("2468")`)) === true);
