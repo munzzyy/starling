@@ -756,4 +756,5 @@ export const fr = {
   "Asked {who} to check in. They see it if Starling is running on their phone in the next 15 minutes.": "Vous avez demandé des nouvelles à {who}. La demande s'affiche si Starling tourne sur son téléphone dans les 15 prochaines minutes.",
   "Checking in tells your whole circle you are okay.": "Donner des nouvelles indique à tout votre cercle que tout va bien.",
   "Could not reach your circle. Try again in a moment.": "Impossible de joindre votre cercle. Réessayez dans un instant.",
+  "You already asked {who}": "Vous avez déjà demandé des nouvelles à {who}",
 };

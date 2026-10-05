@@ -81,7 +81,7 @@ async function opened(peerGen, post) {
 }
 
 let lastTs = Date.now();
-async function peerPost(peer, peerGen, fields) {
+async function peerPost(peer, peerGen, fields, { alerts = true } = {}) {
   const ts = (lastTs = Math.max(Date.now(), lastTs + 1));
   const e = epochAt(ts);
   const key = await peerGen.ratchet.keyFor(e, peer.memberId, ts);
@@ -96,7 +96,7 @@ async function peerPost(peer, peerGen, fields) {
       points: [{ e: post.e, ts: post.ts, srv: post.ts, n: post.n, c: post.c, sig: post.sig }],
     },
   ]);
-  internals.checkAlerts();
+  if (alerts) internals.checkAlerts();
   return ts;
 }
 
@@ -117,12 +117,15 @@ test("the member asked is told once per ask, however many posts carry it", async
   assert.deepEqual(toastTexts(), ["Juno asked you to check in"], "one toast across three posts");
   assert.equal(askAlerts().length, 1, "and one card");
 
+  // Not sharing, with a fix left over from the last share.
+  state.me = { lat: 45.5, lon: -122.6, acc: 8, ts: Date.now() - 3_600_000 };
   const card = askAlerts()[0];
   card.actions.find((a) => a.testid === "alert-ask-checkin").onClick();
   await settle(100);
   assert.equal(askAlerts().length, 0, "the card goes once it is answered");
   const reply = await opened(peerGen, posted.at(-1));
   assert.equal(reply.t, "checkin", "and the answer is an ordinary check-in");
+  for (const field of ["lat", "lon", "acc", "bat"]) assert.equal(field in reply, false, `${field} stays home`);
 
   await peerPost(peer, peerGen, { ...mine, ak: ak + 1000 });
   assert.equal(toastTexts().length, 2, "a second ask inside ten minutes is not announced again");
@@ -194,4 +197,119 @@ test("there is no ask button in the demo, while locked, or for yourself", async 
   assert.equal(internals.askState(peer.memberId), null);
   state.locked = false;
   assert.equal(internals.askState(peer.memberId), "ready");
+});
+
+test("an answer that has to be retried still leaves the position home", async () => {
+  const self = await generateIdentity();
+  const peer = await generateIdentity();
+  const { peerGen, posted } = await circleWith(self, peer);
+  let down = true;
+  harness.onFetch(async (url, init) => {
+    if (!/\/api\/v2\/f\/[0-9a-f]{32}/.test(url)) return null;
+    if (init?.method === "POST") {
+      if (down) return { ok: false, status: 503, json: async () => ({}) };
+      posted.push(JSON.parse(init.body));
+      return ok({ ok: true, now: Date.now() });
+    }
+    return ok({ now: Date.now(), members: [] });
+  });
+  await peerPost(peer, peerGen, { t: "loc", lat: 1, lon: 2, ask: self.memberId.slice(0, 8), ak: Date.now() });
+  state.me = { lat: 45.5, lon: -122.6, acc: 8, ts: Date.now() - 3_600_000 };
+  askAlerts()[0].actions.find((a) => a.testid === "alert-ask-checkin").onClick();
+  await settle(100);
+  assert.equal(posted.length, 0);
+
+  down = false;
+  internals.outbox.flush();
+  await settle(100);
+  assert.equal(posted.length, 1, "the retry landed");
+  const reply = await opened(peerGen, posted[0]);
+  assert.equal(reply.t, "checkin");
+  for (const field of ["lat", "lon", "acc", "bat"]) assert.equal(field in reply, false, `${field} stays home on the retry`);
+  internals.outbox.clear();
+});
+
+test("one ask at a time: asking a second member cannot quietly drop the first", async () => {
+  const self = await generateIdentity();
+  const peer = await generateIdentity();
+  const other = await generateIdentity();
+  const { peerGen, posted } = await circleWith(self, peer);
+  assert.ok(
+    await internals.addPinned({ alg: other.alg, pk: b64uEncode(other.pk), epk: b64uEncode(other.epk), name: "Other" }),
+  );
+  state.genRoster = new Set(state.pinned.keys());
+  await peerPost(peer, peerGen, { t: "loc", lat: 1, lon: 2 });
+  await peerPost(other, peerGen, { t: "loc", lat: 3, lon: 4 });
+
+  assert.equal(await internals.askToCheckIn(peer.memberId), true);
+  assert.equal(internals.askState(other.memberId), "busy");
+  assert.equal(await internals.askToCheckIn(other.memberId), false, "the second ask is refused, not swapped in");
+  assert.equal(posted.length, 1);
+  await internals.doCheckin();
+  const next = await opened(peerGen, posted.at(-1));
+  assert.equal(next.ask, peer.memberId.slice(0, 8), "the next post still carries the first ask");
+});
+
+test("an ask older than fifteen minutes by this phone's own clock is never announced", async () => {
+  const self = await generateIdentity();
+  const peer = await generateIdentity();
+  const { peerGen } = await circleWith(self, peer);
+  harness.node("#toasts").children.length = 0;
+  await peerPost(peer, peerGen, { t: "bye", ask: self.memberId.slice(0, 8), ak: Date.now() }, { alerts: false });
+  const realNow = Date.now;
+  try {
+    for (const later of [16, 31]) {
+      Date.now = () => realNow() + later * 60_000;
+      internals.checkAlerts();
+      assert.deepEqual(
+        toastTexts().filter((x) => x.includes("asked you")),
+        [],
+        `${later} minutes on, a single bye does not ask again`,
+      );
+      assert.deepEqual(askAlerts(), []);
+    }
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+test("an ask stays with the identity that made it", async () => {
+  const self = await generateIdentity();
+  const peer = await generateIdentity();
+  const { peerGen, posted } = await circleWith(self, peer);
+  await peerPost(peer, peerGen, { t: "loc", lat: 1, lon: 2 });
+  assert.equal(await internals.askToCheckIn(peer.memberId), true);
+  assert.equal((await opened(peerGen, posted.at(-1))).ask, peer.memberId.slice(0, 8));
+
+  state.identity = await generateIdentity();
+  try {
+    await internals.doCheckin();
+  } finally {
+    state.identity = self;
+  }
+  const next = await opened(peerGen, posted.at(-1));
+  assert.equal(next.t, "checkin");
+  assert.equal("ask" in next, false, "an ask made in one circle never rides posts in another");
+  assert.equal("ak" in next, false);
+});
+
+test("locking forgets the ask going out", async () => {
+  const self = await generateIdentity();
+  const peer = await generateIdentity();
+  const { peerGen } = await circleWith(self, peer);
+  await peerPost(peer, peerGen, { t: "loc", lat: 1, lon: 2 });
+  assert.equal(await internals.askToCheckIn(peer.memberId), true);
+  assert.equal(internals.askState(peer.memberId), "asked");
+
+  state.lock = { enabled: true, autolockMs: 60000 };
+  internals.lockNow();
+  assert.equal(state.locked, true);
+
+  // The same circle again after the unlock.
+  const back = await circleWith(self, peer);
+  await peerPost(peer, back.peerGen, { t: "loc", lat: 1, lon: 2 });
+  assert.equal(internals.askState(peer.memberId), "ready", "the ten minute gap went with the lock");
+  await internals.doCheckin();
+  const next = await opened(back.peerGen, back.posted.at(-1));
+  assert.equal("ask" in next, false, "and so did the ask");
 });

@@ -355,7 +355,7 @@ let graceTimer = 0;
 const outbox = createOutbox({
   send: async (type) => {
     if (state.demo || !sender) throw new Error("no sender");
-    await sendMsg(type);
+    await sendMsg(type, { share: type !== "checkin" || checkinShares });
   },
   onSettle: (type, ok, _err, tries) => {
     // Only a RECOVERED delivery says anything: the first attempt's caller
@@ -439,6 +439,8 @@ const sosCardHidden = new Set();
 // Asks to check in, memory only: the one going out, when each member was last asked from here, and asks heard.
 let askOut = null;
 const askSentAt = new Map();
+// False while the check-in owed is the answer to an ask from a phone that is not sharing.
+let checkinShares = true;
 const asksHeard = new Map();
 const askHeardFrom = new Map();
 // The tracker key for this device's own position. Member ids are 32 hex chars,
@@ -966,7 +968,7 @@ function alertItems() {
           testid: "alert-ask-checkin",
           onClick: () => {
             done();
-            doCheckin();
+            doCheckin({ share: state.sharing });
           },
         },
         {
@@ -1619,6 +1621,7 @@ function renderFocus(list, now) {
     },
     onClose: unfocus,
     ask: askState(rec.id),
+    askWho: liveAsk() ? memberName(liveAsk().id) : "",
     onAsk: () => askToCheckIn(rec.id),
   });
 }
@@ -6039,7 +6042,7 @@ async function sendLoc(force = false) {
 let ownBat = null;
 let ownBatHidden = false;
 
-// share false is an ask from a phone that is not sharing: no position and no battery.
+// share false sends no position and no battery: an ask, or the answer to one, from a phone that is not sharing.
 async function sendMsg(type, { share = true } = {}) {
   if (state.demo || !sender) return;
   // A re-key can null the live sender during the battery read below.
@@ -6059,9 +6062,10 @@ async function sendMsg(type, { share = true } = {}) {
   };
   const due = timerDue();
   if (due) fields.due = due;
-  if (askOut && askOut.by === state.identity?.memberId && Date.now() - askOut.at < ASK_WINDOW_MS) {
-    fields.ask = askOut.to;
-    fields.ak = askOut.at;
+  const ask = liveAsk();
+  if (ask) {
+    fields.ask = ask.to;
+    fields.ak = ask.at;
   }
   if (share && state.me) {
     let { lat, lon } = state.me;
@@ -6101,15 +6105,28 @@ async function sendMsg(type, { share = true } = {}) {
 function askState(id) {
   if (state.demo || state.locked || !sender || !state.identity || id === state.identity.memberId) return null;
   if (state.sharing && !(state.me && (!locationPaused || state.sosActive))) return null;
-  return Date.now() - (askSentAt.get(id) ?? -Infinity) < ASK_GAP_MS ? "asked" : "ready";
+  const now = Date.now();
+  if (now - (askSentAt.get(id) ?? -Infinity) < ASK_GAP_MS) return "asked";
+  // Posts carry one ask, so a second would quietly replace the first.
+  const live = liveAsk(now);
+  return live && live.id !== id ? "busy" : "ready";
+}
+
+function liveAsk(now = Date.now()) {
+  return askOut && askOut.by === state.identity?.memberId && now - askOut.at < ASK_WINDOW_MS ? askOut : null;
+}
+
+function memberName(id) {
+  return members().find((r) => r.id === id)?.name || t("Member");
 }
 
 async function askToCheckIn(id) {
   const rec = members().find((r) => r.id === id);
   if (!rec || askState(id) !== "ready") return false;
   const now = Date.now();
+  const before = askOut;
   askSentAt.set(id, now);
-  askOut = { to: id.slice(0, 8), at: now, by: state.identity.memberId };
+  askOut = { id, to: id.slice(0, 8), at: now, by: state.identity.memberId };
   if (state.sharing) {
     sendLoc(true);
   } else {
@@ -6117,7 +6134,7 @@ async function askToCheckIn(id) {
       await sendMsg("bye", { share: false });
     } catch {
       askSentAt.delete(id);
-      askOut = null;
+      askOut = before;
       ui.toast(t("Could not reach your circle. Try again in a moment."), "warn");
       render();
       return false;
@@ -6135,7 +6152,7 @@ function askForMe(rec, now) {
   return now - ask.at <= ASK_WINDOW_MS ? ask : null;
 }
 
-async function doCheckin() {
+async function doCheckin({ share = true } = {}) {
   const wasSos = state.sosActive;
   state.sosActive = false;
   const okMsg = wasSos
@@ -6148,8 +6165,9 @@ async function doCheckin() {
   }
   if (wasSos) applyCadence();
   if (timerDue()) clearCheckinTimer();
+  checkinShares = share !== false;
   try {
-    await sendMsg("checkin");
+    await sendMsg("checkin", { share: checkinShares });
     // Checking in safe cancels a queued SOS retry and is exactly the moment
     // helpers should stop seeing you.
     outbox.drop("sos");

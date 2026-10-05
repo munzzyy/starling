@@ -756,4 +756,5 @@ export const pt = {
   "Asked {who} to check in. They see it if Starling is running on their phone in the next 15 minutes.": "Você pediu que {who} avise que está bem. O pedido aparece se o Starling estiver funcionando no telefone dessa pessoa nos próximos 15 minutos.",
   "Checking in tells your whole circle you are okay.": "Ao avisar, todo o seu círculo fica sabendo que você está bem.",
   "Could not reach your circle. Try again in a moment.": "Não foi possível falar com seu círculo. Tente de novo em instantes.",
+  "You already asked {who}": "Você já pediu que {who} avise",
 };

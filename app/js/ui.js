@@ -3168,7 +3168,7 @@ export function updateAvaStrip(container, items, { statusOf, now }) {
 // -------------------------------------------------------------- focus card
 
 export function renderFocusCard(root, rec, ctx) {
-  const { now, mePos, statusOf, trailOn, onTrailToggle, onClose, place, since, ask, onAsk } = ctx;
+  const { now, mePos, statusOf, trailOn, onTrailToggle, onClose, place, since, ask, askWho, onAsk } = ctx;
   const status = statusOf(rec, now);
   if (root.dataset.member !== rec.id) {
     root.dataset.member = rec.id;
@@ -3241,8 +3241,9 @@ export function renderFocusCard(root, rec, ctx) {
   trailBtn.onclick = onTrailToggle;
   const askBtn = $(".fc-ask", root);
   askBtn.hidden = !ask;
-  askBtn.disabled = ask === "asked";
-  askBtn.textContent = ask === "asked" ? t("Asked to check in") : t("Ask to check in");
+  askBtn.disabled = ask !== "ready";
+  if (ask === "busy") askBtn.textContent = t("You already asked {who}", { who: askWho });
+  else askBtn.textContent = ask === "asked" ? t("Asked to check in") : t("Ask to check in");
   askBtn.onclick = onAsk || null;
   const dir = $(".fc-directions", root);
   if (hasPos) {

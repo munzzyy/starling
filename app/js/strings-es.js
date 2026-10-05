@@ -760,4 +760,5 @@ export const es = {
   "Asked {who} to check in. They see it if Starling is running on their phone in the next 15 minutes.": "Le pediste a {who} que avise. Lo verá si Starling está funcionando en su teléfono en los próximos 15 minutos.",
   "Checking in tells your whole circle you are okay.": "Al avisar, todo tu círculo sabe que estás bien.",
   "Could not reach your circle. Try again in a moment.": "No se pudo contactar a tu círculo. Inténtalo de nuevo en un momento.",
+  "You already asked {who}": "Ya le pediste a {who} que avise",
 };
