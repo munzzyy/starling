@@ -376,6 +376,7 @@ class MainActivity : FragmentActivity() {
 
     fun setTorEnabled(on: Boolean) {
         getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(PREF_TOR, on).apply()
+        if (on) Forward.dropWaiting()
         applyTorPref()
         // Orbot only answers the port question with Power User Mode on. If it
         // says nothing at all, the user is about to watch traffic stall on

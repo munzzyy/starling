@@ -113,6 +113,8 @@ object Forward {
 
     fun shareEnded() = queue.clear()
 
+    fun dropWaiting() = queue.clear()
+
     fun maybeSend(ctx: Context, location: Location) {
         if (url(ctx) == null) return
         if (torOn(ctx)) {

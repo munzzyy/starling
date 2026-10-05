@@ -274,4 +274,13 @@ test("the wrapper names no phone model, and points waiting on a retry stay in me
   const svc = kt("LocationService.kt");
   const destroy = svc.slice(svc.indexOf("override fun onDestroy() {"));
   assert.match(destroy.slice(0, destroy.indexOf("\n    }\n")), /running = false\s*Forward\.shareEnded\(\)/);
+
+  assert.match(src, /fun dropWaiting\(\) = queue\.clear\(\)/);
+  const main = kt("MainActivity.kt");
+  const tor = main.slice(main.indexOf("fun setTorEnabled("));
+  assert.match(
+    tor.slice(0, tor.indexOf("\n    }\n")),
+    /putBoolean\(PREF_TOR, on\)\.apply\(\)\s*if \(on\) Forward\.dropWaiting\(\)/,
+    "turning Tor mode on drops the waiting points then, not at the next fix",
+  );
 });
