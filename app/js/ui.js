@@ -2913,11 +2913,13 @@ function buildCard(id, onTap) {
   card.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      onTap(id);
+      onTap(id, { keyboard: true });
     }
   });
   return card;
 }
+
+export const memberSaid = (rec, status) => `${rec.name || t("Member")}, ${t(CHIP_TEXT[status])}`;
 
 export function memberSubLine(rec, now, mePos, place, status) {
   const bits = [];

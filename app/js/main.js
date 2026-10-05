@@ -401,6 +401,7 @@ let demoMembers = [];
 let demoMapOn = false;
 let demoMapAsk = false;
 let focusedId = null;
+let focusSaid = "";
 let focusTrailOn = false;
 let stopGeo = null;
 let shareTimer = 0;
@@ -1512,12 +1513,22 @@ function renderFocus(list, now) {
   const card = $("#focus-card");
   if (!focusedId) {
     card.hidden = true;
+    if (focusSaid) {
+      focusSaid = "";
+      $("#focus-said").textContent = "";
+    }
     return;
   }
   const rec = list.find((r) => r.id === focusedId);
   if (!rec) {
     unfocus();
     return;
+  }
+  // The card repaints every few seconds; only who it is and their status are worth saying.
+  const status = displayStatus(rec, now);
+  if (focusSaid !== `${rec.id} ${status}`) {
+    focusSaid = `${rec.id} ${status}`;
+    $("#focus-said").textContent = ui.memberSaid(rec, status);
   }
   ui.renderFocusCard(card, rec, {
     now,
@@ -1536,7 +1547,7 @@ function renderFocus(list, now) {
 
 // ---------------------------------------------------------------- focus
 
-function focusMember(id) {
+function focusMember(id, { keyboard = false } = {}) {
   if (id === "me") {
     locateMe();
     return;
@@ -1550,15 +1561,20 @@ function focusMember(id) {
   focusTrailOn = state.settings.trail;
   if (Number.isFinite(rec.lat)) mapView.focusOn(rec.lat, rec.lon);
   render();
+  if (keyboard) $("#focus-card").focus();
 }
 
 function unfocus() {
+  const card = $("#focus-card");
+  const back = focusedId && card.contains(document.activeElement)
+    ? [...$("#member-list").children].find((n) => n.dataset.member === focusedId)
+    : null;
   if (focusedId) mapView.clearTrail(focusedId);
   focusedId = null;
-  const card = $("#focus-card");
   card.hidden = true;
   card.dataset.member = "";
   render();
+  back?.focus();
 }
 
 function locateMe() {
@@ -6683,6 +6699,7 @@ if (debugHooks()) window.__starlingInternals = {
   sendStatus: () => ({ busy: sendBusy, again: sendAgain, whenReady: sendWhenReady, stats: { ...shareStats }, locationPaused }),
   buildShareReport,
   dataExportJson,
+  render,
   healthCard,
   saveForward,
   saveForwardTid,

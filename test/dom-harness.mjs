@@ -11,7 +11,11 @@
 // map.js actually ask for while booting to onboarding, and nothing else. If a
 // new call site needs more, add it here rather than reaching for a browser.
 
+// Opt-in through installDom({ interactive: true }); off, every stub answers exactly as before.
+let interactive = false;
+
 function makeEl(tag = "div") {
+  const listeners = new Map();
   const el = {
     tagName: String(tag).toUpperCase(),
     children: [],
@@ -38,22 +42,39 @@ function makeEl(tag = "div") {
     getAttribute(k) { return this.attrs.has(k) ? this.attrs.get(k) : null; },
     removeAttribute(k) { this.attrs.delete(k); },
     hasAttribute(k) { return this.attrs.has(k); },
-    addEventListener() {},
-    removeEventListener() {},
-    dispatchEvent() { return true; },
+    addEventListener(type, fn) {
+      if (!interactive) return;
+      if (!listeners.has(type)) listeners.set(type, []);
+      listeners.get(type).push(fn);
+    },
+    removeEventListener(type, fn) {
+      const list = listeners.get(type);
+      if (list?.includes(fn)) list.splice(list.indexOf(fn), 1);
+    },
+    dispatchEvent(ev) {
+      for (const fn of [...(listeners.get(ev?.type) || [])]) fn.call(this, ev);
+      return true;
+    },
     append(...kids) { this.children.push(...kids); },
     appendChild(kid) { this.children.push(kid); return kid; },
     insertBefore(kid) { this.children.push(kid); return kid; },
     prepend(...kids) { this.children.unshift(...kids); },
     replaceChildren(...kids) { this.children = kids; },
     remove() {},
-    contains() { return false; },
+    contains(other) {
+      if (!interactive || !other) return false;
+      return other === this || this.children.some((c) => c?.contains?.(other));
+    },
     closest() { return null; },
     querySelector() { return makeEl(); },
     querySelectorAll() { return []; },
     getBoundingClientRect() { return { top: 0, left: 0, right: 0, bottom: 0, width: 320, height: 640 }; },
-    focus() {},
-    blur() {},
+    focus() {
+      if (interactive && !this.hidden) globalThis.document.activeElement = this;
+    },
+    blur() {
+      if (interactive && globalThis.document.activeElement === this) globalThis.document.activeElement = globalThis.document.body;
+    },
     click() {},
     animate() { return { cancel() {}, finished: Promise.resolve() }; },
     setPointerCapture() {},
@@ -107,7 +128,8 @@ function makeLeaflet() {
 
 // Install the fake page. Returns a handle with the pieces a check may want to
 // steer: the fetch queue and the collected toasts.
-export function installDom({ hostname = "127.0.0.1" } = {}) {
+export function installDom({ hostname = "127.0.0.1", interactive: live = false } = {}) {
+  interactive = live;
   const head = makeEl("head");
   const body = makeEl("body");
   // Nodes are cached by the string that asked for them, so #join-waiting-text
@@ -134,6 +156,7 @@ export function installDom({ hostname = "127.0.0.1" } = {}) {
     removeEventListener() {},
     dispatchEvent() { return true; },
   };
+  if (live) doc.activeElement = body;
   globalThis.document = doc;
   globalThis.window = globalThis;
   globalThis.self = globalThis;
