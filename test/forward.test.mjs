@@ -166,7 +166,14 @@ test("the wrapper sends over https only, never under Tor, and never follows a re
   assert.match(src, /if \(u\.scheme\?\.lowercase\(\) != "https" \|\| u\.host\.isNullOrEmpty\(\)\) return null/);
   assert.match(src, /if \(u\.rawUserInfo != null \|\| u\.rawFragment != null\) return null/);
   const send = src.slice(src.indexOf("fun maybeSend("), src.indexOf("fun payload("));
-  assert.ok(send.indexOf("if (torOn(ctx)) return") > 0 && send.indexOf("sender.execute") > send.indexOf("if (torOn(ctx)) return"));
+  const tor = send.search(/if \(torOn\(ctx\)\) \{\s*queue\.clear\(\)\s*return\s*\}/);
+  assert.ok(tor > 0 && send.indexOf("queue.add(body)") > tor && send.indexOf("sender.execute") > tor, "Tor on empties the queue before anything is queued");
+  const drain = src.slice(src.indexOf("private fun drain("), src.indexOf("fun payload("));
+  assert.match(
+    drain,
+    /val target = url\(app\)\s*if \(target == null \|\| torOn\(app\)\) \{\s*queue\.clear\(\)\s*null\s*\} else \{\s*post\(app, target, body\)\s*\}/,
+    "every retry checks Tor and the address again",
+  );
   assert.match(send, /now - lastAt < MIN_GAP_MS/);
   assert.match(src, /MIN_GAP_MS = 15000L/);
   const post = src.slice(src.indexOf("private fun post("));
@@ -242,3 +249,29 @@ test("the wrapper sends tid only when one is set, and reports it back", () => {
   assert.match(kt("StarlingBridge.kt"), /fun setForwardTid\(tid: String\?\): Boolean = Forward\.setTid\(app, tid\)/);
 });
 
+
+test("the wrapper names no phone model, and points waiting on a retry stay in memory and end with the share", () => {
+  const src = kt("Forward.kt");
+  const post = src.slice(src.indexOf("private fun post("));
+  assert.match(post, /c\.setRequestProperty\("User-Agent", USER_AGENT\)\s*c\.outputStream/);
+  assert.match(src, /private const val USER_AGENT = "Starling"\n/);
+  assert.equal(src.match(/sender\.execute/g).length, 1);
+  assert.match(src, /if \(queue\.add\(body\)\) sender\.execute \{ drain\(app\) \}/);
+  assert.match(src, /private val queue = ForwardQueue\(\)/);
+  assert.match(kt("ForwardQueue.kt"), /class ForwardQueue\(private val capacity: Int = 20\)/);
+
+  const writes = [...src.matchAll(/\.put(?:String|Int|Long|Boolean|Float|StringSet)\((\w+)/g)].map((m) => m[1]);
+  assert.deepEqual(writes, ["PREF_TID", "PREF_URL"], "the address and the tracker ID are all it keeps");
+  for (const name of ["Forward.kt", "ForwardQueue.kt"]) {
+    assert.doesNotMatch(kt(name), /java\.io\.File|openFileOutput|FileOutputStream|writeText|writeBytes|getExternal|cacheDir|filesDir/, name);
+  }
+  assert.doesNotMatch(kt("ForwardQueue.kt"), /SharedPreferences|Context|import /);
+
+  const set = src.slice(src.indexOf("fun set("), src.indexOf("fun shareStarted("));
+  assert.match(set, /queue\.clear\(\)/, "a new address never gets the old one's points");
+  assert.match(src, /fun shareStarted\(\) \{\s*queue\.clear\(\)/);
+  assert.match(src, /fun shareEnded\(\) = queue\.clear\(\)/);
+  const svc = kt("LocationService.kt");
+  const destroy = svc.slice(svc.indexOf("override fun onDestroy() {"));
+  assert.match(destroy.slice(0, destroy.indexOf("\n    }\n")), /running = false\s*Forward\.shareEnded\(\)/);
+});

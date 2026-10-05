@@ -604,8 +604,13 @@ app does the GPS work (#10).
   position, the way any OwnTracks server does. The relay's blindness does not
   extend to it. Only your own position goes there, never your circle's.
 - It goes straight from the wrapper (`Forward.kt`), over https only, following
-  no redirects, at most once every 15 seconds, and only while the location
-  service runs, which is only during a share.
+  no redirects, at most one new position every 15 seconds, and only while the
+  location service runs, which is only during a share. Points the server could
+  not take (no connection, 408, 429, 5xx) wait in memory, up to 20, and go out
+  ahead of the next one. They are never written to disk and are dropped when
+  the share ends, the address changes or Tor mode goes on.
+- Requests carry `User-Agent: Starling`, not Android's default, which names
+  the phone model and its build.
 - It never leaves outside Tor. With Tor mode on it sends nothing.
 - A second destination for a position is what someone with access to your
   phone would set, so it is never quiet. The sharing notification names the

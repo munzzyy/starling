@@ -153,6 +153,16 @@ in the query (`?api_key=`, `?token=`) works, which covers colota-forwarder,
 Reitti, Dawarich and Home Assistant's OwnTracks webhook. Nothing goes out while
 Tor mode is on.
 
+A point the server did not take waits when the cause can pass: no connection,
+408, 429 or a 5xx. The next fix sends the waiting points first, oldest first,
+so a tunnel or a server restart leaves no gap in the track. Up to 20 wait,
+about five minutes at the 15 second floor, and past that the oldest goes. Any
+other answer drops the point, because sending it again would get the same
+answer. Waiting points live in memory only, never in a file or the prefs, and
+go when the share ends, the address changes or Tor mode goes on. Every retry
+checks Tor mode and the address again. Requests say `User-Agent: Starling`,
+where Android's default named the phone model and its build.
+
 An optional tracker ID goes out as `tid`. colota-forwarder routes on it: a
 target with `TARGET_n_FILTER_TID` set only receives points whose `tid` matches,
 and skips the rest without logging anything, and its Home Assistant integration

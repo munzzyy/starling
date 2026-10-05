@@ -432,6 +432,7 @@ class LocationService : Service(), LocationListener {
     override fun onDestroy() {
         val byUs = stopAsked
         running = false
+        Forward.shareEnded()
         if (instance === this) instance = null
         if (!byUs) {
             sink?.invoke(JSONObject().put("stopped", true).put("route", "system").toString())

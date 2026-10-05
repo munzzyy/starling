@@ -23,8 +23,10 @@ object Forward {
     private const val MIN_GAP_MS = 15000L
     private const val TIMEOUT_MS = 10000
     private const val MAX_URL = 2048
+    private const val USER_AGENT = "Starling"
 
     private val sender = Executors.newSingleThreadExecutor()
+    private val queue = ForwardQueue()
 
     @Volatile
     private var lastAt = 0L
@@ -95,6 +97,7 @@ object Forward {
         val edit = prefs(ctx).edit()
         if (next == null) edit.remove(PREF_URL) else edit.putString(PREF_URL, next)
         edit.apply()
+        queue.clear()
         lastAt = 0L
         sent = 0
         failed = 0
@@ -104,18 +107,35 @@ object Forward {
 
     // The first fix of a share goes out at once.
     fun shareStarted() {
+        queue.clear()
         lastAt = 0L
     }
 
+    fun shareEnded() = queue.clear()
+
     fun maybeSend(ctx: Context, location: Location) {
-        val target = url(ctx) ?: return
-        if (torOn(ctx)) return
+        if (url(ctx) == null) return
+        if (torOn(ctx)) {
+            queue.clear()
+            return
+        }
         val now = SystemClock.elapsedRealtime()
         if (lastAt != 0L && now - lastAt < MIN_GAP_MS) return
         lastAt = now
         val body = payload(location, battery(ctx), tid(ctx))
         val app = ctx.applicationContext
-        sender.execute { post(app, target, body) }
+        if (queue.add(body)) sender.execute { drain(app) }
+    }
+
+    // A point the server could not take waits for the next fix, never for a timer.
+    private fun drain(app: Context) = queue.drain { body ->
+        val target = url(app)
+        if (target == null || torOn(app)) {
+            queue.clear()
+            null
+        } else {
+            post(app, target, body)
+        }
     }
 
     fun payload(l: Location, batt: Int?, tid: String? = null): String {
@@ -139,7 +159,7 @@ object Forward {
             .takeIf { it in 0..100 }
     }.getOrNull()
 
-    private fun post(app: Context, target: String, body: String) {
+    private fun post(app: Context, target: String, body: String): Int {
         val wake = (app.getSystemService(Context.POWER_SERVICE) as PowerManager)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "starling:forward")
         wake.acquire(2L * TIMEOUT_MS + 5000)
@@ -153,13 +173,17 @@ object Forward {
             c.useCaches = false
             c.doOutput = true
             c.setRequestProperty("Content-Type", "application/json")
+            // The default names the phone model and its build.
+            c.setRequestProperty("User-Agent", USER_AGENT)
             c.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             val code = c.responseCode
             lastStatus = code
             if (code in 200..299) sent++ else failed++
+            return code
         } catch (e: Exception) {
             lastStatus = -1
             failed++
+            return -1
         } finally {
             c?.disconnect()
             if (wake.isHeld) wake.release()
