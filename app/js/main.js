@@ -5531,6 +5531,7 @@ const HEADLESS_WHYS = new Set(["boot", "update"]);
 let headlessWhy = "";
 let headlessDelivered = false;
 let shownSinceBoot = false;
+let seenAtBoot = false;
 let resumeRun = null;
 
 function tellHeadless(word) {
@@ -5545,7 +5546,7 @@ async function reportHeadlessBoot() {
   if (!headlessWhy) return;
   const resumed = await (resumeRun ?? false);
   if (resumed && state.sharing) {
-    state.autoResumed = { why: headlessWhy, at: Date.now() };
+    if (!seenAtBoot) state.autoResumed = { why: headlessWhy, at: Date.now() };
     tellHeadless("started");
   } else {
     tellHeadless(state.locked ? "locked" : "declined");
@@ -7235,10 +7236,10 @@ if (debugHooks()) window.__starlingInternals = {
     shareResumeTried = false;
     shareResumed = false;
   },
-  setHeadless: (why) => {
+  setHeadless: (why, seen = false) => {
     headlessWhy = HEADLESS_WHYS.has(why) ? why : "";
     headlessDelivered = false;
-    shownSinceBoot = false;
+    shownSinceBoot = seenAtBoot = seen;
     resumeRun = null;
   },
   reportHeadlessBoot,
@@ -7350,7 +7351,11 @@ async function boot() {
     }
     try {
       const why = native()?.headlessResume?.();
-      if (HEADLESS_WHYS.has(why)) headlessWhy = why;
+      if (HEADLESS_WHYS.has(why)) {
+        headlessWhy = why;
+        // A reload in front of a person, as a Tor switch makes, is no page nobody has seen.
+        seenAtBoot = shownSinceBoot = pageShown();
+      }
     } catch {
       // an older wrapper
     }

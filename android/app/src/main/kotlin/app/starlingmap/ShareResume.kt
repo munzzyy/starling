@@ -263,13 +263,13 @@ object ShareResume {
                 cancel(confirmTimer)
                 confirmTimer = null
                 LocationService.resumePending = false
-                if (!alerted) {
-                    alerted = true
-                    Events.postShareResumed(
-                        ctx,
-                        if (why == "update") R.string.notif_resumed_update_text else R.string.notif_resumed_boot_text,
-                    )
-                }
+                // A reload says started again; the record a person dismissed stays dismissed.
+                if (alerted) return
+                alerted = true
+                Events.postShareResumed(
+                    ctx,
+                    if (why == "update") R.string.notif_resumed_update_text else R.string.notif_resumed_boot_text,
+                )
                 prefs(ctx).edit().putString(PREF_LAST_WHY, why).putLong(PREF_LAST_AT, System.currentTimeMillis()).apply()
             }
             "delivered" -> {
@@ -318,6 +318,7 @@ object ShareResume {
         confirmTimer = null
         cancelOrbot()
         headlessWhy = null
+        alerted = false
         LocationService.clearResume()
     }
 

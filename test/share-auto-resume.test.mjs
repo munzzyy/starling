@@ -313,6 +313,31 @@ test("the card waits for the first look, then is built and spoken once, even wit
   await internals.setSharing(false);
 });
 
+test("a reload in front of a person is no page nobody has seen, and puts back no card", async () => {
+  for (const shown of [true, false]) {
+    state.gen = null;
+    state.identity = null;
+    internals.setHeadless("");
+    nativeStub({ shown });
+    globalThis.StarlingNative.headlessResume = () => "boot";
+    globalThis.StarlingNative.readStopRecord = () => null;
+    document.visibilityState = shown ? "visible" : "hidden";
+    await internals.boot();
+    await settle();
+    assert.equal(internals.basemapHeld(), !shown, shown ? "a person is looking at this boot" : "nobody is");
+  }
+  internals.setHeadless("");
+
+  await world({ shown: true });
+  internals.setHeadless("boot", true);
+  await internals.enterCircle();
+  await internals.reportHeadlessBoot();
+  assert.equal(state.sharing, true);
+  assert.deepEqual(reports, ["started"], "the wrapper still hears that the share is up");
+  assert.equal(state.autoResumed, null, "a card the person already dismissed stays dismissed");
+  await internals.setSharing(false);
+});
+
 test("the status note under the switches, for every state the wrapper can report", () => {
   const base = { boot: false, update: false, lock: false, keepSharing: true, notifications: true, background: "settings", tor: false };
   const note = (over) => autoResumeNote({ ...base, ...over });
@@ -689,6 +714,12 @@ test("Kotlin: the page's word is checked, and anything but started ends the shar
   const on = code(fn(src, "onPage"));
   assert.match(on, /val why = headlessWhy \?: return/, "only while a share came back by itself");
   assert.match(on, /"started" -> \{[\s\S]*?LocationService\.resumePending = false/, "your own server waits for this");
+  assert.match(
+    on,
+    /if \(alerted\) return\s*alerted = true\s*Events\.postShareResumed\([\s\S]*?\)\s*prefs\(ctx\)\.edit\(\)\.putString\(PREF_LAST_WHY, why\)/,
+    "the alert and the record once for each share that came back, so a reload brings back no dismissed card",
+  );
+  assert.match(code(fn(src, "clear")), /alerted = false/, "and the next one alerts again");
   assert.match(on, /else -> \{[\s\S]*?LocationService\.stop\(ctx\)/, "locked and declined both end it");
   assert.match(on, /if \(state == "locked"\) offerText\(why\) else null/, "and only locked offers the tap");
   const abandon = code(fn(src, "abandon"));
