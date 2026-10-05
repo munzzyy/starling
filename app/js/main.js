@@ -5735,6 +5735,7 @@ function callNative(name) {
 
 const openBatterySettings = () => callNative("openBatterySettings");
 const openAppSettingsPage = () => callNative("openAppSettings");
+const openSaverSettings = () => callNative("openSaverSettings");
 
 // The camera permission, asked of the wrapper and awaited before the page
 // asks for a stream: the WebView refuses getUserMedia outright while the app
@@ -5824,7 +5825,10 @@ function healthCard(problem) {
       kind: "warn",
       title: t("Battery Saver is turning off your location"),
       text: t("With Battery Saver on, this phone turns location off while the screen is off, so your circle stops seeing you move. Turn Battery Saver off to keep sharing."),
-      actions: [waveOff],
+      actions:
+        typeof native()?.openSaverSettings === "function"
+          ? [{ label: "Open Battery Saver settings", variant: "btn-primary", testid: "alert-health-saver", onClick: openSaverSettings }, waveOff]
+          : [waveOff],
     };
   }
   if (problem === "optimized" && !state.settings.batteryAsked) {

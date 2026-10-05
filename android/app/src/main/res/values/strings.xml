@@ -30,4 +30,5 @@
     <string name="webview_missing">Starling runs inside Android System WebView, and this phone doesn\'t have a working one. It may be turned off in your phone\'s app settings, or it may need an update from your app store.</string>
     <string name="android9_title">This phone runs Android 9</string>
     <string name="android9_body">Google\'s last security fixes for Android 9 came out in January 2022. Starling works here, but holes in Android found since then stay open on this phone, and a harmful app or website could use one to follow your location.\n\nAndroid 9 also can\'t limit location to \"only while using the app\", so the permission covers all the time. Starling only reads your location while you\'re using it or sharing.\n\nIf you can, use a newer phone.</string>
+    <string name="notif_location_on">Turn on location</string>
 </resources>

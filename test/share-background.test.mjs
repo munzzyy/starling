@@ -338,6 +338,24 @@ test("the battery question is asked once, and a no is final", async () => {
   assert.equal(internals.healthCard("optimized"), null, "not asked again");
 });
 
+test("the Battery Saver card opens Battery Saver settings, on a wrapper that can", async () => {
+  await sharing();
+  const prev = globalThis.StarlingNative;
+  try {
+    const without = internals.healthCard("saver");
+    assert.deepEqual(without.actions.map((a) => a.testid), ["alert-health-ok-saver"], "an older wrapper keeps only Got it");
+    const opened = [];
+    globalThis.StarlingNative = { ...prev, openSaverSettings: () => opened.push("saver") };
+    const card = internals.healthCard("saver");
+    assert.deepEqual(card.actions.map((a) => a.testid), ["alert-health-saver", "alert-health-ok-saver"]);
+    assert.equal(card.actions[0].label, "Open Battery Saver settings");
+    card.actions[0].onClick();
+    assert.deepEqual(opened, ["saver"]);
+  } finally {
+    globalThis.StarlingNative = prev;
+  }
+});
+
 // Last, because it locks the app.
 test("autolock is not reset by a thaw, and a frozen timer cannot sleep through an absence", async () => {
   await sharing();

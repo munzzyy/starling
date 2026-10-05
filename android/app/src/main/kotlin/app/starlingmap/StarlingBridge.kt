@@ -282,6 +282,11 @@ class StarlingBridge(private val app: Context) {
         ui { it.openBatterySettings() }
     }
 
+    @JavascriptInterface
+    fun openSaverSettings() {
+        ui { it.openSaverSettings() }
+    }
+
     // ------------------------------------------------- keep sharing when closed
 
     // Off by default, and deliberately not something the page decides on its

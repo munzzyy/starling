@@ -106,3 +106,35 @@ test("the clock on the sharing notification is off unless turned on, and never o
   assert.match(bridge, /fun shareClock\(\): Boolean = LocationService\.clockShown\(app\)/);
   assert.match(bridge, /fun setShareClock\(on: Boolean\) = LocationService\.showClock\(app, on\)/);
 });
+
+test("a share paused by location off offers the switch, behind the unlock, and only in the private version", () => {
+  const svc = kt("LocationService.kt");
+  const build = fn(svc, "buildNotification");
+  assert.match(build, /\.addAction\(stopAction\)\s*\.apply \{ if \(locationOff\) addAction\(locationOnAction\(\)\) \}/);
+  assert.equal(build.match(/addAction\(/g).length, 2);
+  const pub = build.slice(build.indexOf("val publicVersion"), build.indexOf(".build()", build.indexOf("val publicVersion")));
+  assert.doesNotMatch(pub, /addAction/);
+
+  const action = svc.slice(svc.indexOf("private fun locationOnAction()"), svc.indexOf("private fun buildNotification()"));
+  assert.ok(action.length > 0);
+  assert.match(
+    action,
+    /PendingIntent\.getActivity\(\s*this,\s*4,\s*Intent\(Settings\.ACTION_LOCATION_SOURCE_SETTINGS\)\.addFlags\(Intent\.FLAG_ACTIVITY_NEW_TASK\),\s*PendingIntent\.FLAG_IMMUTABLE,\s*\)/,
+  );
+  assert.match(action, /getString\(R\.string\.notif_location_on\)/);
+  assert.match(action, /if \(Build\.VERSION\.SDK_INT >= Build\.VERSION_CODES\.S\) setAuthenticationRequired\(true\)/);
+
+  for (const dir of ["values", "values-es", "values-de", "values-fr", "values-pt"]) {
+    const xml = readFileSync(new URL(`../android/app/src/main/res/${dir}/strings.xml`, import.meta.url), "utf8");
+    assert.match(xml, /<string name="notif_location_on">[^<%]+<\/string>/, dir);
+  }
+});
+
+test("Battery Saver settings open from a window only, with the main settings as the fallback", () => {
+  const act = fn(kt("MainActivity.kt"), "openSaverSettings");
+  assert.match(
+    act,
+    /if \(runCatching \{ startActivity\(Intent\(Settings\.ACTION_BATTERY_SAVER_SETTINGS\)\) \}\.isSuccess\) return\s*runCatching \{ startActivity\(Intent\(Settings\.ACTION_SETTINGS\)\) \}/,
+  );
+  assert.match(kt("StarlingBridge.kt"), /fun openSaverSettings\(\) \{\s*ui \{ it\.openSaverSettings\(\) \}\s*\}/);
+});

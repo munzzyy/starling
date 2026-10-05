@@ -443,6 +443,13 @@ settings page for it. This is what `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` is
 for; `WAKE_LOCK` is for the wake lock above. Neither grants access to
 anything.
 
+When Battery Saver is what turns location off, its card has a button that
+opens the Battery Saver screen (`ACTION_BATTERY_SAVER_SETTINGS`, or the main
+settings on a phone without one). When location itself is off, the sharing
+notification gets "Turn on location" next to Stop. It opens the system
+location settings through an activity intent, so a locked phone asks for the
+unlock first, and the generic version has no buttons at all.
+
 ### The sharing report
 
 Settings, Sharing, "Copy sharing report" puts a plain text summary on the

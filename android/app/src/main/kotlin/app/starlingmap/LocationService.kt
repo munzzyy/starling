@@ -19,6 +19,7 @@ import android.os.Bundle
 import android.os.IBinder
 import android.os.PowerManager
 import android.os.SystemClock
+import android.provider.Settings
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import org.json.JSONObject
@@ -474,6 +475,19 @@ class LocationService : Service(), LocationListener {
         super.onDestroy()
     }
 
+    // An activity intent, so a locked phone asks for the unlock before the settings open.
+    private fun locationOnAction(): Notification.Action {
+        val settings = PendingIntent.getActivity(
+            this,
+            4,
+            Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_IMMUTABLE,
+        )
+        return Notification.Action.Builder(null, getString(R.string.notif_location_on), settings).apply {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setAuthenticationRequired(true)
+        }.build()
+    }
+
     private fun buildNotification(): Notification {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         nm.createNotificationChannel(
@@ -542,6 +556,7 @@ class LocationService : Service(), LocationListener {
             .setVisibility(Notification.VISIBILITY_PRIVATE)
             .setPublicVersion(publicVersion)
             .addAction(stopAction)
+            .apply { if (locationOff) addAction(locationOnAction()) }
             .apply {
                 if (clock != null) {
                     setWhen(clock.first)

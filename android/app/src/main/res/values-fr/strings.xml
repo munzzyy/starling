@@ -30,4 +30,5 @@
     <string name="webview_missing">Starling fonctionne dans Android System WebView, et ce téléphone n\'en a pas qui fonctionne. Il est peut-être désactivé dans les paramètres d\'applications du téléphone, ou il a peut-être besoin d\'une mise à jour depuis votre boutique d\'applications.</string>
     <string name="android9_title">Ce téléphone tourne sous Android 9</string>
     <string name="android9_body">Les derniers correctifs de sécurité de Google pour Android 9 sont sortis en janvier 2022. Starling fonctionne ici, mais les failles d\'Android découvertes depuis restent ouvertes sur ce téléphone, et une application ou un site web malveillant pourrait en utiliser une pour suivre votre position.\n\nAndroid 9 ne peut pas non plus limiter la localisation à « seulement pendant l\'utilisation de l\'application », donc l\'autorisation vaut en permanence. Starling ne lit votre position que pendant que vous l\'utilisez ou partagez.\n\nSi vous le pouvez, utilisez un téléphone plus récent.</string>
+    <string name="notif_location_on">Activer la localisation</string>
 </resources>

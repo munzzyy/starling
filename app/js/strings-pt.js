@@ -759,4 +759,5 @@ export const pt = {
   "You already asked {who}": "Você já pediu que {who} avise",
   "Show the time on the sharing notification": "Mostrar o tempo na notificação de compartilhamento",
   "Time left on a timed share, or how long you have been sharing. Your lock screen shows it too, unless Android is set to hide sensitive notification content.": "O tempo que falta num compartilhamento com temporizador, ou há quanto tempo você está compartilhando. Sua tela de bloqueio também mostra, a menos que o Android esteja configurado para ocultar o conteúdo sensível das notificações.",
+  "Open Battery Saver settings": "Abrir configurações da Economia de bateria",
 };

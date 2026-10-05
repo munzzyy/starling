@@ -296,6 +296,12 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    // Some phones have no Battery Saver screen of their own.
+    fun openSaverSettings() {
+        if (runCatching { startActivity(Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS)) }.isSuccess) return
+        runCatching { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+    }
+
     // ------------------------------------------------------------- camera
 
     fun hasCameraPermission(): Boolean =
