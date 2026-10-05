@@ -40,3 +40,38 @@ test("a swipe puts the notification back only while the share is live, and start
     "the repost path returns before anything that starts a share",
   );
 });
+
+test("below Android 12 Stop starts an activity, so a locked phone asks for the unlock first", () => {
+  const build = fn(kt("LocationService.kt"), "buildNotification");
+  assert.match(
+    build,
+    /val stop = if \(Build\.VERSION\.SDK_INT >= Build\.VERSION_CODES\.S\) \{\s*PendingIntent\.getService\(\s*this,\s*1,\s*Intent\(this, LocationService::class\.java\)\.setAction\(ACTION_STOP\),\s*PendingIntent\.FLAG_IMMUTABLE,\s*\)\s*\} else \{\s*PendingIntent\.getActivity\(\s*this,\s*1,\s*Intent\(this, StopShareActivity::class\.java\)[^,]*,\s*PendingIntent\.FLAG_IMMUTABLE,\s*\)\s*\}/,
+  );
+  assert.equal(build.match(/setAction\(ACTION_STOP\)/g).length, 1, "no other route reaches the service's Stop");
+  assert.match(
+    build,
+    /Notification\.Action\.Builder\(null, getString\(R\.string\.notif_stop\), stop\)\.apply \{\s*if \(Build\.VERSION\.SDK_INT >= Build\.VERSION_CODES\.S\) setAuthenticationRequired\(true\)\s*\}/,
+  );
+  assert.match(kt("LocationService.kt"), /internal const val ACTION_STOP = "app\.starlingmap\.STOP_SHARE"/);
+});
+
+test("the Stop activity is private, shows nothing, never shows over the lock screen and only sends Stop", () => {
+  const entry = manifest().match(/<activity\s+android:name="\.StopShareActivity"[^>]*>/);
+  assert.ok(entry, "declared");
+  const tag = entry[0];
+  assert.ok(tag.endsWith("/>"), "no intent filter");
+  assert.match(tag, /android:exported="false"/);
+  assert.match(tag, /android:theme="@android:style\/Theme\.NoDisplay"/);
+  assert.match(tag, /android:excludeFromRecents="true"/);
+  assert.match(tag, /android:noHistory="true"/);
+  assert.match(tag, /android:taskAffinity=""/, "its own task, so the app does not come forward");
+  assert.doesNotMatch(tag, /showWhenLocked|turnScreenOn|showOnLockScreen/);
+
+  const src = kt("StopShareActivity.kt");
+  const create = fn(src, "onCreate");
+  assert.match(
+    create,
+    /super\.onCreate\(savedInstanceState\)\s*startService\(Intent\(this, LocationService::class\.java\)\.setAction\(LocationService\.ACTION_STOP\)\)\s*finish\(\)\s*\}$/,
+  );
+  assert.doesNotMatch(src, /ShowWhenLocked|TurnScreenOn|DismissKeyguard|SHOW_WHEN_LOCKED|DISMISS_KEYGUARD|MainActivity|getStringExtra|extras/);
+});

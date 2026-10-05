@@ -242,6 +242,19 @@ intent that points back at `LocationService`. If the share is still live, the
 service posts it again under the same id. If the share already ended, it does
 nothing. Stop and the lock screen behave as before.
 
+### Stop on a locked phone
+
+On Android 12 and up, Stop on the sharing notification asks for the unlock
+first (`setAuthenticationRequired`). Android 11 and below have no such flag,
+and SystemUI fires a service intent from a notification button straight from
+the lock screen. It does dismiss the lock screen before it starts an activity,
+so below 12 Stop now opens `StopShareActivity`. It has no screen, is not
+exported, is never shown over the lock screen, and runs in its own task so
+Starling does not come forward. It sends the service the same stop it always
+got and closes. Until that is seen asking for the PIN on the Android 9 and 10
+emulators (this machine has no Android 11 phone image), THREAT-MODEL.md keeps
+treating Stop as reachable from a locked phone on Android 11 and below.
+
 ### A reminder when sharing stays off
 
 Settings, Sharing has "Remind me if sharing stays off" (#6): Never, 1 h, 4 h

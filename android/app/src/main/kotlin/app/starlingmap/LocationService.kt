@@ -38,7 +38,7 @@ class LocationService : Service(), LocationListener {
         // Also read by the panic wipe, which deletes the channel.
         const val CHANNEL = "share"
         private const val NOTIF_ID = 1
-        private const val ACTION_STOP = "app.starlingmap.STOP_SHARE"
+        internal const val ACTION_STOP = "app.starlingmap.STOP_SHARE"
         private const val ACTION_TICK = "app.starlingmap.SHARE_TICK"
         private const val ACTION_REPOST = "app.starlingmap.REPOST_SHARE_NOTIFICATION"
         private const val MIN_TIME_MS = 3000L
@@ -468,12 +468,21 @@ class LocationService : Service(), LocationListener {
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE,
         )
-        val stop = PendingIntent.getService(
-            this,
-            1,
-            Intent(this, LocationService::class.java).setAction(ACTION_STOP),
-            PendingIntent.FLAG_IMMUTABLE,
-        )
+        val stop = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.getService(
+                this,
+                1,
+                Intent(this, LocationService::class.java).setAction(ACTION_STOP),
+                PendingIntent.FLAG_IMMUTABLE,
+            )
+        } else {
+            PendingIntent.getActivity(
+                this,
+                1,
+                Intent(this, StopShareActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                PendingIntent.FLAG_IMMUTABLE,
+            )
+        }
         val swiped = PendingIntent.getService(
             this,
             2,
@@ -481,7 +490,6 @@ class LocationService : Service(), LocationListener {
             PendingIntent.FLAG_IMMUTABLE,
         )
         val stopAction = Notification.Action.Builder(null, getString(R.string.notif_stop), stop).apply {
-            // Android 12+ only, see THREAT-MODEL.md for the pre-12 gap.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setAuthenticationRequired(true)
         }.build()
         // Private version only; the public one stays generic.

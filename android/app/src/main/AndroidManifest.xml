@@ -90,6 +90,15 @@
             </intent-filter>
         </activity>
 
+        <!-- Never showWhenLocked: starting it is what makes a locked phone ask for the unlock. -->
+        <activity
+            android:name=".StopShareActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.NoDisplay" />
+
         <service
             android:name=".LocationService"
             android:exported="false"
