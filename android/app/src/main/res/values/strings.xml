@@ -16,6 +16,13 @@
     <string name="notif_remind_text">Open Starling to share again.</string>
     <string name="notif_resume_boot_text">Your phone restarted. Tap to share again.</string>
     <string name="notif_resume_update_text">Starling was updated. Tap to share again.</string>
+    <string name="notif_title_resumed_boot">Sharing again after a restart</string>
+    <string name="notif_title_resumed_update">Sharing again after an update</string>
+    <string name="notif_waiting_orbot">Waiting for Orbot. Nothing is sent until Tor connects.</string>
+    <string name="notif_resumed_title">Sharing resumed</string>
+    <string name="notif_resumed_boot_text">Your phone restarted, and sharing came back on by itself.</string>
+    <string name="notif_resumed_update_text">Starling updated, and sharing came back on by itself.</string>
+    <string name="notif_resume_orbot_text">Orbot did not connect, so nothing was sent. Tap to share again.</string>
     <string name="notif_stop">Stop</string>
     <string name="bio_wrap_title">Confirm to set up biometric unlock</string>
     <string name="bio_unwrap_title">Unlock Starling</string>

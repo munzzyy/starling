@@ -17,9 +17,12 @@ test("pushes into the page go through the main handler, not View.post", () => {
 });
 
 test("reopening the app does not re-apply an unchanged proxy, which reloads the page", () => {
-  const src = kt("MainActivity.kt");
+  // The rule moved out of the activity so a page built with no window sits behind it too.
+  const src = kt("TorProxy.kt");
   assert.match(src, /PageHost\.proxyApplied == rule\) return/);
   assert.match(src, /PageHost\.proxyApplied == "direct"\) return/);
+  assert.match(kt("MainActivity.kt"), /private fun applyTorPref\(\) \{\s*TorProxy\.apply\(this\)\s*\}/);
+  assert.doesNotMatch(kt("MainActivity.kt"), /ProxyController/, "one place sets the proxy");
 });
 
 test("a dead renderer is handled instead of taking the app and the share down", () => {

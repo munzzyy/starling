@@ -1,5 +1,7 @@
 package app.starlingmap
 
+import app.starlingmap.ShareResume.Path
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -34,5 +36,37 @@ class ShareResumeTest {
         for (route in listOf("swipe", "system", "stalled", "renderer", "lock")) {
             assertTrue(route, due(route = route, stopAt = armedAt + 1L))
         }
+    }
+
+    private fun decide(
+        due: Boolean = true,
+        autoOn: Boolean = true,
+        keepSharing: Boolean = true,
+        background: Boolean = true,
+        notifications: Boolean = true,
+        webViewOk: Boolean = true,
+        torOn: Boolean = false,
+        torSupported: Boolean = false,
+    ) = ShareResume.decide(due, autoOn, keepSharing, background, notifications, webViewOk, torOn, torSupported)
+
+    @Test fun everyGateOpenComesBackByItself() = assertEquals(Path.HEADLESS, decide())
+
+    @Test fun nothingDueIsNothingAtAll() {
+        assertEquals(Path.NONE, decide(due = false))
+        assertEquals(Path.NONE, decide(due = false, autoOn = false))
+    }
+
+    @Test fun eachClosedGateFallsBackToTheTap() {
+        assertEquals(Path.OFFER, decide(autoOn = false))
+        assertEquals(Path.OFFER, decide(keepSharing = false))
+        assertEquals(Path.OFFER, decide(background = false))
+        assertEquals(Path.OFFER, decide(notifications = false))
+        assertEquals(Path.OFFER, decide(webViewOk = false))
+    }
+
+    @Test fun torOnComesBackOnlyBehindTheProxy() {
+        assertEquals(Path.OFFER, decide(torOn = true, torSupported = false))
+        assertEquals(Path.HEADLESS, decide(torOn = true, torSupported = true))
+        assertEquals(Path.HEADLESS, decide(torOn = false, torSupported = false))
     }
 }

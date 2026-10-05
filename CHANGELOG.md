@@ -28,6 +28,21 @@ All notable changes to Starling are recorded here. Versions follow
   Their row lost track of who it belonged to, so Mark verified and Remove
   did nothing for that person until Starling was restarted.
 
+- **A share can come back by itself after a restart or an update (#22).**
+  Two new switches sit under Keep sharing when the app is closed, both off by
+  default: Also after a restart and Also after an update. Each needs
+  Android's Allow all the time, which Starling asks for only when you turn
+  one on, after saying why. A share that comes back shows the sharing
+  notification, titled to say why, an alert that it came back, and a card
+  the next time you open the app. It never brings back a share you stopped,
+  a timed share that ran out, or anything after a panic wipe. Nothing comes
+  back before the first unlock after a restart, with the app lock on, or
+  with Starling's notifications turned off. With Tor mode on it sends nothing
+  until Orbot connects, and after 5 minutes without Orbot you get the tap
+  instead. The map loads no tiles until somebody opens the app. The app now
+  declares ACCESS_BACKGROUND_LOCATION, so app stores list it; Android grants
+  it only if you allow it, and a panic wipe gives it back.
+
 ## [0.17.1]
 
 - **Scanning a code works again on Android.** The camera was refused to

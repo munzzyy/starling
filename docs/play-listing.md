@@ -1,7 +1,8 @@
 # Google Play Console listing
 
 Copy-pasteable answers for the Play Console store listing, data safety form,
-content rating questionnaire, and the foreground service declaration. Source
+content rating questionnaire, and the foreground service and background
+location declarations. Source
 facts: `docs/THREAT-MODEL.md`, `SECURITY.md`, the fastlane metadata in
 `fastlane/metadata/android/en-US/`.
 
@@ -158,9 +159,10 @@ Console's App content section.
 Use case: user-initiated live location sharing. A user who taps "share"
 starts a foreground service that keeps sending their position to members of
 a circle they belong to, so sharing continues if they lock the screen or
-switch apps. It runs only while the user has explicitly turned sharing on,
-never in the background without that action, and never requests
-`ACCESS_BACKGROUND_LOCATION`.
+switch apps. It runs only while the user has explicitly turned sharing on.
+The one start without the app on screen is a share coming back after a
+restart or an app update, which happens only if the user turned on one of the
+two switches for it; see the background location declaration below.
 
 What the user sees: a persistent notification for the entire time sharing
 is active. It states that Starling is sharing the location of the user. On
@@ -180,6 +182,63 @@ the app, start sharing, background the app, see the persistent
 notification, stop sharing. Record it once the wrapper build is functional
 and attach the link here. Not recorded yet, flagged for a build-complete
 pass.
+
+## Background location declaration
+
+The app declares `ACCESS_BACKGROUND_LOCATION` for one feature: a share the
+user had running comes back by itself after the phone restarts or the app
+updates. It is off by default, behind two switches in Settings, Sharing (Also
+after a restart, Also after an update), and each needs Keep sharing when the
+app is closed on first.
+
+Use case, to paste:
+
+```
+Starling shares the user's live location with the people in their circle,
+end to end encrypted. If the user turns on "Also after a restart" or "Also
+after an update" in Settings, a share they had running starts again by itself
+after the phone restarts or Starling updates, so their family does not lose
+sight of them because of a restart they did not notice. The share runs in the
+same location foreground service, with its notification showing the whole
+time and an alert saying it came back. Starling asks for "Allow all the time"
+only when the user turns one of these switches on, after an in-app
+explanation. Location is used for nothing else, and nothing is collected by
+the developer.
+```
+
+Prominent disclosure, shown in the app before the system asks, verbatim:
+
+> **Allow location all the time?**
+>
+> Starling uses your location to keep sharing it with your circle after a
+> restart or an update, even when the app is closed or not in use. Your
+> position is encrypted on this phone before it leaves, only your circle can
+> read it, and Starling uses it for nothing else.
+>
+> Android opens Starling's location settings next. Choose Allow all the
+> time, then come back.
+
+Buttons: Continue, Not now. On Android 10 the second paragraph reads
+"Android asks next. Choose Allow all the time." and the system dialog
+follows.
+
+Video storyboard (Play wants one, under 30 seconds):
+
+1. Settings, Sharing, Keep sharing when the app is closed on.
+2. Tap Also after a restart. The disclosure above appears; tap Continue.
+3. Android's location permission screen for Starling; choose Allow all the
+   time; come back. The switch is on, and a toast says sharing will come
+   back after a restart.
+4. Start a share; the sharing notification shows.
+5. Restart the phone (`adb reboot` on the recording device) and unlock it.
+6. Without opening the app, pull down the shade: "Sharing again after a
+   restart" and the "Sharing resumed" alert.
+7. Open the app: the card saying sharing came back by itself.
+
+Data safety: unchanged. Location is still processed on the device and sent
+end to end encrypted to the user's circle; the developer collects nothing.
+
+Not recorded yet, and Play is not live; do this before the first submission.
 
 ## Battery optimization exemption
 

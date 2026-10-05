@@ -1689,6 +1689,78 @@ export function openCheckinTimerSheet({ api, onStart, onCheckin, onShare, onClos
   return { close: ov.close, refresh: paint };
 }
 
+// Play's prominent disclosure: what, why, and that it is for nothing else, before Android asks.
+export function confirmBackgroundLocation({ mode, label }) {
+  return new Promise((resolve) => {
+    let answered = false;
+    const answer = (yes) => {
+      answered = true;
+      resolve(yes);
+      ov.close();
+    };
+    const ov = openOverlay({
+      title: "Allow location all the time?",
+      testid: "background-sheet",
+      onClose: () => {
+        if (!answered) resolve(false);
+      },
+    });
+    ov.body.append(
+      el(
+        "p",
+        "ov-note",
+        "Starling uses your location to keep sharing it with your circle after a restart or an update, even when the app is closed or not in use. Your position is encrypted on this phone before it leaves, only your circle can read it, and Starling uses it for nothing else.",
+      ),
+      el(
+        "p",
+        "ov-note",
+        mode === "dialog"
+          ? t("Android asks next. Choose {label}.", { label })
+          : t("Android opens Starling's location settings next. Choose {label}, then come back.", { label }),
+      ),
+    );
+    const go = btn("btn btn-primary", "Continue");
+    go.dataset.testid = "background-go";
+    go.addEventListener("click", () => answer(true));
+    const later = btn("btn btn-ghost", "Not now");
+    later.dataset.testid = "background-later";
+    later.addEventListener("click", () => answer(false));
+    ov.body.append(go, later);
+  });
+}
+
+export function autoResumeNote(st) {
+  const blocked = (line, button = null) => ({ disabled: true, button, lines: [line] });
+  if (st.lock) {
+    return blocked(t("Off while the app lock is on. After a restart or an update your passcode seals the circle key, so nothing can share until you unlock Starling. You get a notification with a tap to share again instead."));
+  }
+  if (!st.keepSharing) {
+    return blocked(t("These need Keep sharing when the app is closed, because a share that comes back runs with the app closed."));
+  }
+  if (!st.notifications) {
+    return blocked(
+      t("Starling's notifications are off. A share that comes back by itself always shows one, so these stay off until notifications are on."),
+      "notifications",
+    );
+  }
+  if (st.background === "noLocation") return blocked(t("Share once first, so Android can ask for your location."));
+  const lines = [];
+  let button = null;
+  if (st.background === "notNeeded") {
+    lines.push(t("On Android 9 the location permission already covers all the time, so there is nothing more to allow."));
+  } else if (st.background !== "granted") {
+    lines.push(t("Android lets Starling use your location only while you use the app. Turning one of these on asks Android to allow it all the time."));
+  } else if (!st.boot && !st.update) {
+    lines.push(t("Android lets Starling use your location all the time, and Starling uses that for nothing while both of these are off. You can set it back to only while using the app in Android's settings."));
+    button = "app";
+  }
+  lines.push(t("A share that comes back this way shows the sharing notification and an alert that it came back. It never brings back a share you stopped, a timed share that ran out, or anything after a panic wipe."));
+  if (st.tor) {
+    lines.push(t("Route through Orbot is on, so a share that comes back sends nothing until Orbot connects. If it has not connected after 5 minutes, you get a notification with a tap to share again instead."));
+  }
+  return { disabled: false, button, lines };
+}
+
 export function confirmTimerSwitch(circle) {
   return new Promise((resolve) => {
     let answered = false;
@@ -1981,7 +2053,7 @@ function segControl({ label, note, noteFor, options, value, onChange }) {
   return field;
 }
 
-function switchRow({ label, note, value, onChange }) {
+function switchRow({ label, note, value, onChange, disabled = false }) {
   const row = el("div", "switch-row");
   const text = el("div", "switch-text");
   text.append(el("span", "switch-label", label));
@@ -1996,6 +2068,7 @@ function switchRow({ label, note, value, onChange }) {
   paint();
   sw.append(el("span", "switch-knob"));
   sw.addEventListener("click", () => {
+    if (sw.disabled) return;
     on = !on;
     paint();
     onChange(on);
@@ -2004,6 +2077,10 @@ function switchRow({ label, note, value, onChange }) {
     on = !!v;
     paint();
   };
+  row.setDisabled = (d) => {
+    sw.disabled = !!d;
+  };
+  row.setDisabled(disabled);
   row.append(text, sw);
   return row;
 }
@@ -2079,7 +2156,7 @@ export function openPasscodeSheet({ title, intro, cta, confirm = false, current 
   return ov;
 }
 
-export function openSettingsSheet({ api, values, demo, tor, keepSharing, shareClock, background, forward, lock, lockActions, onChange, onMembers, onInvite, onPlaces, onPanic, onLeave, onExport, onClose }) {
+export function openSettingsSheet({ api, values, demo, tor, keepSharing, autoResume, shareClock, background, forward, lock, lockActions, onChange, onMembers, onInvite, onPlaces, onPanic, onLeave, onExport, onClose }) {
   const ov = openOverlay({ title: "Settings", testid: "settings-sheet", className: "ov-settings", onClose });
   const b = ov.body;
 
@@ -2287,6 +2364,65 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, shareCl
     });
     row.dataset.testid = "settings-keep-sharing";
     gShare.append(row);
+  }
+
+  // Repainted on refresh: the grant and notification settings change in system screens.
+  let paintAutoResume = null;
+  if (autoResume) {
+    const box = el("div", "set-background");
+    box.dataset.testid = "settings-auto-resume";
+    const rows = {};
+    const toggle = (which) => (v) => {
+      autoResume
+        .onToggle(which, v)
+        .then((stored) => rows[which].setValue(stored))
+        .catch(() => {})
+        .finally(() => paintAutoResume(true));
+    };
+    rows.boot = switchRow({
+      label: "Also after a restart",
+      note: "If the phone restarts while you are sharing, Starling starts sharing again by itself once the phone has been unlocked, without being opened.",
+      value: false,
+      onChange: toggle("boot"),
+    });
+    rows.boot.dataset.testid = "settings-auto-boot";
+    rows.update = switchRow({
+      label: "Also after an update",
+      note: "If Starling updates while you are sharing, it starts sharing again by itself, without being opened.",
+      value: false,
+      onChange: toggle("update"),
+    });
+    rows.update.dataset.testid = "settings-auto-update";
+    const status = el("div", "set-background");
+    let painted = "";
+    paintAutoResume = (force = false) => {
+      const st = autoResume.read();
+      const note = autoResumeNote(st);
+      const key = JSON.stringify([st.boot, st.update, note]);
+      if (key === painted && !force) return;
+      painted = key;
+      for (const which of ["boot", "update"]) {
+        rows[which].setValue(st[which]);
+        // A switch that is on can always be turned off.
+        rows[which].setDisabled(note.disabled && !st[which]);
+      }
+      const kids = note.lines.map((line) => el("p", "field-note", line));
+      if (note.button === "notifications") {
+        const open = btn("btn btn-secondary", "Open notification settings");
+        open.dataset.testid = "settings-auto-notifications";
+        open.addEventListener("click", () => autoResume.onOpenNotifications());
+        kids.push(open);
+      } else if (note.button === "app") {
+        const open = btn("btn btn-secondary", "Open app settings");
+        open.dataset.testid = "settings-auto-app";
+        open.addEventListener("click", () => autoResume.onOpenApp());
+        kids.push(open);
+      }
+      status.replaceChildren(...kids);
+    };
+    paintAutoResume();
+    box.append(rows.boot, rows.update, status);
+    gShare.append(box);
   }
 
   if (shareClock) {
@@ -2828,6 +2964,7 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, shareCl
       steadyRow?.setValue(api.state.settings.steady);
       paintBackground?.();
       paintPrecisionNote();
+      paintAutoResume?.();
     },
   };
 }

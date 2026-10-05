@@ -36,10 +36,15 @@ object SystemCheck {
         null
     }
 
+    fun webViewOk(ctx: Context): Boolean {
+        val major = webViewMajor(ctx)
+        return major != null && (major == 0 || major >= minWebView(ctx))
+    }
+
     fun blockIfWebViewTooOld(activity: Activity): Boolean {
+        if (webViewOk(activity)) return false
         val major = webViewMajor(activity)
         val min = minWebView(activity)
-        if (major != null && (major == 0 || major >= min)) return false
         val body = if (major == null) {
             activity.getString(R.string.webview_missing)
         } else {

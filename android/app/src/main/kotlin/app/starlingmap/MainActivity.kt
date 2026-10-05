@@ -19,9 +19,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
-import androidx.webkit.ProxyConfig
-import androidx.webkit.ProxyController
-import androidx.webkit.WebViewFeature
 
 // One screen: the bundled web app in a WebView on the fixed asset origin.
 // Everything the page cannot do itself (foreground location, Keystore
@@ -112,6 +109,16 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    private val pendingBackgroundTokens = mutableListOf<String>()
+
+    private val backgroundPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        val tokens = pendingBackgroundTokens.toList()
+        pendingBackgroundTokens.clear()
+        for (t in tokens) PageHost.backgroundReply(t, granted)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -131,6 +138,7 @@ class MainActivity : FragmentActivity() {
         // and must not be reloaded: a reload is what loses the keys.
         val booted = PageHost.alive
         webView = PageHost.attach(this)
+        ShareResume.windowOpened()
         setContentView(webView)
         PageHost.barsLight?.let { setBarsLight(it) }
 
@@ -189,6 +197,8 @@ class MainActivity : FragmentActivity() {
         for (req in pendingCamera) runCatching { req.deny() }
         pendingCamera.clear()
         pendingCameraTokens.clear()
+        for (t in pendingBackgroundTokens) PageHost.backgroundReply(t, false)
+        pendingBackgroundTokens.clear()
         // A configuration change destroys this activity and immediately builds
         // another one, so the page is kept for the replacement regardless of
         // the switch.
@@ -242,8 +252,7 @@ class MainActivity : FragmentActivity() {
 
     // Called from the bridge when the page turns sharing on. Must run while
     // the app is foreground: a location foreground service cannot start from
-    // the background without the background location permission we refuse to
-    // ask for.
+    // the background with while-in-use location only.
     fun startShareFlow() {
         if (hasLocationPermission()) {
             startShareService()
@@ -270,6 +279,32 @@ class MainActivity : FragmentActivity() {
         val direct = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
         if (runCatching { startActivity(direct) }.isSuccess) return
         runCatching { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+    }
+
+    // Only from a switch a person just turned on, after the page has said why.
+    fun askBackgroundLocation(token: String) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            PageHost.backgroundReply(token, hasLocationPermission())
+            return
+        }
+        if (!hasLocationPermission()) {
+            PageHost.backgroundReply(token, false)
+            return
+        }
+        if (ShareResume.backgroundHeld(this)) {
+            PageHost.backgroundReply(token, true)
+            return
+        }
+        pendingBackgroundTokens.add(token)
+        backgroundPermission.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+    }
+
+    fun openNotificationSettings() {
+        runCatching {
+            startActivity(
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName),
+            )
+        }
     }
 
     // Where a person can let an SOS through total silence, not only alarms-allowed.
@@ -369,10 +404,7 @@ class MainActivity : FragmentActivity() {
 
     // ------------------------------------------------------------------ tor
 
-    fun torSupported(): Boolean = WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)
-
-    fun torEnabled(): Boolean =
-        getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(PREF_TOR, false)
+    fun torEnabled(): Boolean = TorProxy.enabled(this)
 
     fun setTorEnabled(on: Boolean) {
         getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(PREF_TOR, on).apply()
@@ -397,34 +429,7 @@ class MainActivity : FragmentActivity() {
     // Runnable holding a dead page for eight seconds.
     private var torSilenceCheck: Runnable? = null
 
-    // All WebView traffic through Orbot's SOCKS port, with no direct fallback:
-    // if Orbot is not listening, requests fail instead of leaking. socks5://
-    // is explicit because it matters: Chromium resolves hostnames proxy-side
-    // for SOCKS5, so DNS rides through Tor too. The override only governs
-    // connections opened after it lands, so the listener reloads the page and
-    // strands whatever the old config had pooled.
-    //
-    // The port comes from Orbot itself when Orbot answers; 9050 is the
-    // default and the fallback. Watching for the answer means a user who
-    // moved Orbot's port gets working Tor instead of a share that fails
-    // closed for a reason nothing on screen could explain.
     private fun applyTorPref() {
-        if (!torSupported()) return
-        val controller = ProxyController.getInstance()
-        val reload = Runnable { PageHost.reload() }
-        val executor = ContextCompat.getMainExecutor(this)
-        if (torEnabled()) {
-            OrbotStatus.start(this) { applyTorPref() }
-            val rule = "socks5://127.0.0.1:${OrbotStatus.socksPort}"
-            if (PageHost.proxyApplied == rule) return
-            PageHost.proxyApplied = rule
-            val config = ProxyConfig.Builder().addProxyRule(rule).build()
-            controller.setProxyOverride(config, executor, reload)
-        } else {
-            OrbotStatus.stop(this)
-            if (PageHost.proxyApplied == "direct") return
-            PageHost.proxyApplied = "direct"
-            controller.clearProxyOverride(executor, reload)
-        }
+        TorProxy.apply(this)
     }
 }

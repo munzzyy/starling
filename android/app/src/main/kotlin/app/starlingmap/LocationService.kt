@@ -27,7 +27,7 @@ import org.json.JSONObject
 // Keeps location flowing while the screen is off or the app is backgrounded.
 // Runs only between an explicit start from the page (user turned sharing on,
 // app in the foreground, permission already granted) and the matching stop.
-// While-in-use only: the app never requests background location permission.
+// The one start without a window is ShareResume's, behind a switch the person turned on.
 //
 // Swiping the task away ends the share, unless the person turned on "keep
 // sharing when the app is closed". With that on, PageHost holds the page past
@@ -42,6 +42,8 @@ class LocationService : Service(), LocationListener {
         internal const val ACTION_STOP = "app.starlingmap.STOP_SHARE"
         private const val ACTION_TICK = "app.starlingmap.SHARE_TICK"
         private const val ACTION_REPOST = "app.starlingmap.REPOST_SHARE_NOTIFICATION"
+        private const val ACTION_RESUME = "app.starlingmap.RESUME_SHARE"
+        private const val EXTRA_WHY = "why"
         private const val MIN_TIME_MS = 3000L
         private const val MIN_DIST_M = 5f
         // A phone lying still passes no distance filter, so without this the
@@ -85,6 +87,23 @@ class LocationService : Service(), LocationListener {
 
         // A share still running that nobody has asked to stop.
         val live: Boolean get() = running && !stopAsked
+
+        // "boot" or "update" until somebody opens the app.
+        @Volatile
+        var resumedWhy: String? = null
+
+        @Volatile
+        var waitingForTor = false
+
+        // Your own server waits until the page says the share is really back.
+        @Volatile
+        var resumePending = false
+
+        fun clearResume() {
+            resumedWhy = null
+            waitingForTor = false
+            resumePending = false
+        }
 
         // Sharing report counts. Never a position.
         @Volatile var startedAt = 0L
@@ -131,6 +150,13 @@ class LocationService : Service(), LocationListener {
                 .putBoolean(MainActivity.PREF_SHARE_CLOCK, on)
                 .apply()
             refreshNotification()
+        }
+
+        fun startResumed(ctx: Context, why: String) {
+            ContextCompat.startForegroundService(
+                ctx,
+                Intent(ctx, LocationService::class.java).setAction(ACTION_RESUME).putExtra(EXTRA_WHY, why),
+            )
         }
 
         fun stop(ctx: Context) {
@@ -254,6 +280,13 @@ class LocationService : Service(), LocationListener {
             }
             return START_NOT_STICKY
         }
+        val resume = intent?.action == ACTION_RESUME
+        if (resume) {
+            if (running) return START_NOT_STICKY
+            resumedWhy = if (intent?.getStringExtra(EXTRA_WHY) == "update") "update" else "boot"
+            waitingForTor = TorProxy.enabled(this)
+            resumePending = true
+        }
         if (!running) {
             stopAsked = false
             Forward.shareStarted()
@@ -275,10 +308,14 @@ class LocationService : Service(), LocationListener {
         } catch (e: Exception) {
             stopAsked = true
             sink?.invoke(JSONObject().put("error", "location service refused: ${e.message}").put("code", 2).toString())
+            if (resume) ShareResume.startFailed(this)
             stopSelf()
             return START_NOT_STICKY
         }
         startWatching()
+        if (resume) {
+            if (live) ShareResume.serviceUp(this) else ShareResume.startFailed(this)
+        }
         return START_NOT_STICKY
     }
 
@@ -373,7 +410,7 @@ class LocationService : Service(), LocationListener {
         if (location.hasSpeed()) fix.put("spd", location.speed.toDouble())
         if (location.hasBearing()) fix.put("hdg", location.bearing.toDouble())
         sink?.invoke(fix.toString())
-        Forward.maybeSend(this, location)
+        if (!resumePending) Forward.maybeSend(this, location)
     }
 
     @Deprecated("Deprecated in Java")
@@ -451,6 +488,7 @@ class LocationService : Service(), LocationListener {
         running = false
         Forward.shareEnded()
         if (instance === this) instance = null
+        ShareResume.serviceGone()
         if (!byUs) {
             sink?.invoke(JSONObject().put("stopped", true).put("route", "system").toString())
             postShareEnded("system")
@@ -525,15 +563,21 @@ class LocationService : Service(), LocationListener {
         }.build()
         // Private version only; the public one stays generic.
         val forwardHost = if (Forward.torOn(this)) null else Forward.host(this)
+        val title = when (resumedWhy) {
+            "boot" -> getString(R.string.notif_title_resumed_boot)
+            "update" -> getString(R.string.notif_title_resumed_update)
+            else -> getString(R.string.notif_title)
+        }
         val text = when {
             locationOff -> getString(R.string.notif_location_off)
+            waitingForTor -> getString(R.string.notif_waiting_orbot)
             forwardHost != null -> getString(R.string.notif_text_forward, forwardHost)
             else -> getString(R.string.notif_text)
         }
         // Same strings both versions: already generic, nothing to redact here.
         val publicVersion = Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_starling)
-            .setContentTitle(getString(R.string.notif_title))
+            .setContentTitle(title)
             .setContentText(getString(R.string.notif_text))
             .setContentIntent(open)
             .setOngoing(true)
@@ -547,7 +591,7 @@ class LocationService : Service(), LocationListener {
         countingDown = clock?.second == true
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_starling)
-            .setContentTitle(getString(R.string.notif_title))
+            .setContentTitle(title)
             .setContentText(text)
             .setContentIntent(open)
             .setOngoing(true)

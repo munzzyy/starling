@@ -221,3 +221,36 @@ test("the report still says something useful with no wrapper", () => {
   assert.ok(text.includes("Sharing: off"));
   assert.ok(text.includes("Last sent: never"));
 });
+
+test("the report says whether a share can come back by itself, in words from a fixed list", () => {
+  const now = Date.UTC(2026, 9, 5, 12, 0);
+  const page = { version: "0.18.0", sharing: true, startedAt: now - 60000 };
+  const report = (over) => shareReport({ h: { ...HEALTHY, autoBoot: true, autoUpdate: false, background: "granted", resumedBy: "boot", headlessResumes: 1, headlessAbandons: 0, ...over }, page, now });
+  const text = report({});
+  for (const want of [
+    "Comes back by itself: after a restart yes, after an update no",
+    "Location all the time: allowed",
+    "This share came back by itself: after a restart",
+    "Shares that came back by itself since the app started: 1, given up: 0",
+  ]) {
+    assert.ok(text.includes(want), `missing: ${want}\n${text}`);
+  }
+  const words = [
+    ["dialog", "not allowed"],
+    ["settings", "not allowed"],
+    ["notNeeded", "not needed (Android 9)"],
+    ["noLocation", "no location permission"],
+    ["granted 40.78512", "unknown"],
+    ["toString", "unknown"],
+    [7, "unknown"],
+  ];
+  for (const [background, want] of words) {
+    assert.ok(report({ background }).includes(`Location all the time: ${want}\n`), `${background} -> ${want}`);
+  }
+  for (const [resumedBy, want] of [["update", "after an update"], ["", "no"], ["Juno's phone", "unknown"], ["constructor", "unknown"], [null, "unknown"]]) {
+    assert.ok(report({ resumedBy }).includes(`This share came back by itself: ${want}\n`), `${resumedBy} -> ${want}`);
+  }
+  assert.ok(report({ headlessResumes: "40.78" }).includes("Shares that came back by itself since the app started: unknown, given up: 0"));
+  const older = shareReport({ h: HEALTHY, page, now });
+  assert.doesNotMatch(older, /by itself|all the time/, "a wrapper without the switches is not reported as unknown about them");
+});

@@ -96,6 +96,14 @@ const device = shaped(/^[A-Za-z0-9 ()+_/-]{1,60}$/);
 const webview = shaped(/^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+ \d{1,4}(\.\d{1,6}){0,4}$/);
 const oneOf = (...words) => (v) => (words.includes(v) ? v : "unknown");
 const batteryWord = oneOf("unrestricted", "optimized", "restricted");
+const BACKGROUND_WORDS = {
+  granted: "allowed",
+  dialog: "not allowed",
+  settings: "not allowed",
+  notNeeded: "not needed (Android 9)",
+  noLocation: "no location permission",
+};
+const CAME_BACK = { boot: "after a restart", update: "after an update", "": "no" };
 const opWord = oneOf("allowed", "foreground", "ignored", "errored", "default");
 const failWord = (v) =>
   typeof v === "string" && (/^http \d{3}$/.test(v) || ["clock", "timeout", "aborted", "network", "cancelled", "no key", "other"].includes(v))
@@ -120,6 +128,13 @@ export function shareReport({ h, page, now }) {
   lines.push(`Sharing: ${p.sharing ? `on for ${span(now - (p.startedAt || now))}` : "off"}`);
   if (h) {
     lines.push(`Keep sharing when closed: ${yn(h.keepSharing)}`);
+    // Older wrappers have no such switches, and saying "unknown" about them would mislead.
+    if ("autoBoot" in h) {
+      lines.push(`Comes back by itself: after a restart ${yn(h.autoBoot)}, after an update ${yn(h.autoUpdate)}`);
+      lines.push(`Location all the time: ${Object.hasOwn(BACKGROUND_WORDS, h.background) ? BACKGROUND_WORDS[h.background] : "unknown"}`);
+      lines.push(`This share came back by itself: ${Object.hasOwn(CAME_BACK, h.resumedBy) ? CAME_BACK[h.resumedBy] : "unknown"}`);
+      lines.push(`Shares that came back by itself since the app started: ${num(h.headlessResumes)}, given up: ${num(h.headlessAbandons)}`);
+    }
     const where = h.windowShown ? "on screen" : h.headless ? (h.holding ? "closed, held" : "closed") : "in the background";
     lines.push(`App window: ${where}`);
     lines.push(`Location permission: ${h.fine ? "precise" : h.coarse ? "approximate only" : "none"} (app op ${opWord(h.fineOp)})`);

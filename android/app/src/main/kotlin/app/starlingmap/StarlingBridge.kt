@@ -1,6 +1,7 @@
 package app.starlingmap
 
 import android.content.Context
+import android.os.Build
 import android.webkit.JavascriptInterface
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
@@ -305,6 +306,63 @@ class StarlingBridge(private val app: Context) {
 
     @JavascriptInterface
     fun setShareClock(on: Boolean) = LocationService.showClock(app, on)
+
+    // {"boot":bool,"update":bool}, after dropping any switch that can no longer be honoured.
+    @JavascriptInterface
+    fun autoResume(): String = ShareResume.autoState(app)
+
+    // Off always works. On only with a window, Keep sharing, the grant and visible notifications.
+    @JavascriptInterface
+    fun setAutoResume(boot: Boolean, update: Boolean): String = ShareResume.setAuto(app, boot, update)
+
+    // "granted", "dialog", "settings", "notNeeded" or "noLocation".
+    @JavascriptInterface
+    fun backgroundLocation(): String = ShareResume.backgroundState(app)
+
+    // Android's own name for the choice; "" before Android 11.
+    @JavascriptInterface
+    fun backgroundOptionLabel(): String =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            runCatching { app.packageManager.backgroundPermissionOptionLabel.toString().take(80) }.getOrDefault("")
+        } else {
+            ""
+        }
+
+    // Answers through __starlingBackground(token, granted), false with nobody at the window.
+    @JavascriptInterface
+    fun requestBackgroundLocation(token: String) {
+        val a = activity
+        if (a == null) {
+            PageHost.backgroundReply(token, false)
+            return
+        }
+        a.runOnUiThread {
+            if (PageHost.windowShown && PageHost.activity === a) a.askBackgroundLocation(token)
+            else PageHost.backgroundReply(token, false)
+        }
+    }
+
+    @JavascriptInterface
+    fun notificationsShown(): Boolean = ShareResume.notificationsVisible(app)
+
+    @JavascriptInterface
+    fun openNotificationSettings() {
+        ui { it.openNotificationSettings() }
+    }
+
+    // "boot" or "update" when this page was built for a share that came back by itself.
+    @JavascriptInterface
+    fun headlessResume(): String = ShareResume.headlessWhy ?: ""
+
+    // "started", "delivered", "locked" or "declined"; anything else is ignored.
+    @JavascriptInterface
+    fun headlessResumeState(state: String) = ShareResume.pageSaid(app, state)
+
+    @JavascriptInterface
+    fun readAutoResumeRecord(): String? = ShareResume.lastRecord(app)
+
+    @JavascriptInterface
+    fun clearAutoResumeRecord() = ShareResume.clearLastRecord(app)
 
     // ------------------------------------------------------------------ tor
 

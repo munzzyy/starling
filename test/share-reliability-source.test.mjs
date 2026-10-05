@@ -172,11 +172,21 @@ test("a share start from a page with no window waits for the window instead of t
   assert.match(fn(act, "onStart"), /if \(startWhenShown\) \{\s*startWhenShown = false\s*startShareFlow\(\)/);
 });
 
-test("the battery exemption is asked for, never taken, and there is still no background location", () => {
+test("the battery exemption is asked for, never taken, and background location only from its switch", () => {
   const m = manifest();
   assert.match(m, /android\.permission\.WAKE_LOCK/);
   assert.match(m, /android\.permission\.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS/);
-  assert.doesNotMatch(m, /ACCESS_BACKGROUND_LOCATION/);
+  // Declared for the opt-in switches; the share flow's own ask is unchanged.
+  const act = kt("MainActivity.kt");
+  const asks = [...act.matchAll(/ACCESS_BACKGROUND_LOCATION/g)].map((x) => x.index);
+  const own = fn(act, "askBackgroundLocation");
+  const at = act.indexOf(own);
+  assert.ok(asks.length >= 1 && asks.every((i) => i > at && i < at + own.length), "asked for in askBackgroundLocation and nowhere else");
+  assert.match(
+    fn(act, "requestLocationPermission"),
+    /launch\(\s*arrayOf\(\s*Manifest\.permission\.ACCESS_FINE_LOCATION,\s*Manifest\.permission\.ACCESS_COARSE_LOCATION,\s*\),\s*\)/,
+    "the share flow asks for fine and coarse, exactly",
+  );
   const ask = fn(kt("MainActivity.kt"), "askBatteryExemption");
   assert.match(ask, /isIgnoringBatteryOptimizations\(packageName\) == true\) return/, "not asked twice");
   assert.match(ask, /ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS/);

@@ -7,8 +7,10 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Asked for only when a person turns on a resume switch in Settings. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Only to offer a share back after a restart; nothing starts at boot. -->
+    <!-- To offer a share back after a restart, or bring it back if a switch says so. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Held only while a share runs, for the seconds between a fix arriving
          and the page's post settling. Without it the phone went back to sleep
@@ -109,7 +111,8 @@
             android:exported="false" />
 
         <!-- Both broadcasts come from the system, which reaches a receiver
-             that is not exported; no other app can fire this one. -->
+             that is not exported; no other app can fire this one. Not direct
+             boot aware, so nothing runs before the first unlock. -->
         <receiver
             android:name=".ShareResumeReceiver"
             android:exported="false">

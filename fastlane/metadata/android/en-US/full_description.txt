@@ -22,7 +22,7 @@ Keep one circle for family and another for the friends you split up from at a fa
 Hold to fire an SOS that your circle sees immediately. Check in with a status without leaving your location on all the time.
 
 <b>Live sharing that keeps running</b>
-The Android app keeps sharing your location while your screen is off, with a persistent notification the whole time so it is never silent about what it is doing. Swiping the app away ends the share and it picks back up when you reopen Starling, or turn on "Keep sharing when the app is closed" in Settings and it carries on. Turn it off with one tap; your circle sees "stopped" instead of a dot that just goes stale.
+The Android app keeps sharing your location while your screen is off, with a persistent notification the whole time so it is never silent about what it is doing. Swiping the app away ends the share until you reopen Starling, unless "Keep sharing when the app is closed" is on. Opt-in switches bring it back after a restart or an update. One tap stops it; your circle sees "stopped" instead of a dot that just goes stale.
 
 <b>Self-hostable</b>
 Don't want to trust our relay? Run your own. The app has a setting for a custom relay address, and the relay is open source and small enough to read in one sitting. Run it on Cloudflare Workers, or as a plain server on your own VPS or home machine behind Apache or nginx, with no Cloudflare account at all.

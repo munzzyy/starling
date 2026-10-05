@@ -17,6 +17,13 @@
     <string name="notif_remind_text">Ouvrez Starling pour partager à nouveau.</string>
     <string name="notif_resume_boot_text">Votre téléphone a redémarré. Appuyez pour partager à nouveau.</string>
     <string name="notif_resume_update_text">Starling a été mise à jour. Appuyez pour partager à nouveau.</string>
+    <string name="notif_title_resumed_boot">Partage repris après un redémarrage</string>
+    <string name="notif_title_resumed_update">Partage repris après une mise à jour</string>
+    <string name="notif_waiting_orbot">En attente d\'Orbot. Rien n\'est envoyé tant que Tor n\'est pas connecté.</string>
+    <string name="notif_resumed_title">Partage repris</string>
+    <string name="notif_resumed_boot_text">Votre téléphone a redémarré, et le partage a repris tout seul.</string>
+    <string name="notif_resumed_update_text">Starling a été mise à jour, et le partage a repris tout seul.</string>
+    <string name="notif_resume_orbot_text">Orbot ne s\'est pas connecté, donc rien n\'a été envoyé. Appuyez pour partager à nouveau.</string>
     <string name="bio_wrap_title">Confirmez pour activer le déverrouillage biométrique</string>
     <string name="bio_unwrap_title">Déverrouiller Starling</string>
     <string name="bio_cancel">Utiliser le code d\'accès</string>

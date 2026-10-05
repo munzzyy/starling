@@ -93,6 +93,12 @@ object Health {
         o.put("nudges", PageHost.nudges)
         o.put("lastPulseMs", ago(PageHost.lastPulseAt))
         o.put("keepSharing", PageHost.keepSharing(ctx))
+        o.put("autoBoot", ShareResume.autoBoot(ctx))
+        o.put("autoUpdate", ShareResume.autoUpdate(ctx))
+        o.put("background", ShareResume.backgroundState(ctx))
+        o.put("resumedBy", ShareResume.headlessWhy ?: "")
+        o.put("headlessResumes", ShareResume.resumes)
+        o.put("headlessAbandons", ShareResume.abandons)
         o.put(
             "tor",
             ctx.getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE).getBoolean(MainActivity.PREF_TOR, false),

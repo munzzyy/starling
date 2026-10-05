@@ -16,6 +16,13 @@
     <string name="notif_remind_text">Abra o Starling para compartilhar de novo.</string>
     <string name="notif_resume_boot_text">Seu telefone foi reiniciado. Toque para compartilhar de novo.</string>
     <string name="notif_resume_update_text">O Starling foi atualizado. Toque para compartilhar de novo.</string>
+    <string name="notif_title_resumed_boot">Compartilhando de novo após reiniciar</string>
+    <string name="notif_title_resumed_update">Compartilhando de novo após uma atualização</string>
+    <string name="notif_waiting_orbot">Aguardando o Orbot. Nada é enviado até o Tor conectar.</string>
+    <string name="notif_resumed_title">Compartilhamento retomado</string>
+    <string name="notif_resumed_boot_text">Seu telefone reiniciou e o compartilhamento voltou sozinho.</string>
+    <string name="notif_resumed_update_text">O Starling foi atualizado e o compartilhamento voltou sozinho.</string>
+    <string name="notif_resume_orbot_text">O Orbot não conectou, então nada foi enviado. Toque para compartilhar de novo.</string>
     <string name="notif_stop">Parar</string>
     <string name="bio_wrap_title">Confirme para ativar o desbloqueio biométrico</string>
     <string name="bio_unwrap_title">Desbloquear o Starling</string>

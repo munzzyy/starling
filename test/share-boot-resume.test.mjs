@@ -179,13 +179,14 @@ test("an older wrapper without the methods still shares", async () => {
   assert.equal(state.sharing, false);
 });
 
-test("the Kotlin side: a private receiver that only ever posts, and no background location", async () => {
+test("the Kotlin side: a private receiver, and a start only through the switches' gate", async () => {
   const { readFileSync } = await import("node:fs");
   const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), "utf8");
   const kt = (name) => read(`android/app/src/main/kotlin/app/starlingmap/${name}`);
   const manifest = read("android/app/src/main/AndroidManifest.xml");
-  assert.doesNotMatch(manifest, /ACCESS_BACKGROUND_LOCATION/);
+  assert.equal((manifest.match(/ACCESS_BACKGROUND_LOCATION/g) || []).length, 1, "declared once, asked for elsewhere");
   assert.doesNotMatch(manifest, /LOCKED_BOOT_COMPLETED/);
+  assert.doesNotMatch(manifest, /directBootAware/, "nothing runs before the first unlock");
   assert.match(manifest, /<uses-permission android:name="android\.permission\.RECEIVE_BOOT_COMPLETED" \/>/);
   const receiver = manifest.match(/<receiver\s+android:name="\.ShareResumeReceiver"[\s\S]*?<\/receiver>/);
   assert.ok(receiver, "the receiver is declared");
@@ -193,9 +194,10 @@ test("the Kotlin side: a private receiver that only ever posts, and no backgroun
   assert.match(receiver[0], /android\.intent\.action\.BOOT_COMPLETED/);
   assert.match(receiver[0], /android\.intent\.action\.MY_PACKAGE_REPLACED/);
   const resume = kt("ShareResume.kt");
-  // It offers; it never starts. A share only starts from the window.
-  assert.doesNotMatch(resume, /LocationService\.start|startForegroundService|PageHost\.attach|PageHost\.load/);
-  assert.match(resume, /if \(LocationService\.running\) return/);
+  // The window's start, the activity's page and a plain load never happen from here.
+  assert.doesNotMatch(resume, /LocationService\.start\(|startForegroundService|PageHost\.attach|PageHost\.load/);
+  assert.equal((resume.match(/LocationService\.startResumed\(/g) || []).length, 1, "one start, behind decide()");
+  assert.match(resume, /if \(LocationService\.running \|\| starting\) return/);
   assert.match(kt("Wipe.kt"), /runCatching \{ ShareResume\.disarm\(ctx\) \}/);
   const wipe = kt("Wipe.kt");
   assert.ok(wipe.indexOf("ShareResume.disarm") < wipe.indexOf("clearApplicationUserData"));

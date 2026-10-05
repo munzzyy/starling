@@ -123,6 +123,10 @@ silently on Android 11 and up. NetCipher used to be the polite way to do
 this; it has been unmaintained since 2020 and never actually read the port
 extra it declared a constant for, so this talks to Orbot directly.
 
+A share that comes back by itself after a restart (see Notifications) sends
+Orbot that same broadcast, and keeps sending it while it waits. Orbot's own
+Start on boot is still the sure way to have Tor up in time.
+
 Honest limits of the toggle, so nobody has to discover them the hard way:
 if Orbot never answers, 9050 stands, and a wrong port fails closed rather
 than leaking, but sharing stops until the ports agree. It covers the WebView
@@ -321,19 +325,22 @@ window has passed, or after a panic wipe, which deletes the copy with
 everything else. Starting a share or stopping one takes the notification
 down. The receiver is not exported; both broadcasts come from the system.
 
-Why a tap and not a silent restart: the app only holds while-in-use location
-and never asks for background location. A location service started from a
-boot or update receiver was measured on the emulators, with the same signer
-installed over itself (`adb install -r`) and a real `adb reboot`, and fixes
-fed in with `adb emu geo fix`. As a control, the same service started with the
-app on screen got 10 or 11 fixes from 8 injections on every image.
+Why it is a tap unless you turn this on: by default the app holds
+while-in-use location only. A location service started from a boot or update
+receiver was measured on the emulators, with the same signer installed over
+itself (`adb install -r`) and a real `adb reboot`, and fixes fed in with `adb
+emu geo fix`. As a control, the same service started with the app on screen
+got 10 or 11 fixes from 8 injections on every image. The last column is the
+same start with Allow all the time granted. That was a throwaway build on
+2026-10-05. The build that ships it has not been run yet, and neither have 9
+and 10.
 
-| Android | Service started at boot or update | Fixes |
-| --- | --- | --- |
-| 9 (API 28) | starts, notification shows | arrive |
-| 10 (API 29) | starts, notification shows | arrive |
-| 13 (API 33) | starts, notification shows | none in 24 s |
-| 16 (API 36) | `startForeground` throws `SecurityException` | none |
+| Android | Service started at boot or update | Fixes | With Allow all the time |
+| --- | --- | --- | --- |
+| 9 (API 28) | starts, notification shows | arrive | not needed |
+| 10 (API 29) | starts, notification shows | arrive | not measured yet |
+| 13 (API 33) | starts, notification shows | none in 24 s | 11 at boot, 11 after an update |
+| 16 (API 36) | `startForeground` throws `SecurityException` | none | starts typed location; 10 at boot, 11 after an update |
 
 That matches Android's own rules. From Android 11 a foreground service started
 in the background cannot use location without background location, and from
@@ -349,11 +356,69 @@ limits leave the location type out
 which does not help when 14 already refuses it. On Android 9 and 10 the
 service would get fixes, but positions are sealed in the page, and the page
 only starts a share from a window: the WebView version gate and the Orbot
-proxy are set up there. So every version gets the tap.
+proxy are set up there. So every version gets the tap unless you turn on one
+of the switches below.
 
 An update from 0.16.1 or older to this version offers nothing, because the
 older page never handed its record over. The first share after the update
 does.
+
+#### Coming back by itself
+
+Settings, Sharing has two switches under Keep sharing when the app is closed,
+both off by default: Also after a restart and Also after an update. A share
+that comes back runs with no window, so both need Keep sharing, and turning
+Keep sharing off turns them off. Turning one on also needs a location grant,
+Starling's notifications visible (the app's, and neither the Location sharing
+nor the Circle alerts channel blocked), and on Android 10 and later Allow all the
+time: the page explains first, then Android asks, with a dialog on 10 and the
+app's location settings page from 11. Android 9 needs nothing more, because
+its location grant already covers all the time. With the app lock on the
+switches are off and stay off: the passcode seals the circle key, so a page
+built at boot would be locked and could share nothing. Turning the lock on
+turns them off before anything is sealed.
+
+At a restart or an update the receiver checks what a reopen would: the armed
+record (never a share you stopped, never a lapsed window, never after a panic
+wipe), the switch for this case, Keep sharing, the grant and the
+notifications, then the WebView floor and, with Tor mode on, that the WebView
+can take a proxy. A switch whose conditions have gone is turned off rather
+than left waiting. Any miss gets the tap above. Otherwise it starts the
+location service, whose notification reads "Sharing again after a restart"
+(or "after an update"), and builds the page with no activity, held in the same
+private virtual display a page kept past a swipe uses. The proxy setting goes
+in before that page's WebView exists, and the page loads only once it has
+landed. It boots the way a reopen does and tells
+the wrapper how that went. When the share is back, Starling posts "Sharing
+resumed" on the Circle alerts channel, and the next time the app is opened a
+card says the share came back by itself, and to check who has access to the
+phone if that was not you. When the app lock held the page shut, the service
+stops and you get the tap. When the page's own rules said no, the service just
+stops. If the page says nothing within 90 seconds, it is destroyed first so
+nothing more is posted, then the service stops and you get the tap.
+
+Your own server gets nothing until the page says started. The map fetches no
+tiles until a window shows the page for the first time. With no window the
+page freezes after a few minutes like any kept page. The same nudge and
+watchdog keep it posting. With Tor mode on, fixes come from GPS only, the
+notification says "Waiting for Orbot" until the first post gets through, and
+Starling asks Orbot every 25 seconds; if nothing has gone out after 5 minutes
+the page and the service go and you get "Orbot did not connect, so nothing was
+sent". Nothing is ever sent outside Tor while it waits. If you use Orbot's
+per-app VPN instead of the proxy switch, turn on Always-on VPN with Block
+connections without VPN for Orbot in Android's settings, or a share that comes
+back can go out before Orbot's VPN is up.
+
+The receiver is not direct boot aware on purpose, so after a restart nothing
+happens until the phone is unlocked once. A panic wipe forgets both switches,
+and on Android 13 and later asks Android to take Allow all the time back as
+the wiped process dies.
+
+What this does not cover: a share Android ends by killing the whole process
+(a low-memory or OEM killer) still waits for a reopen. A service that asked
+Android to restart it would come back in a new process with no window, and
+nobody has measured whether Android 12 and later let it go foreground from
+there.
 
 ## Sharing with the screen off
 

@@ -2043,6 +2043,11 @@ a.land-download {
   background: var(--accent-ink);
 }
 
+.switch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* -------------------------------------------------------------- settings */
 
 .set-group {

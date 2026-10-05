@@ -103,7 +103,6 @@ object PageHost {
 
     // Built once per process, on the application context so no activity can be
     // held past its death. Callers pass the activity they want it attached to.
-    @SuppressLint("SetJavaScriptEnabled")
     fun attach(host: MainActivity): WebView {
         release?.let { main.removeCallbacks(it) }
         release = null
@@ -118,7 +117,27 @@ object PageHost {
             bridge?.activity = host
             return existing
         }
+        return build(app)
+    }
 
+    // Proxy before the WebView, and the load only from its listener, so nothing leaves before Tor.
+    fun bootHeadless(app: Context): Boolean {
+        if (webView != null) return false
+        release?.let { main.removeCallbacks(it) }
+        release = null
+        if (!SystemCheck.webViewOk(app)) return false
+        activity = null
+        windowShown = false
+        appCtx = app
+        val pending = TorProxy.apply(app, Runnable { load(null) })
+        build(app)
+        hold()
+        if (!pending) load(null)
+        return true
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun build(app: Context): WebView {
         // Debuggable builds only, which release APKs are not: this is how the
         // e2e checks drive the real page inside the real WebView.
         if ((app.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
@@ -157,7 +176,7 @@ object PageHost {
         view.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
 
         val b = StarlingBridge(app)
-        b.activity = host
+        b.activity = activity
         bridge = b
         view.addJavascriptInterface(b, "StarlingNative")
 
@@ -290,11 +309,13 @@ object PageHost {
         var vd: VirtualDisplay? = null
         try {
             val dm = app.getSystemService(DisplayManager::class.java)
+            // A page booted with no window was never laid out, so it gets the phone's size.
+            val metrics = app.resources.displayMetrics
             vd = dm.createVirtualDisplay(
                 "starling-page",
-                v.width.coerceAtLeast(1),
-                v.height.coerceAtLeast(1),
-                app.resources.displayMetrics.densityDpi,
+                if (v.width > 0) v.width else metrics.widthPixels.coerceAtLeast(1),
+                if (v.height > 0) v.height else metrics.heightPixels.coerceAtLeast(1),
+                metrics.densityDpi,
                 null,
                 0,
             )
@@ -363,6 +384,9 @@ object PageHost {
 
     fun cameraReply(token: String, granted: Boolean) =
         eval("globalThis.__starlingCamera && __starlingCamera(${JSONObject.quote(token)}, $granted)")
+
+    fun backgroundReply(token: String, granted: Boolean) =
+        eval("globalThis.__starlingBackground && __starlingBackground(${JSONObject.quote(token)}, $granted)")
 
     fun bioReply(token: String, payload: String?) {
         val p = if (payload == null) "null" else JSONObject.quote(payload)
@@ -511,5 +535,7 @@ object PageHost {
         ctx.getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean(MainActivity.PREF_KEEP_SHARING, on)
             .apply()
+        // The resume switches only make sense with this one on.
+        if (!on) ShareResume.autoOff(ctx)
     }
 }

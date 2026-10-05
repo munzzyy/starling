@@ -24,7 +24,7 @@
 
 <p class="back"><a href="/">Starling</a></p>
 <h1>Privacy policy</h1>
-<p class="effective">Effective 2026-09-30</p>
+<p class="effective">Effective 2026-10-05</p>
 
 <p>Starling is a location sharing app built so that the people running it cannot
 see your location, and there is nothing to sell because there is nothing
@@ -92,6 +92,17 @@ own position, in OwnTracks format, straight to the address you give, while you
 share. It never goes through the relay or anywhere we run. That server is
 yours, and what it keeps is up to you. If you set a tracker ID, it goes
 along with each position. Nothing is sent while Tor mode is on.</p>
+
+<h2>Location while the app is closed (Android)</h2>
+<p>The Android app has two switches, both off by default, that bring a share
+back by itself after the phone restarts or the app updates. Turning one on
+asks Android to let Starling use your location all the time, not only while
+the app is open. A share that comes back sends the same encrypted posts to the
+same relay as any other share: nothing new is collected and nothing goes
+anywhere new. It always shows the sharing notification while it runs, and an
+alert that it came back. With both switches off, Starling uses that
+permission for nothing, even if Android has granted it, and a panic wipe
+gives it back.</p>
 
 <h2>What stays only on your device</h2>
 <p>Your circle memberships, the app lock's wrapped key (never the passcode

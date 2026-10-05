@@ -1,8 +1,10 @@
 package app.starlingmap
 
+import android.Manifest
 import android.app.ActivityManager
 import android.app.NotificationManager
 import android.content.Context
+import android.os.Build
 
 // The one full-device wipe, shared by the PanicKit responder and the in-app
 // panic bridge (which is also what the duress passcode fires). Kept in one
@@ -19,6 +21,11 @@ object Wipe {
         KeystoreVault.deleteKey()
         runCatching { ShareReminder.cancel(ctx) }
         runCatching { ShareResume.disarm(ctx) }
+        runCatching { ShareResume.forgetAuto(ctx) }
+        // A wiped app, like the duress passcode's fresh install, keeps no all the time location.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            runCatching { ctx.revokeSelfPermissionsOnKill(listOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION)) }
+        }
         // Notification channels live in system settings, outside app data,
         // and their labels name the app's features. Remove the residue, each
         // on its own so one refusal cannot keep the others.

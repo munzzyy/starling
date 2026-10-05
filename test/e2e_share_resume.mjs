@@ -10,6 +10,8 @@
 // record waiting, which is what a torn-down process and a fresh launch look
 // like from inside the page.
 //
+// Then the page built with no window after a restart, open and behind the app lock.
+//
 // Run from the repo root:  node test/e2e_share_resume.mjs
 // Ports: 8941 (http), 9341 (devtools). Everything started here is killed.
 import { spawn } from "node:child_process";
@@ -44,6 +46,9 @@ const BRIDGE = `window.StarlingNative = {
   stopLocation: () => {},
   readStopRecord: () => window.__stopRecord || null,
   clearStopRecord: () => { window.__stopRecord = null; },
+  windowShown: () => window.__shown !== false,
+  headlessResume: () => window.__headless || "",
+  headlessResumeState: (word) => (window.__reports ||= []).push(word),
 };`;
 
 async function waitFor(fn, desc, timeout = 25000) {
@@ -61,11 +66,14 @@ function connect(wsUrl) {
   const ws = new WebSocket(wsUrl);
   const pending = new Map();
   let id = 0;
+  const listeners = new Map();
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
     if (msg.id && pending.has(msg.id)) {
       pending.get(msg.id)(msg);
       pending.delete(msg.id);
+    } else if (msg.method && listeners.has(msg.method)) {
+      listeners.get(msg.method)(msg.params);
     }
   };
   const send = (method, params = {}) =>
@@ -81,7 +89,8 @@ function connect(wsUrl) {
     }
     return r.result?.result?.value;
   };
-  return { send, evalJs, open: new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; }) };
+  const on = (method, fn) => listeners.set(method, fn);
+  return { send, evalJs, on, open: new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; }) };
 }
 
 // Is the card a person could actually read, rather than one that merely exists
@@ -140,6 +149,36 @@ async function main() {
     await c.open;
     await c.send("Page.enable");
     await c.send("Runtime.enable");
+    // A wrapped page posts to the canonical relay; send that to the local one instead.
+    const cors = [
+      { name: "access-control-allow-origin", value: BASE },
+      { name: "access-control-allow-methods", value: "GET, POST" },
+      { name: "access-control-allow-headers", value: "content-type" },
+    ];
+    c.on("Fetch.requestPaused", async ({ requestId, request }) => {
+      if (request.method === "OPTIONS") {
+        await c.send("Fetch.fulfillRequest", { requestId, responseCode: 204, responseHeaders: cors });
+        return;
+      }
+      const u = new URL(request.url);
+      const res = await fetch(`${BASE}${u.pathname}${u.search}`, {
+        method: request.method,
+        headers: request.postData ? { "content-type": "application/json" } : {},
+        body: request.postData,
+      }).catch(() => null);
+      if (!res) {
+        await c.send("Fetch.failRequest", { requestId, errorReason: "ConnectionRefused" });
+        return;
+      }
+      const body = Buffer.from(await res.arrayBuffer()).toString("base64");
+      await c.send("Fetch.fulfillRequest", {
+        requestId,
+        responseCode: res.status,
+        responseHeaders: [...cors, { name: "content-type", value: res.headers.get("content-type") || "application/json" }],
+        body,
+      });
+    });
+    await c.send("Fetch.enable", { patterns: [{ urlPattern: "https://starlingmap.app/*", requestStage: "Request" }] });
     await c.send("Page.addScriptToEvaluateOnNewDocument", { source: BRIDGE });
     await c.send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
 
@@ -214,6 +253,47 @@ async function main() {
     const stopped = await c.evalJs(READ_CARD);
     check("a Stop from the notification is not undone by reopening", stopped.sharing === false);
     check("and that card names the notification instead", /notification/i.test(stopped.text || ""), stopped.text);
+
+    // A restart with Also after a restart on.
+    await c.evalJs(`document.querySelector('[data-testid="share-toggle"]').click()`);
+    await waitFor(() => c.evalJs("window.__starlingState().sharing === true"), "sharing on before the restart");
+    await c.send("Page.addScriptToEvaluateOnNewDocument", {
+      source: `window.__stopRecord = null; window.__headless = "boot"; window.__shown = false;`,
+    });
+    await c.send("Page.reload");
+    await waitFor(() => c.evalJs("(window.__reports || []).includes('started')"), "the page reports started");
+    await c.evalJs(`window.__starlingFix(JSON.stringify({ lat: 45.06, lon: 13.23, ts: Date.now(), acc: 8 }))`);
+    await waitFor(() => c.evalJs("(window.__reports || []).includes('delivered')"), "the page reports delivered");
+    const headless = await c.evalJs(`(() => ({
+      reports: window.__reports,
+      sharing: window.__starlingState().sharing,
+      offgrid: document.getElementById("map").classList.contains("offgrid"),
+      tiles: document.querySelectorAll('#map img.leaflet-tile').length,
+      warmed: !!document.querySelector('link[href="https://tile.openstreetmap.org"]'),
+      toasts: [...document.querySelectorAll("#toasts *")].map((t) => t.textContent.trim()).filter(Boolean),
+      card: window.__starlingInternals.alertItems().find((i) => i.id === "auto-resumed")?.title || null,
+      errs: (window.__starlingErrors || []).slice(0, 5),
+    }))()`);
+    check("the share came back with nobody at the window", headless.sharing === true);
+    check("and said so once, then said its first post got through", JSON.stringify(headless.reports) === '["started","delivered"]', JSON.stringify(headless.reports));
+    check("no map tiles and no tile host warmed while nobody looks", headless.offgrid && headless.tiles === 0 && !headless.warmed, JSON.stringify(headless));
+    check("no toast for nobody", !headless.toasts.some((t) => /back on/i.test(t)), JSON.stringify(headless.toasts));
+    check("the card is waiting for whoever opens the app", headless.card === "Sharing came back on by itself", headless.card);
+    check("no page errors with no window", headless.errs.length === 0, JSON.stringify(headless.errs));
+
+    await c.evalJs(`window.__shown = true; document.dispatchEvent(new Event("visibilitychange"))`);
+    const looked = await c.evalJs(`!document.getElementById("map").classList.contains("offgrid")`);
+    check("the map gets its saved basemap the first time a window shows it", looked === true);
+
+    // The same restart behind the app lock: a locked page holds no keys.
+    check("the app lock goes on", (await c.evalJs(`window.__starlingInternals.enableLock("2468")`)) === true);
+    await c.send("Page.addScriptToEvaluateOnNewDocument", { source: `window.__reports = []; window.__shown = false;` });
+    await c.send("Page.reload");
+    await waitFor(() => c.evalJs("(window.__reports || []).length > 0"), "the locked page reports");
+    await sleep(1500);
+    const locked = await c.evalJs(`({ reports: window.__reports, sharing: window.__starlingState().sharing, screen: window.__starlingState().screen })`);
+    check("behind the app lock the page reports locked and nothing else", JSON.stringify(locked.reports) === '["locked"]', JSON.stringify(locked));
+    check("and shares nothing", locked.sharing === false && locked.screen === "lock", JSON.stringify(locked));
   } finally {
     chromium.kill();
     server.kill();

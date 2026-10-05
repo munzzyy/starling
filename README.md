@@ -147,6 +147,13 @@ the share running. The cost is spelled out in the setting: a phone you think
 you closed is still holding your circle's keys, and the app lock cannot cover
 them until the share ends.
 
+Since 0.18.0 two more switches sit under it, also off by default: Also after
+a restart and Also after an update. With one on, and Android's Allow all the
+time granted, a share that a restart or an update ended comes back without
+the app being opened, with the sharing notification and an alert saying so.
+Not with the app lock on, not with Starling's notifications turned off, and
+not before the first unlock after a restart.
+
 ## Run it
 
 No build step, no dependencies to install. Needs Node 24 or newer.

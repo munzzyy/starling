@@ -336,11 +336,16 @@ than Cloudflare can run their own relay; see the FAQ and
     After a restart or an app update that ended a share, the events channel
     also says "Sharing stopped" with a tap to share again. Like the
     reminder, it tells anyone who sees the screen that Starling is installed
-    and was sharing, and nothing more. Nothing starts at boot: the receiver
-    reads a plaintext copy of the armed record (a start time and a window end,
-    the same facts the page already keeps unsealed for its own resume) and
-    posts or does not. The share itself comes back only when someone opens the
-    app, and under the app lock only after the passcode.
+    and was sharing, and nothing more. By default nothing starts at boot: the
+    receiver reads a plaintext copy of the armed record (a start time and a
+    window end, the same facts the page already keeps unsealed for its own
+    resume) and posts or does not, and the share itself comes back only when
+    someone opens the app, and under the app lock only after the passcode.
+    With Also after a restart or Also after an update turned on, the share
+    comes back without the app being opened; see "A share that comes back by
+    itself" under the Android deltas. It says so in the same generic words:
+    "Sharing again after a restart" on the sharing notification and a
+    "Sharing resumed" alert.
 17. **The sharing notification itself is a leak Android requires.** While
     you share, Android requires a visible foreground notification ("Sharing
     with your circle") for as long as the location service runs; there is no
@@ -545,9 +550,39 @@ and why none of it weakens the core claim (the relay never sees a position).
   the share runs. This is a design constraint the app leans into rather than
   works around: sharing is never silent, matching the same "always show a
   live sharing indicator" principle from the web app's design consequences
-  above. The service requests fine and coarse location while-in-use only; it
-  does not request `ACCESS_BACKGROUND_LOCATION`, and it only starts while
-  the app has foreground state to begin with.
+  above. The service runs on fine and coarse location while in use, and
+  starts from the app on screen, with one exception a person has to turn on:
+  `ACCESS_BACKGROUND_LOCATION` is declared for the two switches that bring a
+  share back after a restart or an update, asked for only when one of them is
+  turned on, and the service started that way shows the same notification.
+- **A share that comes back by itself.** Two switches, off by default, let a
+  share that a restart or an app update ended start again with no window.
+  The relay sees nothing new: the same padded, sealed posts go to the same
+  channel through the same relay, through Tor when Tor mode is on. It sees a
+  phone go quiet and come back, which it already saw on every reopen, and
+  there is no new endpoint, push service or token. Map tiles wait until a
+  person opens the app, so a phone that restarted in a pocket fetches nothing
+  from OpenStreetMap. A thief with a locked phone gets nothing from a
+  restart: Android keeps the app's storage encrypted and sends no boot
+  broadcast until the first unlock, and Starling is not direct boot aware on
+  purpose. A phone kept powered and locked keeps a running share, as it
+  always did, and an update in that state brings the share back if Also
+  after an update is on. A thief with an unlocked phone sees the share carry
+  on across restarts, which is the point; Stop still needs device
+  authentication on Android 12 and later. Someone setting this up on another
+  person's phone needs it unlocked, a circle, Keep sharing on, a switch on,
+  Allow all the time granted in system settings, and Starling's
+  notifications left on, because nothing comes back while they are hidden.
+  The owner then sees the sharing notification the whole time (put back if
+  swiped on Android 14 and later), an alert at every comeback, Starling under
+  "Allowed all the time" in Android's location settings, and, on opening the
+  app, a card that says the share came back by itself and to check who has
+  access to the phone. A planted share survives restarts this way; it is no
+  quieter than a share already is. With the app lock on nothing changes: the
+  switches cannot be on, the key stays sealed by the passcode, and the tap
+  is offered instead. If a switch were somehow on anyway, the page boots
+  locked, writes nothing, says so, and the service stops with the tap
+  offered.
 - **Keeping the page running with the screen off.** Chromium freezes a
   hidden page after a minute or five, which stopped every share whose phone
   was put down. During a share the wrapper makes the page visible to

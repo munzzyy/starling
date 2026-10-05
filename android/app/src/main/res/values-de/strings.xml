@@ -16,6 +16,13 @@
     <string name="notif_remind_text">Öffne Starling, um wieder zu teilen.</string>
     <string name="notif_resume_boot_text">Dein Telefon wurde neu gestartet. Tippe, um wieder zu teilen.</string>
     <string name="notif_resume_update_text">Starling wurde aktualisiert. Tippe, um wieder zu teilen.</string>
+    <string name="notif_title_resumed_boot">Teilst wieder nach einem Neustart</string>
+    <string name="notif_title_resumed_update">Teilst wieder nach einem Update</string>
+    <string name="notif_waiting_orbot">Warte auf Orbot. Nichts wird gesendet, bis Tor verbunden ist.</string>
+    <string name="notif_resumed_title">Teilen läuft wieder</string>
+    <string name="notif_resumed_boot_text">Dein Telefon wurde neu gestartet, und das Teilen ist von selbst wieder angegangen.</string>
+    <string name="notif_resumed_update_text">Starling wurde aktualisiert, und das Teilen ist von selbst wieder angegangen.</string>
+    <string name="notif_resume_orbot_text">Orbot hat sich nicht verbunden, also wurde nichts gesendet. Tippe, um wieder zu teilen.</string>
     <string name="notif_stop">Stopp</string>
     <string name="bio_wrap_title">Bestätige, um die biometrische Entsperrung einzurichten</string>
     <string name="bio_unwrap_title">Starling entsperren</string>

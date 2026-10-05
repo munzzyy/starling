@@ -185,6 +185,8 @@ const state = {
   // notification or a task swipe, neither of which this page necessarily saw
   // happen. Read at boot, cleared only when the person acknowledges it.
   stopRecord: null,
+  // { why, at } of a share that came back by itself, until the person acknowledges it.
+  autoResumed: null,
   // The live generation: { g, e0, channelId, ratchet }. Everything that used to
   // hang off a circle secret that lived forever hangs off this instead, and a
   // re-key replaces the whole of it.
@@ -668,7 +670,8 @@ function ensureMapUI() {
   // A demo entered before the map ever existed (the hosted tour's whole
   // path) must not touch the street basemap even for a frame: a saved
   // "dark" here would warm the tile host before startDemo forces "none".
-  mapView.setBasemap(state.demo ? "none" : state.settings.basemap);
+  // Nor does a page that came back by itself with nobody looking.
+  mapView.setBasemap(state.demo || basemapHeld() ? "none" : state.settings.basemap);
   // Places load before the map exists on a fresh launch (enterCircle runs
   // loadPlaces first); the freshly built map has to catch up on them.
   mapView.setPlaces(state.places);
@@ -1082,6 +1085,30 @@ function alertItems() {
       title: route === "lock" ? t("The app lock ended your share") : t("Your last share was stopped outside the app"),
       text: route === "system" || route === "stalled" ? (back ? `${text} ${t("It is back on now that the app is open.")}` : text) : text,
       actions,
+    });
+  }
+
+  if (state.autoResumed) {
+    items.push({
+      id: "auto-resumed",
+      kind: "warn",
+      title: t("Sharing came back on by itself"),
+      text:
+        state.autoResumed.why === "update"
+          ? t("Starling updated while you were sharing, and turned sharing back on without being opened, because Also after an update is on in Settings. If you did not turn that on, check who has access to this phone.")
+          : t("Your phone restarted while you were sharing, and Starling turned sharing back on without being opened, because Also after a restart is on in Settings. If you did not turn that on, check who has access to this phone."),
+      actions: [
+        { label: "Settings", testid: "alert-auto-resumed-settings", onClick: openSettings },
+        {
+          label: "Got it",
+          testid: "alert-auto-resumed-ok",
+          onClick: () => {
+            state.autoResumed = null;
+            callNative("clearAutoResumeRecord");
+            render();
+          },
+        },
+      ],
     });
   }
 
@@ -1725,7 +1752,11 @@ async function enterCircle() {
   // Last, and deliberately not awaited into the boot path: a resume needs the
   // sender and the poller this call just armed, and nothing above it should
   // wait on a geolocation prompt.
-  resumeShareIfArmed().catch((e) => window.__starlingErrors.push(`share resume: ${String(e)}`));
+  const run = resumeShareIfArmed().catch((e) => {
+    window.__starlingErrors.push(`share resume: ${String(e)}`);
+    return false;
+  });
+  resumeRun ??= run;
 }
 
 // The one call that actually destroys expired key material. Nothing else walks
@@ -1973,6 +2004,7 @@ async function leaveDestroyedCircle(circles) {
   }
   // Nothing took the slots, so the purge above took this device's keypair and
   // the circle's name with it, and memory has to say what the disk says.
+  autoResumeOff();
   state.identity = null;
   state.circleName = "";
   state.circleShare = packShare(null);
@@ -2968,6 +3000,8 @@ async function enableLock(passcode) {
   if (!state.gen) return false;
   if (!takeCircleGuard()) return false;
   try {
+    // Before anything is sealed, so a crash partway through leaves the switches off.
+    autoResumeOff();
     const K = newVaultKey();
     const pass = await makePasscodeRecord(passcode, K);
     const lockRecord = { enabled: true, autolockMs: 60000, pass, bio: null };
@@ -4892,6 +4926,7 @@ const leaveCircle = () =>
       return true;
     }
     // Back where a fresh install starts.
+    autoResumeOff();
     state.gen?.ratchet.destroy();
     state.gen = null;
     state.identity = null;
@@ -5024,6 +5059,15 @@ async function openSettings() {
       shareClock = null;
     }
   }
+  const autoResume =
+    typeof n?.setAutoResume === "function" && typeof n?.autoResume === "function" && !state.demo
+      ? {
+          read: autoResumeStatus,
+          onToggle: toggleAutoResume,
+          onOpenNotifications: () => callNative("openNotificationSettings"),
+          onOpenApp: openAppSettingsPage,
+        }
+      : null;
   const background =
     typeof n?.batteryState === "function" && !state.demo
       ? {
@@ -5059,6 +5103,7 @@ async function openSettings() {
       tor,
       keepSharing,
       shareClock,
+      autoResume,
       background,
       forward:
         typeof n?.setForward === "function" && typeof n?.forwardStatus === "function" && !state.demo
@@ -5226,6 +5271,7 @@ async function panic() {
   } catch {
     // old wrapper
   }
+  autoResumeOff();
   try {
     native()?.panicWipe?.();
   } catch {
@@ -5478,6 +5524,185 @@ let shareResumeTried = false;
 // people sharing ended once it plainly has not.
 let shareResumed = false;
 
+// A page the wrapper built with no window reports "started", "locked" or "declined".
+const HEADLESS_WHYS = new Set(["boot", "update"]);
+let headlessWhy = "";
+let headlessDelivered = false;
+let shownSinceBoot = false;
+let resumeRun = null;
+
+function tellHeadless(word) {
+  try {
+    native()?.headlessResumeState?.(word);
+  } catch {
+    // older wrapper
+  }
+}
+
+async function reportHeadlessBoot() {
+  if (!headlessWhy) return;
+  const resumed = await (resumeRun ?? false);
+  if (resumed && state.sharing) {
+    state.autoResumed = { why: headlessWhy, at: Date.now() };
+    tellHeadless("started");
+  } else {
+    tellHeadless(state.locked ? "locked" : "declined");
+  }
+  render();
+}
+
+// No map tiles until a person has seen the page.
+function basemapHeld() {
+  return !!headlessWhy && !shownSinceBoot;
+}
+
+function releaseHeldBasemap() {
+  if (!basemapHeld() || !pageShown()) return;
+  shownSinceBoot = true;
+  if (mapView && !state.demo && state.gen) mapView.setBasemap(state.settings.basemap);
+}
+document.addEventListener("visibilitychange", releaseHeldBasemap);
+
+function autoResumeOff() {
+  try {
+    native()?.setAutoResume?.(false, false);
+  } catch {
+    // older wrapper
+  }
+}
+
+function parseAutoResume(raw) {
+  try {
+    const v = JSON.parse(raw ?? "null");
+    return { boot: v?.boot === true, update: v?.update === true };
+  } catch {
+    return { boot: false, update: false };
+  }
+}
+
+function readAutoResume() {
+  try {
+    return parseAutoResume(native()?.autoResume?.());
+  } catch {
+    return { boot: false, update: false };
+  }
+}
+
+function writeAutoResume({ boot, update }) {
+  try {
+    return parseAutoResume(native()?.setAutoResume?.(!!boot, !!update));
+  } catch {
+    return readAutoResume();
+  }
+}
+
+function autoResumeStatus() {
+  const ask = (name, fallback) => {
+    try {
+      return native()?.[name]?.() ?? fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  return {
+    ...readAutoResume(),
+    lock: !!state.lock?.enabled,
+    keepSharing: keptPastClose(),
+    notifications: ask("notificationsShown", false) === true,
+    background: String(ask("backgroundLocation", "noLocation")),
+    tor: ask("torEnabled", false) === true,
+  };
+}
+
+// Android's own name for the choice, so the sheet says what the system screen says.
+function backgroundLabel() {
+  try {
+    const v = native()?.backgroundOptionLabel?.();
+    if (typeof v === "string" && v.trim()) return v.trim().slice(0, 80);
+  } catch {
+    // an older wrapper
+  }
+  return t("Allow all the time");
+}
+
+// Long, because Android 11 and up send the person to a settings page to choose.
+const BACKGROUND_ASK_TIMEOUT_MS = 600000;
+let backgroundTokenN = 0;
+const backgroundPending = new Map();
+
+window.__starlingBackground = (token, granted) => {
+  const p = backgroundPending.get(token);
+  if (!p) return;
+  backgroundPending.delete(token);
+  clearTimeout(p.timer);
+  p.resolve(granted === true);
+};
+
+function askBackgroundPermission() {
+  const n = native();
+  if (typeof n?.requestBackgroundLocation !== "function") return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const token = `b${++backgroundTokenN}`;
+    const timer = setTimeout(() => {
+      backgroundPending.delete(token);
+      resolve(false);
+    }, BACKGROUND_ASK_TIMEOUT_MS);
+    backgroundPending.set(token, { resolve, timer });
+    try {
+      n.requestBackgroundLocation(token);
+    } catch {
+      backgroundPending.delete(token);
+      clearTimeout(timer);
+      resolve(false);
+    }
+  });
+}
+
+// Replaced only by the automated checks, which cannot tap a sheet.
+let confirmBackground = (opts) => ui.confirmBackgroundLocation(opts);
+
+// Answers with what the switch should now show: what is stored, whatever was tapped.
+async function toggleAutoResume(which, on) {
+  if (which !== "boot" && which !== "update") return false;
+  if (!on) {
+    const stored = writeAutoResume({ ...readAutoResume(), [which]: false });
+    ui.toast(
+      which === "boot"
+        ? t("After a restart you get a tap to share again instead.")
+        : t("After an update you get a tap to share again instead."),
+    );
+    return stored[which];
+  }
+  const st = autoResumeStatus();
+  if (st.lock || !st.keepSharing || !st.notifications || st.background === "noLocation") return st[which];
+  if (st.background === "dialog" || st.background === "settings") {
+    const label = backgroundLabel();
+    if (!(await confirmBackground({ mode: st.background, label }))) return readAutoResume()[which];
+    const asked = Date.now();
+    if (!(await askBackgroundPermission())) {
+      // Android answers at once, with no screen shown, when it has stopped asking.
+      ui.toast(
+        st.background === "settings" && Date.now() - asked < 1000
+          ? t("Android will not ask again. In Starling's app settings, open Permissions, then Location, and choose {label}.", { label })
+          : t("Android still allows your location only while you use Starling, so this stays off."),
+        "warn",
+      );
+      return readAutoResume()[which];
+    }
+  }
+  const stored = writeAutoResume({ ...readAutoResume(), [which]: true });
+  if (!stored[which]) {
+    ui.toast(t("Could not change that setting."), "warn");
+    return false;
+  }
+  ui.toast(
+    which === "boot"
+      ? t("Sharing will come back by itself after a restart.")
+      : t("Sharing will come back by itself after an update."),
+  );
+  return true;
+}
+
 async function resumeShareIfArmed() {
   if (shareResumeTried) return false;
   shareResumeTried = true;
@@ -5515,7 +5740,8 @@ async function resumeShareIfArmed() {
   await armShare();
   shareResumed = true;
   const ended = (Number(state.stopRecord?.at) || 0) >= (armed.at || 0) ? state.stopRecord?.route : null;
-  ui.toast(
+  // Nobody to read it; the wrapper's notification and the card speak instead.
+  if (!headlessWhy || pageShown()) ui.toast(
     ended === "system" || ended === "stalled"
       ? t("Android had stopped your share in the background. It is back on.")
       : ended === "lock"
@@ -6034,6 +6260,10 @@ async function sendLoc(force = false) {
       await sendMsg(state.sosActive ? "sos" : "loc");
       shareStats.ok++;
       shareStats.lastOkAt = Date.now();
+      if (headlessWhy && !headlessDelivered) {
+        headlessDelivered = true;
+        tellHeadless("delivered");
+      }
       if (state.clockError) {
         state.clockError = null;
         render();
@@ -7002,6 +7232,22 @@ if (debugHooks()) window.__starlingInternals = {
     shareResumeTried = false;
     shareResumed = false;
   },
+  setHeadless: (why) => {
+    headlessWhy = HEADLESS_WHYS.has(why) ? why : "";
+    headlessDelivered = false;
+    shownSinceBoot = false;
+    resumeRun = null;
+  },
+  reportHeadlessBoot,
+  basemapHeld,
+  releaseHeldBasemap,
+  toggleAutoResume,
+  autoResumeStatus,
+  setConfirmBackground: (fn) => {
+    confirmBackground = fn;
+  },
+  leaveCircle,
+  enableLock,
 };
 
 // ----------------------------------------------------------------- boot
@@ -7095,6 +7341,21 @@ async function boot() {
       if (raw) {
         const rec = JSON.parse(raw);
         if (rec && STOP_ROUTES.has(rec.route)) state.stopRecord = rec;
+      }
+    } catch {
+      // a malformed native record is not worth failing boot over
+    }
+    try {
+      const why = native()?.headlessResume?.();
+      if (HEADLESS_WHYS.has(why)) headlessWhy = why;
+    } catch {
+      // an older wrapper
+    }
+    try {
+      const raw = native()?.readAutoResumeRecord?.();
+      if (raw) {
+        const rec = JSON.parse(raw);
+        if (rec && HEADLESS_WHYS.has(rec.why)) state.autoResumed = { why: rec.why, at: Number(rec.at) || 0 };
       }
     } catch {
       // a malformed native record is not worth failing boot over
@@ -7345,6 +7606,7 @@ async function boot() {
       window.__starlingErrors.push(`enter: ${String(e)}`);
       showScreen("onboarding");
     }
+    if (!state.gen && !state.locked) autoResumeOff();
 
     // Demo and invite auto-actions only apply past the lock screen.
     if (!state.locked) {
@@ -7356,6 +7618,8 @@ async function boot() {
   await restoreCheckinTimer();
 
   render();
+
+  reportHeadlessBoot().catch((e) => window.__starlingErrors.push(`headless report: ${String(e)}`));
 
   if (persistenceBroken()) {
     ui.toast("This browser is blocking storage. Starling runs, but nothing is saved after you close it.", "warn");
