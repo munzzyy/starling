@@ -1,7 +1,9 @@
 package app.starlingmap
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class EventsChannelTest {
@@ -17,6 +19,15 @@ class EventsChannelTest {
         for (kind in listOf("battery", "other", "", "ARRIVE", "arrive ", "share")) {
             assertEquals(kind, MainActivity.EVENTS_CHANNEL, Events.channelFor(kind))
         }
+    }
+
+    @Test fun onlyANewChannelTakesItsSettingsFromCircleAlerts() {
+        for (id in listOf(MainActivity.ARRIVE_CHANNEL, MainActivity.LEAVE_CHANNEL, MainActivity.CHECKIN_CHANNEL)) {
+            assertTrue(id, Events.startsAsEvents(id, exists = false))
+            assertFalse("$id is left as the person set it", Events.startsAsEvents(id, exists = true))
+        }
+        assertFalse(Events.startsAsEvents(MainActivity.EVENTS_CHANNEL, exists = false))
+        assertFalse(Events.startsAsEvents(MainActivity.EVENTS_CHANNEL, exists = true))
     }
 
     @Test fun noKindReachesTheSosChannel() {

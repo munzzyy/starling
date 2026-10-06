@@ -252,23 +252,32 @@ Arrivals, departures and check-ins each post on a channel of their own
 ("Arrivals", "Departures", "Check-ins"); low battery, join requests and
 anything else stay on "Circle alerts". Sounds are picked per channel in
 Android's notification settings, so a person can tell an arrival from a
-departure without looking (issue #24). Starling ships no sounds of its own:
-each new channel starts with the phone's default notification sound, the
-same one the general channel already had, and the text on every one of them
-is still the generic "Open Starling to see what happened." Settings, Places
-and alerts has "Open alert sound settings", which creates all four channels
-first, so they are there to choose from before the first arrival ever comes
-in. The note under it says the trade: a sound of its own also tells anyone
-near the phone which kind of alert came in. An SOS and a missed check-in stay
-on "Emergency alerts" exactly as before. The page names the kind with
-`notifyKind`; a wrapper without it gets the old `notify` call. The panic wipe
-deletes the three new channels with the others.
+departure without looking (issue #24). Starling ships no sounds of its own.
+Each new channel starts as a copy of how "Circle alerts" is set at that
+moment: its importance, sound, vibration and badge. Someone who silenced or
+blocked Circle alerts, for example to keep Starling quiet around someone,
+does not get arrivals and check-ins back with a sound and a heads-up after
+updating. On a fresh install that means the phone's default notification
+sound. A channel that already exists keeps whatever it was set to. The lock
+screen setting is not copied, since Android sets that itself on every new
+channel. The text on every one of them is still the generic "Open Starling
+to see what happened." Settings, Places and alerts has "Open alert sound
+settings", which creates all four channels first, so they are there to
+choose from before the first arrival ever comes in. The note under it says
+the trade: a sound of its own also tells anyone near the phone which kind of
+alert came in. An SOS and a missed check-in stay on "Emergency alerts"
+exactly as before. The page names the kind with `notifyKind`; a wrapper
+without it gets the old `notify` call. The panic wipe deletes the three new
+channels with the others.
 
-Emulator check, not run yet: post one alert of each kind with the app in the
-background, then `adb shell cmd notification list-channels app.starlingmap 0`
-lists `events`, `events_arrive`, `events_leave`, `events_checkin` and
-`events_sos_alarm`, and `dumpsys notification --noredact` shows each alert on
-its channel.
+Not yet checked on a device or emulator. To check: post one alert of each
+kind with the app in the background, then
+`adb shell cmd notification list-channels app.starlingmap 0` lists `events`,
+`events_arrive`, `events_leave`, `events_checkin` and `events_sos_alarm`, and
+`dumpsys notification --noredact` shows each alert on its channel. Then
+install the previous release, block "Circle alerts", update, and post an
+arrival: `list-channels` should show `events_arrive` at importance 0 and
+nothing should appear.
 
 ### The sharing notification comes back
 

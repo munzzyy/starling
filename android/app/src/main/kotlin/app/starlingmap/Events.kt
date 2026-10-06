@@ -132,7 +132,26 @@ object Events {
     // All of them at once, so each is in system settings to pick a sound for before its first alert.
     fun ensureEventChannels(ctx: Context) {
         val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.createNotificationChannels(ROUTINE.map { buildChannel(ctx, it.first, false) })
+        val base = nm.getNotificationChannel(MainActivity.EVENTS_CHANNEL)
+        nm.createNotificationChannels(
+            ROUTINE.map { (id, _) ->
+                val channel = buildChannel(ctx, id, false)
+                if (base != null && startsAsEvents(id, nm.getNotificationChannel(id) != null)) copySettings(base, channel)
+                channel
+            },
+        )
+    }
+
+    // A new channel starts as Circle alerts is set, so alerts the person silenced do not come back loud.
+    fun startsAsEvents(id: String, exists: Boolean): Boolean = !exists && id != MainActivity.EVENTS_CHANNEL
+
+    private fun copySettings(from: NotificationChannel, to: NotificationChannel) {
+        to.importance = from.importance
+        to.setSound(from.sound, from.audioAttributes)
+        // The pattern first: setting it also sets whether the channel vibrates.
+        to.vibrationPattern = from.vibrationPattern
+        to.enableVibration(from.shouldVibrate())
+        to.setShowBadge(from.canShowBadge())
     }
 
     // A channel's sound attributes never change in place, so the pre-alarm channel is retired.

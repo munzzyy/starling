@@ -25,9 +25,11 @@ All notable changes to Starling are recorded here. Versions follow
 - **A sound for arrivals, another for departures (#24).** On Android,
   arrivals, departures and check-ins each post on a notification channel of
   their own, so each can have its own sound in Android's notification
-  settings. Settings, Places and alerts has a button that opens them. They
-  start with the phone's default sound and the same generic text as before.
-  An SOS keeps its own alarm channel, untouched.
+  settings. Settings, Places and alerts has a button that opens them. Each
+  new channel starts the way Circle alerts is set, so if you silenced or
+  blocked Circle alerts, these stay silent too until you change them. The
+  text is the same generic line as before. An SOS keeps its own alarm
+  channel, untouched.
 
 ## [0.18.0]
 

@@ -230,7 +230,24 @@ test("Android gives arrivals, departures and check-ins channels of their own and
   assert.match(events, /"arrive" -> MainActivity\.ARRIVE_CHANNEL\r?\n\s*"leave" -> MainActivity\.LEAVE_CHANNEL\r?\n\s*"checkin" -> MainActivity\.CHECKIN_CHANNEL\r?\n\s*else -> MainActivity\.EVENTS_CHANNEL/);
   assert.doesNotMatch(events.slice(events.indexOf("fun channelFor"), events.indexOf("fun post")), /SOS_CHANNEL/);
   assert.match(events, /val channelId = if \(urgent\) ensureSosChannel\(ctx\) else routine/);
-  assert.match(events, /createNotificationChannels\(ROUTINE\.map \{ buildChannel\(ctx, it\.first, false\) \}\)/, "every routine channel exists after the first alert");
+  assert.match(
+    events,
+    /val base = nm\.getNotificationChannel\(MainActivity\.EVENTS_CHANNEL\)\s*nm\.createNotificationChannels\(\s*ROUTINE\.map \{ \(id, _\) ->\s*val channel = buildChannel\(ctx, id, false\)\s*if \(base != null && startsAsEvents\(id, nm\.getNotificationChannel\(id\) != null\)\) copySettings\(base, channel\)\s*channel\s*\},\s*\)/,
+    "every routine channel exists after the first alert, and a new one starts as Circle alerts is set",
+  );
+  const copy = events.slice(events.indexOf("private fun copySettings"), events.indexOf("fun ensureSosChannel"));
+  for (const line of [
+    "to.importance = from.importance",
+    "to.setSound(from.sound, from.audioAttributes)",
+    "to.enableVibration(from.shouldVibrate())",
+    "to.setShowBadge(from.canShowBadge())",
+  ]) {
+    assert.ok(copy.includes(line), `a silenced or blocked Circle alerts stays that way: ${line}`);
+  }
+  assert.ok(
+    copy.indexOf("to.vibrationPattern = from.vibrationPattern") < copy.indexOf("to.enableVibration(from.shouldVibrate())"),
+    "setting a pattern also sets vibration on or off, so it has to come first",
+  );
   for (const n of ["ARRIVE", "LEAVE", "CHECKIN"]) {
     assert.match(events, new RegExp(`MainActivity\\.${n}_CHANNEL to R\\.string\\.notif_${n.toLowerCase()}_channel`));
   }
