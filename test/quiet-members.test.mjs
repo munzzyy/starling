@@ -215,3 +215,13 @@ test("a fresh joiner sees the person who let them in before anybody has posted",
   assert.equal(nudge().hidden, true, "a circle with somebody in it is not 'just you'");
   assert.deepEqual(quietList().children.map(cardName), ["Ana"]);
 });
+
+test("the joined circle takes the creator's name, or the inviter's when none was sent", async () => {
+  const ana = await generateIdentity();
+  await joinedBy(ana, "Ana", "Family");
+  assert.equal(state.circleName, "Family");
+  await joinedBy(ana, "Ana", "");
+  assert.equal(state.circleName, "Ana's circle");
+  await joinedBy(ana, "", undefined);
+  assert.equal(state.circleName, "New circle");
+});

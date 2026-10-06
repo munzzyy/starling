@@ -27,6 +27,7 @@ import {
   algFromPk,
   b64uDecode,
   b64uEncode,
+  cleanText,
   memberIdFromKeys,
   safetyNumber,
   validEcdhKey,
@@ -344,10 +345,26 @@ export function recordOverflows(sealed) {
 // missing leaves a device that decrypts the circle perfectly and can attribute
 // no re-key at all, which is silent and permanent, so the count travels with
 // the seed.
-export function welcomePlan({ roster, g, e0 }) {
+//
+// The circle's name rides in the head when there is one. Receivers that predate
+// it read the head field by field, so the extra key is ignored rather than refused.
+export function welcomePlan({ roster, g, e0, name }) {
   const posts = roster.map((m) => ({ t: "member", body: memberRecordBody(m) }));
-  posts.push({ t: "welcome", head: { g, e0, n: roster.length } });
+  const head = { g, e0, n: roster.length };
+  const clamped = cleanText(name, 24).trim();
+  if (clamped) head.name = clamped;
+  posts.push({ t: "welcome", head });
   return posts;
+}
+
+// What a joined circle is called on this device: the name its creator's phone
+// sent, else the inviter's name, else nothing better than a placeholder.
+// `label` builds the inviter fallback so the caller owns the translation.
+export function joinedCircleName({ welcomeName, inviterName, label, placeholder }) {
+  const sent = cleanText(welcomeName, 24).trim();
+  if (sent) return sent;
+  const who = cleanText(inviterName, 24).trim();
+  return who ? label(who).slice(0, 24) : placeholder;
 }
 
 // --- being let in -----------------------------------------------------------

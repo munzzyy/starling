@@ -153,15 +153,13 @@ test("a re-key from a member with no name reads in the chosen language, card and
   }
 });
 
-test("waiting on a circle with no name says New circle in the chosen language", () => {
+test("the waiting card names no circle and speaks the chosen language", () => {
   raiseEveryCard();
   state.joining = { circleName: "", safety: "12 34 56", imposters: 0 };
   setLocale("de");
   try {
     const card = internals.alertItems().find((i) => i.id === "joining");
-    assert.equal(card.title, de["Waiting to be let into {name}"].replace("{name}", de["New circle"]));
-    state.joining.circleName = "Field team";
-    assert.equal(internals.alertItems().find((i) => i.id === "joining").title, de["Waiting to be let into {name}"].replace("{name}", "Field team"));
+    assert.equal(card.title, de["Waiting to be let in"]);
   } finally {
     setLocale("en");
     state.joining = null;

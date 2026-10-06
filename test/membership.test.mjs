@@ -507,3 +507,32 @@ test("rosterView is the rotator's view of the circle, from a receiver's seat", (
   assert.deepEqual(rosterView({ pinned: new Set([a, b]), self: me, by: b }), [a, me]);
   assert.deepEqual(rosterView({ pinned: [], self: me, by: a }), [me]);
 });
+
+// --- the circle's name in the welcome --------------------------------------
+
+test("a welcome with a name is read, and one without is still a welcome", async () => {
+  const inviter = await generateIdentity();
+  const joiner = await generateIdentity();
+  const commit = await inviterCommitment(inviter.pk, inviter.epk);
+  const old = await welcome(joiner, { by: inviter.memberId, n: 2, seed: new Uint8Array(newSeed()) });
+  const named = { ...old, name: "Family" };
+
+  assert.equal(readWelcome(named, E0).name, "Family");
+  assert.equal(readWelcome(old, E0).name, "", "an inviter on an older version sends none");
+  assert.equal(readWelcome({ ...old, name: 12 }, E0).name, "");
+  assert.equal(readWelcome({ ...old, name: "x".repeat(99) }, E0).name.length, 24);
+  assert.equal(readWelcome({ ...old, name: "a\u0000b\nc" }, E0).name, "abc", "controls never reach a circle name");
+
+  for (const obj of [old, named]) {
+    const opened = await openWelcome({ identity: joiner, chanId: CHAN, commit, from: asFrom(inviter), obj, epoch: E0 });
+    assert.ok(opened, "the extra field does not change who may open it");
+    assert.equal(opened.n, 2);
+  }
+});
+
+test("the widest name still fits the padded message", async () => {
+  const joiner = await generateIdentity();
+  const key = await crypto.subtle.importKey("raw", new Uint8Array(32), "AES-GCM", false, ["encrypt"]);
+  const obj = { ...(await welcome(joiner, { by: "a".repeat(32), n: 16, seed: new Uint8Array(newSeed()) })), name: "\u6f22".repeat(24) };
+  await assert.doesNotReject(sealMessage(key, CHAN, "b".repeat(32), E0, 1700000000000, obj));
+});

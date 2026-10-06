@@ -20,6 +20,7 @@ import {
   inviteExpired,
   inviteMintedBy,
   inviteWatchDecision,
+  joinedCircleName,
   joinPromptVerdict,
   joinRelayVerdict,
   memberRecordBody,
@@ -578,4 +579,28 @@ test("a link naming a relay is joined through it, or explained, never sent somew
   // A device with circles or a pending request on another relay does not.
   assert.equal(joinRelayVerdict({ inviteRelay: relay, currentRelay: "", committed: true }), "mismatch");
   assert.equal(joinRelayVerdict({ inviteRelay: relay, currentRelay: "https://other.example.net", committed: true }), "mismatch");
+});
+
+// --- the circle's name travels with the welcome ----------------------------
+
+test("the welcome carries the inviter's circle name, clamped, and omits it when there is none", () => {
+  const roster = [{ memberId: "s".repeat(32), alg: "p256", pk: "PK", epk: "EPK", name: "Me" }];
+  const head = (name) => welcomePlan({ roster, g: 4, e0: 9, name }).at(-1).head;
+
+  assert.equal(head("Family").name, "Family");
+  assert.equal(head("x".repeat(80)).name, "x".repeat(24));
+  for (const none of [undefined, null, "", "   ", 7]) {
+    assert.deepEqual(head(none), { g: 4, e0: 9, n: 1 }, `no name for ${String(none)}`);
+  }
+});
+
+test("a joiner takes the creator's name, else the inviter's name, else a placeholder", () => {
+  const label = (who) => `${who}'s circle`;
+  const pick = (welcomeName, inviterName) => joinedCircleName({ welcomeName, inviterName, label, placeholder: "New circle" });
+
+  assert.equal(pick("Family", "Ana"), "Family");
+  assert.equal(pick("", "Ana"), "Ana's circle");
+  assert.equal(pick(undefined, "Ana"), "Ana's circle", "a welcome from an older inviter sends no name");
+  assert.equal(pick(undefined, ""), "New circle");
+  assert.equal(pick(undefined, undefined), "New circle");
 });

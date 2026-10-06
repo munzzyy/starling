@@ -12,7 +12,7 @@
 //
 // Spec: docs/PROTOCOL.md, "Joining" and "Re-keying".
 
-import { PROTO, MAX_SKEW_EPOCHS, b64uDecode, memberIdFromKeys, rosterHash } from "./wire.js";
+import { PROTO, MAX_SKEW_EPOCHS, b64uDecode, cleanText, memberIdFromKeys, rosterHash } from "./wire.js";
 import { inviterCommitment, equalBytes, openSealed } from "./crypto.js";
 
 const td = new TextDecoder();
@@ -85,7 +85,8 @@ export function readWelcome(obj, epoch) {
   // unable to follow a single re-key.
   if (!Number.isSafeInteger(obj.n) || obj.n < 1 || obj.n > 64) return null;
   if (typeof obj.eph !== "string" || typeof obj.w !== "string") return null;
-  return { g: obj.g, e0: obj.e0, n: obj.n };
+  const name = cleanText(obj.name, 24).trim();
+  return { g: obj.g, e0: obj.e0, n: obj.n, name };
 }
 
 async function unwrap(identity, chanId, obj, context) {

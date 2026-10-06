@@ -515,7 +515,10 @@ From `IS`:
    ```
 
    `g` and `e0` name the generation the admitting re-key has just opened, not
-   the one it left. One `member` record per existing member goes with it, each
+   the one it left. The welcome may also carry `name`, the inviter's circle
+   name, at most 24 characters and left out when the circle has none.
+   Receivers read the head field by field, so older ones ignore it, and a
+   joiner without it names the circle after the inviter. One `member` record per existing member goes with it, each
    carrying that member's `alg`, `pk`, `epk` and their name if it fits inside
    `PAD_LEN`:
 

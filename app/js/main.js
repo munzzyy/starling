@@ -20,6 +20,7 @@ import {
   inviteMintedBy,
   inviteWatchDecision,
   joinPromptVerdict,
+  joinedCircleName,
   joinRelayVerdict,
   mintDecision,
   recordOverflows,
@@ -1292,7 +1293,7 @@ function alertItems() {
     items.push({
       id: "joining",
       kind: state.joining.imposters ? "warn" : "info",
-      title: t("Waiting to be let into {name}", { name: state.joining.circleName || t("New circle") }),
+      title: t("Waiting to be let in"),
       text: t("Somebody already in that circle has to accept your request. Read them your number: {digits}{jumped}", { digits: state.joining.safety || t("not ready yet"), jumped }),
       actions: [{ label: "Cancel the request", testid: "alert-cancel-join", onClick: cancelJoin }],
     });
@@ -3821,7 +3822,6 @@ function promptJoin(invite) {
   ui.openJoinSheet({
     profile: state.profile,
     hasCircle: !!state.gen,
-    circleName: { value: "" },
     relayHost: relayVerdict === "adopt" ? new URL(invite.relay).host : "",
     onJoin: (p) =>
       withCircleGuard(async () => {
@@ -4415,7 +4415,7 @@ async function sendWelcome({ chanId, post }, req, seed, members) {
   // order, and what a delivery run the other way round leaves behind, is in
   // admissionPlan.
   try {
-    for (const item of welcomePlan({ roster, g, e0 })) {
+    for (const item of welcomePlan({ roster, g, e0, name: state.circleName })) {
       if (item.t === "welcome") {
         await post.send({ t: "welcome", ...item.head, ...(await sealFor(seed)) });
         continue;
@@ -4485,7 +4485,6 @@ async function joinWithInvite(invite, profile) {
     identity,
     chanId,
     key,
-    circleName: profile?.circleName || "",
   };
   startJoinWatch();
   render();
@@ -4653,7 +4652,12 @@ async function completeJoin(j, welcome) {
     state.joinIncomplete = null;
     state.chainDestroyed = false;
     state.chainWipeFailed = null;
-    state.circleName = j.circleName || "New circle";
+    state.circleName = joinedCircleName({
+      welcomeName: welcome.name,
+      inviterName: state.pinned.get(welcome.inviter.memberId)?.name,
+      label: (who) => t("{name}'s circle", { name: who }),
+      placeholder: "New circle",
+    });
     await dbSet("circleName", state.circleName);
     await persistCircle();
     state.circleShare = packShare(null);

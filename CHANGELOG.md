@@ -5,6 +5,12 @@ All notable changes to Starling are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Joining a circle keeps its name (#27).** The welcome now carries the
+  circle's name, so a new member sees what its creator called it and is no
+  longer asked to pick one. If whoever lets you in is on an older version,
+  the circle is called "their name's circle" until you rename it in
+  settings. Renaming stays local to your phone.
+
 ## [0.19.0]
 
 - **A sound for arrivals, another for departures (#24).** On Android,

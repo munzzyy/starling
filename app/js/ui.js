@@ -381,7 +381,7 @@ export function openIdentitySheet({ title, intro, cta, profile, circleName, onSa
   return ov;
 }
 
-export function openJoinSheet({ profile, hasCircle, circleName, relayHost, onJoin }) {
+export function openJoinSheet({ profile, hasCircle, relayHost, onJoin }) {
   const ov = openOverlay({ title: "Join a circle", testid: "join-sheet" });
   ov.body.append(
     el("p", "ov-note", "You have an invite to a circle. Set up how you will appear to the people in it."),
@@ -390,6 +390,7 @@ export function openJoinSheet({ profile, hasCircle, circleName, relayHost, onJoi
       "ov-note",
       "This sends a request. Somebody already in the circle has to check your safety number and accept it before you can see anyone, or they you. That check is how they know the request really came from you and not from somebody who got hold of the link.",
     ),
+    el("p", "ov-note", "The circle keeps the name its creator gave it. You can rename it for yourself in settings."),
   );
   if (hasCircle) {
     ov.body.append(
@@ -403,18 +404,6 @@ export function openJoinSheet({ profile, hasCircle, circleName, relayHost, onJoi
   }
   const { wrap, input, grid } = identityFields(profile);
   ov.body.append(wrap);
-  let cn = null;
-  if (circleName) {
-    cn = circleNameField(circleName);
-    ov.body.append(
-      cn.field,
-      el(
-        "p",
-        "field-note",
-        "Nobody has told you the circle's real name yet (names travel encrypted, like everything else), so pick whatever you will recognize. Rename it any time in settings.",
-      ),
-    );
-  }
   const join = btn("btn btn-primary", "Ask to join");
   join.dataset.testid = "join-confirm";
   const sync = () => (join.disabled = input.value.trim().length === 0);
@@ -428,7 +417,6 @@ export function openJoinSheet({ profile, hasCircle, circleName, relayHost, onJoi
     join.disabled = true;
     try {
       const p = { name, emoji: grid.value() };
-      if (cn) p.circleName = cn.input.value.trim().slice(0, 24);
       if ((await onJoin(p)) === false) {
         busy = false;
         join.disabled = false;
