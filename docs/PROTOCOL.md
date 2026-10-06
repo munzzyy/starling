@@ -283,9 +283,10 @@ a message with a position: one letter, `s` still, `w` walking, `c` cycling or
 `d` driving. The phone works it out from the median speed of its fixes over the
 last minute, with some room past each edge (0.6, 2.5 and 8 m/s) before the word
 changes, or says `s` while still mode has the phone down as still. Without two
-speed readings in that minute it leaves the field out rather than guess, and it
-leaves it out inside a privacy fence, which hides where in the place the sender
-is and so hides moving about there too. A receiver keeps the `act` from the
+speed readings in that minute it leaves the field out rather than guess. It
+also leaves it out under Neighborhood precision and inside a privacy fence,
+the same messages that go without `acc`: both hide where in an area the sender
+is, and so hide moving about there too. A receiver keeps the `act` from the
 newest message it accepted, treats anything but those four letters as absent,
 and shows the word only while the sender is live, checked in or in an SOS.
 Older receivers ignore it.

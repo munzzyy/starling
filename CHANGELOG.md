@@ -10,8 +10,9 @@ All notable changes to Starling are recorded here. Versions follow
   The phone works it out from how fast it is moving, and from the motion
   sensor while Save battery when still is on; nothing new is asked for and
   nothing leaves the phone except inside the encrypted post. It is left off
-  inside a place with a privacy fence, and when the speeds say too little it
-  says nothing rather than guess. Older versions ignore it.
+  for a circle set to Neighborhood and inside a place with a privacy fence,
+  and when the speeds say too little it says nothing rather than guess.
+  Older versions ignore it.
 
 - **Save battery when still (#25).** A new switch under Sharing, off by
   default, for Android. After two minutes without moving, Starling stops

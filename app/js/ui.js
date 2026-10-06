@@ -2376,7 +2376,7 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, autoRes
   if (!demo) {
     const actRow = switchRow({
       label: "Show what I'm doing",
-      note: "Adds Still, Walking, Cycling or Driving under your name on your circle's map. This phone works it out from its own speed, and from the motion sensor while Save battery when still is on. It goes inside the encrypted post, so only your circle can read it, and it is left off inside a place with a privacy fence.",
+      note: "Adds Still, Walking, Cycling or Driving under your name on your circle's map. This phone works it out from its own speed, and from the motion sensor while Save battery when still is on. It goes inside the encrypted post, so only your circle can read it. It is left off for a circle set to Neighborhood and inside a place with a privacy fence.",
       value: values.settings.showActivity === true,
       onChange: (v) => onChange("showActivity", v),
     });

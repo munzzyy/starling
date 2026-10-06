@@ -6409,8 +6409,8 @@ async function sendMsg(type, { share = true } = {}) {
     if (!fence && activePrecision() === "precise" && Number.isFinite(state.me.acc)) {
       fields.acc = state.me.acc;
     }
-    // A fence hides where you are inside a place, so it hides moving about in there too.
-    const act = fence ? null : ownActivity();
+    // Neighborhood and a fence both hide where you are inside an area, so they hide moving about in there too.
+    const act = fence || activePrecision() !== "precise" ? null : ownActivity();
     if (act) fields.act = act;
   }
   const bat = share ? await batteryLevel() : null;

@@ -89,7 +89,7 @@ async function openOwnPost(body) {
   return openMessage(key, state.gen.channelId, state.identity.memberId, p.e, p.ts, b64uDecode(p.n), b64uDecode(p.c));
 }
 
-async function sharing({ showActivity = true, places = [] } = {}) {
+async function sharing({ showActivity = true, places = [], precision = null } = {}) {
   if (state.sharing) await internals.setSharing(false);
   globalThis.StarlingNative = {
     startLocation: () => {},
@@ -108,7 +108,7 @@ async function sharing({ showActivity = true, places = [] } = {}) {
   state.stopRecord = null;
   state.sosActive = false;
   state.settings = { ...state.settings, showActivity, stillSave: true, steady: false };
-  state.circleShare = { precision: null, cadence: 15 };
+  state.circleShare = { precision, cadence: 15 };
   state.places = places;
   state.identity = state.identity || (await generateIdentity());
   if (!state.gen) {
@@ -159,6 +159,16 @@ test("still mode says still, and a privacy fence leaves the word off", async () 
   assert.equal(fenced.lat, home.lat, "negative control: the fence did snap this post");
   await internals.setSharing(false);
   state.places = [];
+});
+
+test("a circle set to Neighborhood never gets the word, which would say how you move inside the square", async () => {
+  await sharing({ precision: "coarse" });
+  const coarse = await postWith([1.3, 1.5, 1.4]);
+  assert.equal(coarse.act, undefined);
+  assert.equal(coarse.acc, undefined, "it goes the way acc already goes");
+  await sharing({ precision: "precise" });
+  assert.equal((await postWith([1.3, 1.5, 1.4])).act, "w", "negative control: the same speeds on Precise name it");
+  await internals.setSharing(false);
 });
 
 test("the word shows under a live member's name, translated, and goes with the presence", async () => {

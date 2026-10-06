@@ -171,6 +171,17 @@ than Cloudflare can run their own relay; see the FAQ and
   neighborhood grid is already coarser than any fence. Circle members DO
   receive the fence center while you are inside, which is exactly the
   point: treat a fenced place's center as shared the way any position is.
+- "Show what I'm doing" (off by default) adds one word to your posts:
+  still, walking, cycling or driving. It rides inside the padded
+  ciphertext, so the relay learns nothing new, but your circle learns how
+  you are moving and not only where. It is left out under Neighborhood
+  precision, since moving about inside the rounded square is what that
+  setting hides, and inside a privacy fence for the same reason. That
+  makes its absence a small tell: a member who saw a word a minute ago and
+  now sees none while your dot sits on one spot can guess you are inside a
+  fence. It also goes missing when the phone has too few speed readings to
+  say, so the gap alone proves nothing, and the withheld accuracy inside a
+  fence is already the same kind of hint.
 - An optional duress passcode runs the full panic wipe from the lock screen
   and comes back up as a fresh install. It can never equal the unlock
   passcode, in either direction of change.
