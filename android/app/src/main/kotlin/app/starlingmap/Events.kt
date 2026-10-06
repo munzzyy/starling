@@ -57,14 +57,8 @@ object Events {
         show(ctx, R.string.notif_resumed_title, textRes, ShareResume.RESUMED_TAG, false)
 
     // String resources only, so nothing a caller was handed can reach a notification field.
-    private fun show(
-        ctx: Context,
-        @StringRes titleRes: Int,
-        @StringRes textRes: Int,
-        tag: String,
-        urgent: Boolean,
-        routine: String = MainActivity.EVENTS_CHANNEL,
-    ) {
+    private fun show(ctx: Context, @StringRes titleRes: Int, @StringRes textRes: Int, tag: String, urgent: Boolean,
+        routine: String = MainActivity.EVENTS_CHANNEL) {
         if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
