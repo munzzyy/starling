@@ -53,10 +53,18 @@ function fn(text, name) {
 
 const calls = [];
 const periods = [];
+const live = new Map();
 const realSetInterval = globalThis.setInterval;
+const realClearInterval = globalThis.clearInterval;
 globalThis.setInterval = (f, ms, ...rest) => {
   periods.push(ms);
-  return realSetInterval(f, ms, ...rest);
+  const id = realSetInterval(f, ms, ...rest);
+  live.set(id, ms);
+  return id;
+};
+globalThis.clearInterval = (id) => {
+  live.delete(id);
+  return realClearInterval(id);
 };
 
 const HERE = { lat: 40.785, lon: -73.968, acc: 6 };
@@ -157,6 +165,34 @@ test("a phone gone still posts at once on the 5 minute pace, and its circle keep
   }
   assert.equal(posts.length, quiet + 1, "the first fix after moving goes out");
   assert.equal((await openOwnPost(posts.at(-1))).cadence, 15);
+});
+
+test("a still word that lands while a share is starting leaves one send timer, and stopping clears it", async () => {
+  if (state.sharing) await internals.setSharing(false);
+  const before = new Set(live.keys());
+  const mine = () => [...live].filter(([id]) => !before.has(id)).map(([, ms]) => ms);
+  globalThis.StarlingNative = {
+    startLocation: () => {},
+    stopLocation: () => {},
+    setShareCadence: () => {},
+    setStillMode: () => {},
+    // The service is already still and says so again as the page starts its share.
+    armShareResume: () => push({ still: true }),
+    clearStopRecord: () => {},
+    keepSharing: () => false,
+    setKeepSharing: () => {},
+    windowShown: () => false,
+    pulse: () => {},
+  };
+  internals.resetShareResumeGuard();
+  state.settings = { ...state.settings, stillSave: true, steady: false };
+  state.circleShare = { precision: null, cadence: 15 };
+  await internals.setSharing(true);
+  await settle();
+  assert.equal(internals.shareCadence(), 300, "negative control: the still word did land mid-start");
+  assert.deepEqual(mine(), [300_000]);
+  await internals.setSharing(false);
+  assert.deepEqual(mine(), [], "no send timer outlives the share");
 });
 
 test("with steady sending on, still mode stays off in the wrapper and in the page", async () => {

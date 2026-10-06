@@ -5441,7 +5441,8 @@ async function setSharing(on, { keepArmed = false } = {}) {
       // sharing quietly off, which is what two people reported from four
       // phones. Only the fact and the window go down, never a position.
       await armShare();
-      shareTimer = setInterval(() => sendLoc(true), cadenceMs());
+      // A still word from the service can arm a timer during the await; this replaces it.
+      rearmShareTimer();
       // Where the platform gives a web app no background execution at all,
       // sharing only runs while the screen is on and the app is in front.
       // Say so and hold the screen, rather than let someone walk away from a
