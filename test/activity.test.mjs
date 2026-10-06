@@ -121,11 +121,23 @@ async function sharing({ showActivity = true, places = [], precision = null } = 
   await internals.setSharing(true);
 }
 
+// A fixed pause lost the race on a slow Windows runner, so wait for the sender to go quiet.
+const idle = () => internals.sendStatus().busy === 0;
+async function until(ok, what, ms = 10000) {
+  const end = Date.now() + ms;
+  while (!ok()) {
+    if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
+    await settle(10);
+  }
+}
+
 async function postWith(speeds) {
   for (const spd of speeds) push({ ...HERE, acc: 5, spd, ts: Date.now() });
   await settle();
+  await until(idle, "the sender to go idle");
+  const before = posts.length;
   await internals.sendLoc(true);
-  await settle();
+  await until(() => idle() && posts.length > before, "a new post");
   return openOwnPost(posts.at(-1));
 }
 
@@ -146,10 +158,13 @@ test("your posts carry the word only with the switch on, and only when the speed
 
 test("still mode says still, and a privacy fence leaves the word off", async () => {
   await sharing();
+  await until(idle, "the sender to go idle");
+  const before = posts.length;
   push({ ...HERE, acc: 5, spd: 16, ts: Date.now() });
   push({ ...HERE, acc: 5, spd: 16, ts: Date.now() });
   push({ still: true });
   await settle();
+  await until(() => idle() && posts.length > before, "the post the still word sends");
   assert.equal((await openOwnPost(posts.at(-1))).act, "s", "the post that starts the slow pace already says still");
 
   const home = { id: "aaaaaaaa", name: "Home", lat: HERE.lat, lon: HERE.lon, radius: 250, fence: true };
