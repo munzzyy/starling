@@ -564,14 +564,14 @@ anywhere:
 - The sharing report says whether it is on, whether the phone is still now,
   and how many times and for how long it was still this share.
 
-Not measured yet, since there is no emulator in this round. What to check on
-API 36 and one older image: with the switch on, `adb emu geo fix` the same
-spot for three minutes, then `adb shell dumpsys location` shows only a 300 s
-request from `app.starlingmap` and a local relay gets a post about every
-5 minutes; `adb emu sensor set acceleration` jolts plus a moved fix bring the
-3 second request back within seconds and a post goes out at once; an SOS
-during still mode posts every 15 seconds. The emulator may have no
-significant motion sensor, in which case the switch must say so.
+Not yet checked on a device or emulator. What to check on API 36 and one
+older image: with the switch on, `adb emu geo fix` the same spot for three
+minutes, then `adb shell dumpsys location` shows only a 300 s request from
+`app.starlingmap` and a local relay gets a post about every 5 minutes;
+`adb emu sensor set acceleration` jolts plus a moved fix bring the 3 second
+request back within seconds and a post goes out at once; an SOS during still
+mode posts every 15 seconds. The emulator may have no significant motion
+sensor, in which case the switch must say so.
 
 ### Around the same failure
 
