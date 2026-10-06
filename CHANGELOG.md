@@ -5,32 +5,39 @@ All notable changes to Starling are recorded here. Versions follow
 
 ## [Unreleased]
 
-- **Show what I'm doing.** A new switch under Sharing, off by default. With it
-  on, your circle sees Still, Walking, Cycling or Driving under your name.
-  The phone works it out from how fast it is moving, and from the motion
-  sensor while Save battery when still is on; nothing new is asked for and
-  nothing leaves the phone except inside the encrypted post. It is left off
-  for a circle set to Neighborhood and inside a place with a privacy fence,
-  and when the speeds say too little it says nothing rather than guess.
-  Older versions ignore it.
-
-- **Save battery when still (#25).** A new switch under Sharing, off by
-  default, for Android. After two minutes without moving, Starling stops
-  asking for GPS every few seconds and sends every 5 minutes, and the motion
-  sensor brings it back the moment you move. Your circle keeps seeing you as
-  live. The relay can tell from the slower timing that you are sitting
-  still, so the switch says so, and it stays off with Steady sending on and
-  during an SOS. Phones without a significant motion sensor keep today's
-  pace.
+## [0.19.0]
 
 - **A sound for arrivals, another for departures (#24).** On Android,
   arrivals, departures and check-ins each post on a notification channel of
   their own, so each can have its own sound in Android's notification
-  settings. Settings, Places and alerts has a button that opens them. Each
-  new channel starts the way Circle alerts is set, so if you silenced or
-  blocked Circle alerts, these stay silent too until you change them. The
-  text is the same generic line as before. An SOS keeps its own alarm
-  channel, untouched.
+  settings. Settings, Places and alerts has a button that opens them, and it
+  sets all of them up first, so you can pick a sound before the first alert
+  comes in. Each new channel starts the way Circle alerts is set, so if you
+  silenced or blocked Circle alerts, these stay silent too until you change
+  them. The text is the same generic line as before. An SOS keeps its own
+  alarm channel, untouched, and a panic wipe deletes the new channels with
+  the rest.
+
+- **Save battery when still (#25).** A new switch under Sharing, for
+  Android, and it starts off. The reason it starts off: while it is on, the
+  posts slow down when you stop moving, and the relay can see that timing
+  change. It still cannot read where you are, but it can tell you are
+  sitting still, so that stays your call. With it on, after two minutes
+  without moving Starling stops asking for GPS every few seconds and sends
+  every 5 minutes, and the motion sensor brings it back the moment you move.
+  Your circle keeps seeing you as live. It stays off with Steady sending on
+  and never slows an SOS. Phones without a significant motion sensor keep
+  today's pace, and the switch says why it cannot turn on.
+
+- **Show what I'm doing.** A new switch under Sharing, also off by default.
+  With it on, your circle sees Still, Walking, Cycling or Driving under your
+  name. What it adds to each post is one letter for that word, sealed inside
+  the encrypted post with everything else, so the relay never sees it. The
+  phone works it out from how fast it is moving, and from the motion sensor
+  while Save battery when still is on; nothing new is asked for. It is sent
+  only at Precise, never for a circle set to Neighborhood, inside a place
+  with a privacy fence, or on a help link, and when the speeds say too
+  little it sends nothing rather than guess. Older versions ignore it.
 
 ## [0.18.0]
 
