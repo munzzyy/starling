@@ -2372,14 +2372,17 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, autoRes
     paintStill();
     gShare.append(row, why);
   }
-  const actRow = switchRow({
-    label: "Show what I'm doing",
-    note: "Adds Still, Walking, Cycling or Driving under your name on your circle's map. This phone works it out from its own speed, and from the motion sensor while Save battery when still is on. It goes inside the encrypted post, so only your circle can read it, and it is left off inside a place with a privacy fence.",
-    value: values.settings.showActivity === true,
-    onChange: (v) => onChange("showActivity", v),
-  });
-  actRow.dataset.testid = "settings-activity";
-  gShare.append(actRow);
+  // Not in the demo: the switch is saved for real and would carry over into real shares.
+  if (!demo) {
+    const actRow = switchRow({
+      label: "Show what I'm doing",
+      note: "Adds Still, Walking, Cycling or Driving under your name on your circle's map. This phone works it out from its own speed, and from the motion sensor while Save battery when still is on. It goes inside the encrypted post, so only your circle can read it, and it is left off inside a place with a privacy fence.",
+      value: values.settings.showActivity === true,
+      onChange: (v) => onChange("showActivity", v),
+    });
+    actRow.dataset.testid = "settings-activity";
+    gShare.append(actRow);
+  }
   gShare.append(
     switchRow({
       label: "Trail history",

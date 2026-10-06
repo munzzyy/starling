@@ -208,13 +208,13 @@ test("a member's word comes off the wire, and a post without one clears it", asy
   assert.equal((await postAs({}, t0 + 3000)).act, null, "cleared by omission");
 });
 
-function settingsRow() {
+function settingsRow({ demo = false } = {}) {
   const host = document.getElementById("overlays");
   const before = host.children.length;
   const ov = ui.openSettingsSheet({
     api,
     values: { circleName: "Home", profile: { name: "", emoji: "x" }, settings: state.settings, share: { precision: "precise", cadence: 15 }, relay: null },
-    demo: false,
+    demo,
     tor: null,
     keepSharing: null,
     shareClock: null,
@@ -249,4 +249,10 @@ test("Settings has the switch, off unless turned on, and its note says who sees 
   state.settings = { ...state.settings, showActivity: true };
   assert.equal(settingsRow().children.find((c) => c.getAttribute?.("role") === "switch").getAttribute("aria-checked"), "true");
   state.settings = { ...state.settings, showActivity: false };
+});
+
+test("the demo has no such switch: it would be saved for real and go out on the next real share", () => {
+  state.settings = { ...state.settings, showActivity: false };
+  assert.equal(settingsRow({ demo: true }), null);
+  assert.ok(settingsRow({ demo: false }), "negative control: the same sheet outside the demo has it");
 });
