@@ -7236,6 +7236,7 @@ if (debugHooks()) window.__starlingInternals = {
   persistRatchet,
   holdTrimForBacklog,
   startJoinWatch,
+  completeJoin,
   alertItems,
   onShareToggle,
   armAutoLock,

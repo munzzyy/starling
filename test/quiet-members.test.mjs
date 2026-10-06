@@ -184,3 +184,34 @@ test("locking takes the quiet cards down with everything else", async () => {
   state.lock = null;
   state.locked = false;
 });
+
+async function joinedBy(inviter, name, welcomeName) {
+  const me = await generateIdentity();
+  const seed = new Uint8Array(newSeed());
+  state.demo = false;
+  state.locked = false;
+  state.lock = null;
+  state.gen = null;
+  state.pinned = new Map();
+  state.circles = [];
+  const j = { status: "waiting", secret: new Uint8Array(32), identity: me, imposters: 0 };
+  state.joining = j;
+  const welcome = {
+    seed,
+    g: 0,
+    e0: epochAt(Date.now()),
+    n: 1,
+    inviter: { memberId: inviter.memberId },
+    members: [{ alg: inviter.alg, pk: b64uEncode(inviter.pk), epk: b64uEncode(inviter.epk), name }],
+    name: welcomeName,
+  };
+  assert.equal(await internals.completeJoin(j, welcome), true);
+}
+
+test("a fresh joiner sees the person who let them in before anybody has posted", async () => {
+  const ana = await generateIdentity();
+  await joinedBy(ana, "Ana", "Family");
+  assert.equal(internals.roster().list().length, 0, "nobody has shared a position");
+  assert.equal(nudge().hidden, true, "a circle with somebody in it is not 'just you'");
+  assert.deepEqual(quietList().children.map(cardName), ["Ana"]);
+});
