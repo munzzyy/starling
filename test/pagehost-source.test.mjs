@@ -46,3 +46,13 @@ test("a still phone still wakes the page: a listener with no distance filter, on
   assert.match(src, /coerceIn\(HEARTBEAT_MS, HEARTBEAT_MAX_MS\)/, "the page's number is held to the floor and the ceiling");
   assert.match(kt("StarlingBridge.kt"), /fun setShareCadence\(seconds: Int\) = LocationService\.setCadence\(seconds\)/);
 });
+
+test("a still phone's frozen page sleeps until a fix needs it, and any fix thaws it at once", () => {
+  const src = kt("PageHost.kt");
+  assert.match(src, /ThawPolicy\.afterFreeze\(LocationService\.stillNow, workWaiting\)/);
+  assert.match(src, /main\.postDelayed\(listenNudge, wait\)/);
+  assert.match(src, /if \(ThawPolicy\.onWork\(frozenNow\)\) nudge\(\)/);
+  const nudge = src.slice(src.indexOf("private fun nudge()"));
+  assert.match(nudge.slice(0, nudge.indexOf("nudging = true") + 160), /nudging = true\s*nudges\+\+\s*frozenNow = false/);
+  assert.match(src.slice(src.indexOf("fun destroy()")), /main\.removeCallbacks\(listenNudge\)/, "no wake outlives the page");
+});
