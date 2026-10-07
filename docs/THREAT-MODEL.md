@@ -68,7 +68,7 @@ database) gets ciphertext and metadata only:
   member moves; it is a real, smaller property, not a substitute for cover
   traffic, and it does nothing about the fact that the relay still sees a
   post arrive on that cadence from that IP. "Save battery when still"
-  (Android, off by default) goes the other way: after two minutes without
+  (Android, on by default, with a one-time note on the first share) goes the other way: after two minutes without
   moving, posts slow to one every 5 minutes until the motion sensor wakes the
   phone, so the relay can tell sitting still from moving by the gaps. Its
   settings note says so, and it stays off while steady cadence is on and
