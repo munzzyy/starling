@@ -118,8 +118,32 @@ async function openOwnPost(body) {
   return openMessage(key, state.gen.channelId, state.identity.memberId, p.e, p.ts, b64uDecode(p.n), b64uDecode(p.c));
 }
 
-test("the switch starts off: slowing down while still is timing the relay can read", () => {
-  assert.equal(defaults.stillSave, false);
+test("the switch starts on, and a phone saved before that is switched on once, then left alone", () => {
+  assert.equal(defaults.stillSave, true);
+  const fresh = internals.mergeSavedSettings(defaults, { stillSave: false, theme: "light" });
+  assert.equal(fresh.stillSave, true, "saved under 0.19.0 with the old default");
+  assert.equal(fresh.stillDefault, 1);
+  assert.equal(fresh.theme, "light", "everything else is kept");
+  const chose = internals.mergeSavedSettings(defaults, { ...fresh, stillSave: false });
+  assert.equal(chose.stillSave, false, "a choice made after the change stays");
+});
+
+test("the one-time note is said on the first share that can use it, and never twice", async () => {
+  const host = globalThis.document.getElementById("toasts");
+  const count = () => host.children.length;
+  globalThis.StarlingNative = { stillSupported: () => true };
+  state.settings = { ...state.settings, stillSave: true, steady: false, stillNoted: false };
+  const before = count();
+  internals.noteStillDefault();
+  assert.equal(count(), before + 1, "said once");
+  assert.equal(state.settings.stillNoted, true);
+  internals.noteStillDefault();
+  assert.equal(count(), before + 1, "not again");
+  state.settings = { ...state.settings, stillNoted: false };
+  globalThis.StarlingNative = { stillSupported: () => false };
+  internals.noteStillDefault();
+  assert.equal(count(), before + 1, "quiet on a phone with no motion sensor");
+  assert.equal(state.settings.stillNoted, false, "and still unsaid there");
 });
 
 test("a phone gone still posts at once on the 5 minute pace, and its circle keeps it fresh for 10 minutes", async () => {
@@ -324,13 +348,12 @@ test("Settings shows the switch only with the wrapper, off by default, and says 
 
 test("the service drops to one slow heartbeat while still and is woken by the motion sensor", () => {
   const svc = kt("LocationService.kt");
-  assert.match(svc, /private const val STILL_HEARTBEAT_MS = HEARTBEAT_MAX_MS/);
-  assert.match(svc, /private const val STILL_REWATCH_MS = 2 \* STILL_HEARTBEAT_MS/);
+  const plan = kt("LocationPlan.kt");
+  assert.match(plan, /const val STILL_MS = 5 \* 60000L/);
+  assert.match(plan, /return maxOf\(REWATCH_MIN_MS, 2 \* every\)/);
   const request = fn(svc, "request");
-  assert.match(
-    request,
-    /if \(still\.on\) \{\s*lm\.requestLocationUpdates\(provider, STILL_HEARTBEAT_MS, 0f, heartbeat, mainLooper\)\s*\} else \{\s*lm\.requestLocationUpdates\(provider, MIN_TIME_MS, MIN_DIST_M, this, mainLooper\)\s*lm\.requestLocationUpdates\(provider, heartbeatMs, 0f, heartbeat, mainLooper\)\s*\}/,
-  );
+  assert.match(request, /val cadence = if \(still\.on\) LocationPlan\.STILL_MS else heartbeatMs/);
+  assert.match(request, /LocationPlan\.plan\(cadence, still\.on, platformProviders, fusedOn\)/);
   assert.match(fn(svc, "rearmHeartbeat"), /if \(!watching \|\| still\.on\) return/, "a cadence change waits until the phone moves");
 
   const onFix = fn(svc, "onLocationChanged");
@@ -339,7 +362,7 @@ test("the service drops to one slow heartbeat while still and is woken by the mo
 
   const changed = fn(svc, "stillChanged");
   assert.ok(changed.indexOf('put("still", still.on)') < changed.indexOf("removeUpdates(this)"));
-  assert.match(changed, /if \(request\(lm, providers\)\.isEmpty\(\)\) noProvider\(\)/);
+  assert.match(changed, /if \(request\(lm\)\.isEmpty\(\)\) noProvider\(\)/);
 
   assert.match(svc, /getDefaultSensor\(Sensor\.TYPE_SIGNIFICANT_MOTION\)/);
   assert.match(fn(svc, "onStartCommand"), /startWatching\(\)\s*\/\/[^\n]*\n\s*if \(still\.on\) sink\?\.invoke\(JSONObject\(\)\.put\("still", true\)\.toString\(\)\)/);

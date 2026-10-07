@@ -579,7 +579,7 @@ export const de = {
   "15 s": "15 s",
   "Camera access was turned down. Allow it for Starling in system settings, then try again.": "Der Kamerazugriff wurde abgelehnt. Erlaube ihn für Starling in den Systemeinstellungen und versuch es dann noch einmal.",
   "For {name}. Each circle keeps its own precision and timing.": "Für {name}. Jeder Kreis hat seine eigene Genauigkeit und sein eigenes Tempo.",
-  "How often your circle hears from you while you stay put. Moving sends sooner unless Steady sending is on. Slower is easier on the battery. An SOS always goes every 15 seconds.": "Wie oft dein Kreis von dir hört, während du dich nicht bewegst. Bewegung sendet früher, außer Gleichmäßig senden ist an. Langsamer schont den Akku. Ein SOS geht immer alle 15 Sekunden raus.",
+  "How often your circle hears from you while you stay put. On 15 s, moving sends sooner unless Steady sending is on. Slower is easier on the battery. An SOS always goes every 15 seconds.": "Wie oft dein Kreis von dir hört, während du dich nicht bewegst. Bei 15 s sendet Bewegung früher, außer Gleichmäßig senden ist an. Langsamer schont den Akku. Ein SOS geht immer alle 15 Sekunden raus.",
   "Let the person checking you scan this with Starling. It holds your member id and your safety number, nothing else.": "Lass die Person, die dich prüft, das hier mit Starling scannen. Es enthält deine Mitglieds-ID und deine Sicherheitsnummer, sonst nichts.",
   "Mark {who} verified": "{who} als verifiziert markieren",
   "No camera found on this device.": "Auf diesem Gerät wurde keine Kamera gefunden.",
@@ -806,4 +806,5 @@ export const de = {
   "Walking": "Zu Fuß",
   "Cycling": "Mit dem Rad",
   "Driving": "Im Auto",
+  "Save battery when still is on. After 2 minutes without moving, Starling sends every 5 minutes. The relay cannot read where you are, but it can tell from the slower timing that you are sitting still. You can turn it off under Sharing in settings.": "Akku sparen im Stillstand ist an. Nach 2 Minuten ohne Bewegung sendet Starling nur noch alle 5 Minuten. Das Relay kann nicht lesen, wo du bist, sieht aber am langsameren Takt, dass du still sitzt. Du kannst es in den Einstellungen unter Teilen ausschalten.",
 };

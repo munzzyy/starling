@@ -33,12 +33,26 @@ test("a dead renderer is handled instead of taking the app and the share down", 
 
 test("a still phone still wakes the page: a listener with no distance filter, on the circle's cadence", () => {
   const src = kt("LocationService.kt");
-  // Twice: the first request, and the re-arm when the cadence changes. Neither
-  // may fall back to the constant, which is the floor and nothing else now.
-  assert.equal((src.match(/requestLocationUpdates\(provider, heartbeatMs, 0f, heartbeat, mainLooper\)/g) || []).length, 2);
+  // The heartbeat is a Req with no distance filter and the circle's cadence; the plan,
+  // not a constant, picks the interval, and the re-arm replans when the cadence changes.
+  const plan = kt("LocationPlan.kt");
+  assert.match(plan, /Req\(it, every, NO_DISTANCE, 0L, Quality\.HIGH, moving = false\)/);
+  assert.match(plan, /const val NO_DISTANCE = 0f/);
+  assert.match(src, /LocationPlan\.plan\(cadence, still\.on, platformProviders, fusedOn\)/);
+  assert.match(src, /val cadence = if \(still\.on\) LocationPlan\.STILL_MS else heartbeatMs/);
   assert.doesNotMatch(src, /requestLocationUpdates\(provider, HEARTBEAT_MS/);
   assert.match(src, /removeUpdates\(heartbeat\)/);
   assert.match(src, /private const val HEARTBEAT_MS = 15000L/);
   assert.match(src, /coerceIn\(HEARTBEAT_MS, HEARTBEAT_MAX_MS\)/, "the page's number is held to the floor and the ceiling");
   assert.match(kt("StarlingBridge.kt"), /fun setShareCadence\(seconds: Int\) = LocationService\.setCadence\(seconds\)/);
+});
+
+test("a still phone's frozen page sleeps until a fix needs it, and any fix thaws it at once", () => {
+  const src = kt("PageHost.kt");
+  assert.match(src, /ThawPolicy\.afterFreeze\(LocationService\.stillNow, workWaiting\)/);
+  assert.match(src, /main\.postDelayed\(listenNudge, wait\)/);
+  assert.match(src, /if \(ThawPolicy\.onWork\(frozenNow\)\) nudge\(\)/);
+  const nudge = src.slice(src.indexOf("private fun nudge()"));
+  assert.match(nudge.slice(0, nudge.indexOf("nudging = true") + 160), /nudging = true\s*nudges\+\+\s*frozenNow = false/);
+  assert.match(src.slice(src.indexOf("fun destroy()")), /main\.removeCallbacks\(listenNudge\)/, "no wake outlives the page");
 });

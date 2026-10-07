@@ -532,11 +532,35 @@ second.
 ### Save battery when still
 
 Issue #25 measured Starling at about three times Life360's battery on a Pixel
-6a. Most of that is GPS: the distance-filtered listener asks for a fix every
-3 seconds, which keeps the GPS engine on for the whole share, and a still
-phone still seals and posts on every cadence. Settings, Sharing, "Save battery
-when still" (off by default) changes that for a phone that is not going
-anywhere:
+6a. Most of that was GPS: the service asked for a fix every 3 seconds or 5
+metres next to the cadence heartbeat, and Android runs the GNSS chip
+continuously for any interval under about ten seconds, so a circle set to one
+or five minutes cost the same as 15 seconds. The setting only moved the
+heartbeat. `LocationPlan.kt` now derives every request from the cadence:
+
+| Circle cadence | Requests |
+| --- | --- |
+| 15 s, or an SOS | Unchanged: GPS and network at 3 s / 5 m, plus a 15 s heartbeat, high accuracy |
+| 1 min | One balanced-power heartbeat at 60 s, no distance filter |
+| 5 min | One balanced-power heartbeat at 300 s, and Android may batch fixes up to that long |
+| Still (any cadence) | One balanced-power request at 300 s |
+
+On Android 12 and up, with Tor off, the one request goes to the platform's
+fused provider instead of GPS and network separately, when the phone has one.
+A phone without one (or where the request is refused) uses the platform
+providers exactly as before, so a build with no Google services behaves the
+same. With Tor on it is GPS alone, because fused falls back on network
+location. There is no distance filter on the slow plans: a phone lying still
+passes none, and the heartbeat is what keeps its share from looking stopped.
+The alarm that catches a heartbeat that never came follows the heartbeat (a
+minute for 15 s and 1 min circles, six minutes for 5 min and still) rather
+than a fixed minute, and a hidden page polls the relay every 60 seconds while
+still instead of 30. The page is thawed on a freeze only if a fix is waiting;
+otherwise it sleeps two minutes before waking to listen.
+
+Settings, Sharing, "Save battery when still" is on by default (a phone saved
+under 0.19.0 with it off is switched on once; the first share says what it
+does). It changes more for a phone that is not going anywhere:
 
 - The service watches for two minutes with no fix outside
   max(25 m, 2 x the worse accuracy) of where the phone was, and no word from
@@ -564,7 +588,7 @@ anywhere:
 - The sharing report says whether it is on, whether the phone is still now,
   and how many times and for how long it was still this share.
 
-Not yet checked on a device or emulator. What to check on API 36 and one
+Not yet checked on a device or emulator, and no battery number here is measured. What to check on API 36 and one
 older image: with the switch on, `adb emu geo fix` the same spot for three
 minutes, then `adb shell dumpsys location` shows only a 300 s request from
 `app.starlingmap` and a local relay gets a post about every 5 minutes;

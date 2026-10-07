@@ -622,6 +622,46 @@ test("hidden document: web pauses, wrapper keeps listening", async () => {
   }
 });
 
+test("still and hidden in the wrapper polls once a minute, never when someone is looking", () => {
+  assert.equal(pollDelay(true, true, true), 60000);
+  assert.equal(pollDelay(true, true, false), 30000, "moving keeps the half minute");
+  assert.equal(pollDelay(false, true, true), 10000, "a person looking always gets the full pace");
+  assert.equal(pollDelay(true, false, true), 10000);
+});
+
+test("a hidden post listens in the same wake unless a poll is already due, and a visible one never does", async () => {
+  const calls = [];
+  const restore = stubGlobals([{ members: [] }], calls);
+  let shown = false;
+  globalThis.StarlingNative = { platform: () => "android", windowShown: () => shown };
+  try {
+    globalThis.document.visibilityState = "hidden";
+    const poller = createPoller({ channelId: CHANNEL, roster: { async ingest() {} }, isStill: () => true });
+    poller.start();
+    await new Promise((r) => setTimeout(r, 30));
+    const afterStart = calls.length;
+    await poller.coalesce();
+    assert.equal(calls.length, afterStart, "the poll just ran, so there is nothing to add");
+    const realNow = Date.now;
+    Date.now = () => realNow() + 45000;
+    try {
+      await poller.coalesce();
+      assert.equal(calls.length, afterStart + 1, "45 s on a 60 s pace is past half: listen now");
+      shown = true;
+      globalThis.document.visibilityState = "visible";
+      Date.now = () => realNow() + 200000;
+      await poller.coalesce();
+      assert.equal(calls.length, afterStart + 1, "a visible page runs its own faster poll");
+    } finally {
+      Date.now = realNow;
+    }
+    poller.stop();
+  } finally {
+    delete globalThis.StarlingNative;
+    restore();
+  }
+});
+
 // The wrapper's one second thaws are not a person opening the app.
 test("a thaw with no window up neither polls at once nor delays the next poll", async () => {
   const calls = [];

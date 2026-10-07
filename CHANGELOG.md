@@ -5,6 +5,35 @@ All notable changes to Starling are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Much less battery while sharing (#25).** The share service asked for a
+  GPS fix every 3 seconds or 5 metres whatever your circle's "Send every" was
+  set to, which keeps the GPS chip on all day, so choosing 1 or 5 minutes
+  changed nothing about the drain. Now the location requests follow the
+  setting: at 1 or 5 minutes there is one low-power request at that pace
+  (Android may batch the fixes), and on Android 12 and up it goes through the
+  phone's fused location provider when there is one and Tor is off. 15 seconds
+  and an SOS ask for GPS exactly as before. If the phone has no fused
+  provider, or refuses it, the GPS and network requests are used as they were.
+  Moving no longer posts every few seconds at 1 or 5 minutes; it posts on the
+  pace you chose, and the note under "Send every" says so.
+
+- **Save battery when still is on by default.** It used the low-power motion
+  trigger from the start, not the accelerometer, so nothing about it needed
+  to stay hidden behind an off switch. A phone saved under 0.19.0 with it off
+  is switched on once, and your choice after that is kept. The first share
+  says what it does and that the relay can tell from the slower timing that
+  you are sitting still. It is still off with Steady sending, and for an SOS.
+
+- **Fewer wake-ups while hidden.** While the phone is still, the page is
+  left asleep between posts and woken every couple of minutes to listen,
+  instead of being thawed on every freeze, and the relay is polled once a
+  minute instead of twice. A post from a hidden app listens in the same
+  wake. The hidden page no longer redraws the map for nobody. The alarm that
+  checks for a missing fix follows your send pace instead of a fixed minute.
+  A message from someone else can take up to a few minutes longer to show on
+  a still phone than before. These are cuts in work, not measured battery
+  numbers; a phone is what measures those.
+
 - **Arrivals and departures with names, one notification each (#28).** A new
   switch under Places and alerts, on Android and off by default, reads
   "Show names and places in notifications". On, each arrival or departure

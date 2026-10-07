@@ -172,7 +172,7 @@ export const es = {
   "Holds the screen on while the map is open": "Mantiene la pantalla encendida mientras el mapa está abierto",
   "How far back you can see": "Cuánto puedes ver hacia atrás",
   "How you appear to the people you invite. This never leaves your circle.": "Cómo apareces ante las personas que invitas. Esto nunca sale de tu círculo.",
-  "How often your circle hears from you while you stay put. Moving sends sooner unless Steady sending is on. Slower is easier on the battery. An SOS always goes every 15 seconds.": "Cada cuánto tu círculo sabe de ti mientras no te mueves. Si te mueves se envía antes, salvo que el envío constante esté activado. Más lento gasta menos batería. Un SOS siempre sale cada 15 segundos.",
+  "How often your circle hears from you while you stay put. On 15 s, moving sends sooner unless Steady sending is on. Slower is easier on the battery. An SOS always goes every 15 seconds.": "Cada cuánto tu círculo sabe de ti mientras no te mueves. Con 15 s, si te mueves se envía antes, salvo que el envío constante esté activado. Más lento gasta menos batería. Un SOS siempre sale cada 15 segundos.",
   "I have an invite": "Tengo una invitación",
   "Invite link": "Enlace de invitación",
   "Invite link cleared from your clipboard.": "Enlace de invitación borrado del portapapeles.",
@@ -810,4 +810,5 @@ export const es = {
   "Walking": "Caminando",
   "Cycling": "En bici",
   "Driving": "En coche",
+  "Save battery when still is on. After 2 minutes without moving, Starling sends every 5 minutes. The relay cannot read where you are, but it can tell from the slower timing that you are sitting still. You can turn it off under Sharing in settings.": "Ahorrar batería en reposo está activado. Tras 2 minutos sin moverte, Starling envía cada 5 minutos. El relay no puede leer dónde estás, pero por el ritmo más lento sabe que estás quieto. Puedes desactivarlo en los ajustes, en Compartir.",
 };

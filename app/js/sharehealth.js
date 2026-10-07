@@ -151,7 +151,7 @@ export function shareReport({ h, page, now }) {
   lines.push("");
   if (h) {
     lines.push(`Share service: ${h.service ? `running for ${span(h.sharingMs)}` : "not running"}`);
-    lines.push(`Fixes: ${num(h.fixes)} (GPS ${num(h.gpsFixes)}, network ${num(h.networkFixes)}), last ${age(h.lastFixMs)}`);
+    lines.push(`Fixes: ${num(h.fixes)} (GPS ${num(h.gpsFixes)}, network ${num(h.networkFixes)}${h.fusedFixes > 0 ? `, fused ${num(h.fusedFixes)}` : ""}), last ${age(h.lastFixMs)}`);
     lines.push(`Minutes with no fix: ${num(h.ticks)}, location requests renewed ${num(h.rewatches)} times`);
     if ("stillSupported" in h) {
       const setting = h.stillSupported !== true ? "no motion sensor on this phone" : Object.hasOwn(STILL_SETTING, p.still) ? STILL_SETTING[p.still] : "unknown";

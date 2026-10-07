@@ -34,12 +34,17 @@ const POLL_MS = 10000;
 // tab stays paused, as it always did: browsers throttle it anyway and no
 // notification could be shown from it.
 const BG_POLL_MS = 30000;
+// Hidden and sharing from a phone lying still: the share is on a five minute pace and the
+// page is thawed only to post, so a poll every 30 seconds is the loudest thing left. A minute
+// still hears an SOS from the circle promptly.
+const BG_STILL_POLL_MS = 60000;
 const BACKOFF_MAX_MS = 120000;
 
 // The next-poll delay as a pure decision, exported so a test can pin the
 // actual cadence numbers instead of only observing that polling happens.
-export function pollDelay(hidden, wrapped) {
-  return hidden && wrapped ? BG_POLL_MS : POLL_MS;
+export function pollDelay(hidden, wrapped, still = false) {
+  if (!(hidden && wrapped)) return POLL_MS;
+  return still ? BG_STILL_POLL_MS : BG_POLL_MS;
 }
 
 export const STALE_MS = 3 * 60 * 1000;
@@ -305,12 +310,13 @@ export function windowStart(ratchet, now = Date.now()) {
 
 // Poller: GET the channel feed every 10 s while visible, back off on failure,
 // pause when hidden, poll immediately on return.
-export function createPoller({ channelId, roster, ratchet, onChange, onStatus, onRetired }) {
+export function createPoller({ channelId, roster, ratchet, onChange, onStatus, onRetired, isStill = () => false }) {
   let since = ratchet ? windowStart(ratchet) : 0;
   let timer = 0;
   let inFlight = false;
   let failures = 0;
   let running = false;
+  let lastPollAt = 0;
   const seen = new Set();
   const SEEN_CAP = 4096;
 
@@ -332,12 +338,13 @@ export function createPoller({ channelId, roster, ratchet, onChange, onStatus, o
 
   const bgCapable = isWrapped();
   // Shown, not visible: a thaw must not switch the poll to the foreground pace.
-  const cadence = () => pollDelay(!pageShown(), bgCapable);
+  const cadence = () => pollDelay(!pageShown(), bgCapable, isStill());
 
   async function poll() {
     if (!running || inFlight) return;
     if (document.visibilityState === "hidden" && !bgCapable) return;
     inFlight = true;
+    lastPollAt = Date.now();
     try {
       const res = await fetch(apiUrl(`/api/v2/f/${channelId}?since=${since}`), { cache: "no-store" });
       // The relay retires a protocol version by answering 410 rather than by
@@ -416,6 +423,14 @@ export function createPoller({ channelId, roster, ratchet, onChange, onStatus, o
       onStatus?.("idle");
     },
     pollNow: () => poll(),
+    // A post just went out from a hidden page, so the phone is awake and the connection is warm:
+    // listen in the same wake unless a poll is already due about now. Resolves when it settles,
+    // so the caller can keep the wake lock until then.
+    coalesce() {
+      if (!running || inFlight || !bgCapable || pageShown()) return Promise.resolve();
+      if (Date.now() - lastPollAt < cadence() / 2) return Promise.resolve();
+      return poll();
+    },
   };
 }
 

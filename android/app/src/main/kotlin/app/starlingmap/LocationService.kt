@@ -18,6 +18,7 @@ import android.hardware.TriggerEventListener
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.location.LocationRequest
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
@@ -48,8 +49,6 @@ class LocationService : Service(), LocationListener {
         private const val ACTION_REPOST = "app.starlingmap.REPOST_SHARE_NOTIFICATION"
         private const val ACTION_RESUME = "app.starlingmap.RESUME_SHARE"
         private const val EXTRA_WHY = "why"
-        private const val MIN_TIME_MS = 3000L
-        private const val MIN_DIST_M = 5f
         // A phone lying still passes no distance filter, so without this the
         // page hears nothing and, with no window, its own send timer barely
         // runs: the share goes quiet and looks stopped to everyone watching.
@@ -65,14 +64,7 @@ class LocationService : Service(), LocationListener {
         private var heartbeatMs = HEARTBEAT_MS
 
         // The heartbeat needs a fix to fire, and indoors on GPS alone there is none.
-        private const val TICK_MS = 60000L
-
-        // Silence this long with location on renews the requests.
-        private const val REWATCH_MS = 5 * 60000L
-
-        // Still mode keeps one slow heartbeat, which also checks the phone has not moved.
-        private const val STILL_HEARTBEAT_MS = HEARTBEAT_MAX_MS
-        private const val STILL_REWATCH_MS = 2 * STILL_HEARTBEAT_MS
+        // How often the alarm checks follows the heartbeat; see LocationPlan.tickMs.
 
         // The page's say: the switch is on, no SOS, no steady sending.
         @Volatile
@@ -128,6 +120,8 @@ class LocationService : Service(), LocationListener {
         @Volatile var gpsFixes = 0
             private set
         @Volatile var networkFixes = 0
+            private set
+        @Volatile var fusedFixes = 0
             private set
         @Volatile var ticks = 0
             private set
@@ -255,6 +249,8 @@ class LocationService : Service(), LocationListener {
 
     private var watching = false
     private var providers: List<String> = emptyList()
+    private var fusedOn = false
+    private var platformProviders: List<String> = emptyList()
     private var tickArmed = false
     private var watchedAt = 0L
 
@@ -339,6 +335,7 @@ class LocationService : Service(), LocationListener {
             fixes = 0
             gpsFixes = 0
             networkFixes = 0
+            fusedFixes = 0
             ticks = 0
             rewatches = 0
             stillNow = false
@@ -381,7 +378,13 @@ class LocationService : Service(), LocationListener {
         val wanted =
             if (torOn) listOf(LocationManager.GPS_PROVIDER)
             else listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
-        val got = request(lm, wanted.filter { lm.allProviders.contains(it) })
+        platformProviders = wanted.filter { lm.allProviders.contains(it) }
+        // The fused provider batches and shares fixes with other apps, and costs far less
+        // than GPS held on. It leans on network location, so never with Tor on. Absent
+        // (a build with no fused implementation) or below Android 12, the platform
+        // providers are the whole path, exactly as before.
+        fusedOn = !torOn && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && lm.allProviders.contains(LocationPlan.FUSED)
+        val got = request(lm)
         if (got.isEmpty()) {
             noProvider()
             return
@@ -403,23 +406,50 @@ class LocationService : Service(), LocationListener {
         providersChanged(force = true)
     }
 
-    private fun request(lm: LocationManager, wanted: List<String>): List<String> {
+    private fun request(lm: LocationManager): List<String> {
         val got = mutableListOf<String>()
-        for (provider in wanted) {
+        val cadence = if (still.on) LocationPlan.STILL_MS else heartbeatMs
+        var reqs = LocationPlan.plan(cadence, still.on, platformProviders, fusedOn)
+        try {
+            for (r in reqs) register(lm, r)
+            got += reqs.map { it.provider }
+        } catch (e: SecurityException) {
+            // permission revoked between the page's start call and here
+        } catch (e: RuntimeException) {
+            // A fused provider that is listed but refuses: fall back to the platform pair.
+            if (!fusedOn) throw e
+            fusedOn = false
+            lm.removeUpdates(this)
+            lm.removeUpdates(heartbeat)
+            reqs = LocationPlan.plan(cadence, still.on, platformProviders, false)
             try {
-                if (still.on) {
-                    lm.requestLocationUpdates(provider, STILL_HEARTBEAT_MS, 0f, heartbeat, mainLooper)
-                } else {
-                    lm.requestLocationUpdates(provider, MIN_TIME_MS, MIN_DIST_M, this, mainLooper)
-                    lm.requestLocationUpdates(provider, heartbeatMs, 0f, heartbeat, mainLooper)
-                }
-                got += provider
-            } catch (e: SecurityException) {
-                // permission revoked between the page's start call and here
+                for (r in reqs) register(lm, r)
+                got += reqs.map { it.provider }
+            } catch (e2: SecurityException) {
+                // as above
             }
         }
         watchedAt = SystemClock.elapsedRealtime()
-        return got
+        return got.distinct()
+    }
+
+    private fun register(lm: LocationManager, r: LocationPlan.Req) {
+        val listener = if (r.moving) this else heartbeat
+        if (r.provider == LocationPlan.FUSED) {
+            val quality = if (r.quality == LocationPlan.Quality.HIGH) {
+                LocationRequest.QUALITY_HIGH_ACCURACY
+            } else {
+                LocationRequest.QUALITY_BALANCED_POWER_ACCURACY
+            }
+            val req = LocationRequest.Builder(r.intervalMs)
+                .setQuality(quality)
+                .setMinUpdateDistanceMeters(r.minDistanceM)
+                .setMaxUpdateDelayMillis(maxOf(r.maxWaitMs, r.intervalMs))
+                .build()
+            lm.requestLocationUpdates(LocationPlan.FUSED, req, ContextCompat.getMainExecutor(this), listener)
+        } else {
+            lm.requestLocationUpdates(r.provider, r.intervalMs, r.minDistanceM, listener, mainLooper)
+        }
     }
 
     private fun noProvider() {
@@ -433,22 +463,17 @@ class LocationService : Service(), LocationListener {
         lm.removeUpdates(this)
         lm.removeUpdates(heartbeat)
         rewatches++
-        if (request(lm, providers).isEmpty()) noProvider()
+        if (request(lm).isEmpty()) noProvider()
     }
 
-    // Only the heartbeat moves with the cadence. The distance-filtered
-    // listener stays as it is, which is what lets a moving phone post sooner.
+    // The whole plan follows the cadence: a relaxed circle has no 3 second listener at all.
     private fun rearmHeartbeat() {
         if (!watching || still.on) return
         val lm = getSystemService(LOCATION_SERVICE) as LocationManager
+        lm.removeUpdates(this)
         lm.removeUpdates(heartbeat)
-        for (provider in providers) {
-            try {
-                lm.requestLocationUpdates(provider, heartbeatMs, 0f, heartbeat, mainLooper)
-            } catch (e: SecurityException) {
-                // permission revoked mid-share; the next fix path reports it
-            }
-        }
+        if (request(lm).isEmpty()) noProvider()
+        armTick()
     }
 
     override fun onLocationChanged(location: Location) {
@@ -459,6 +484,7 @@ class LocationService : Service(), LocationListener {
         when (location.provider) {
             LocationManager.GPS_PROVIDER -> gpsFixes++
             LocationManager.NETWORK_PROVIDER -> networkFixes++
+            LocationPlan.FUSED -> fusedFixes++
         }
         val fix = JSONObject()
             .put("lat", location.latitude)
@@ -499,23 +525,25 @@ class LocationService : Service(), LocationListener {
         runCatching {
             am.setAndAllowWhileIdle(
                 AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                SystemClock.elapsedRealtime() + TICK_MS,
+                SystemClock.elapsedRealtime() + tickMs(),
                 tickIntent,
             )
             tickArmed = true
         }
     }
 
+    private fun tickMs() = LocationPlan.tickMs(heartbeatMs, still.on, countingDown)
+
     private fun onTick() {
         if (!running || !watching) return
         // Only a tick with news takes the wake lock; never release one a post holds.
         val now = SystemClock.elapsedRealtime()
-        if (now - lastFixAt >= TICK_MS) {
+        if (now - lastFixAt >= tickMs()) {
             ticks++
             holdAwake(this)
             sink?.invoke(JSONObject().put("tick", true).toString())
         }
-        val rewatchAfter = if (still.on) STILL_REWATCH_MS else REWATCH_MS
+        val rewatchAfter = LocationPlan.rewatchMs(heartbeatMs, still.on)
         if (!locationOff && now - maxOf(lastFixAt, watchedAt) >= rewatchAfter) rewatch()
         // A frozen page misses its own timer, and the countdown would run on below zero.
         if (countingDown && System.currentTimeMillis() >= ShareResume.deadline(this)) refreshNotification()
@@ -569,7 +597,7 @@ class LocationService : Service(), LocationListener {
         val lm = getSystemService(LOCATION_SERVICE) as LocationManager
         lm.removeUpdates(this)
         lm.removeUpdates(heartbeat)
-        if (request(lm, providers).isEmpty()) noProvider()
+        if (request(lm).isEmpty()) noProvider()
     }
 
     // Swiping the app out of recents kills the page that encrypts and posts

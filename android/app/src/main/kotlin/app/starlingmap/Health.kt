@@ -80,6 +80,7 @@ object Health {
         o.put("fixes", LocationService.fixes)
         o.put("gpsFixes", LocationService.gpsFixes)
         o.put("networkFixes", LocationService.networkFixes)
+        o.put("fusedFixes", LocationService.fusedFixes)
         o.put("lastFixMs", ago(LocationService.lastFixAt))
         o.put("ticks", LocationService.ticks)
         o.put("rewatches", LocationService.rewatches)

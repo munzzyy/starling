@@ -375,7 +375,11 @@ object PageHost {
 
     fun deliverFix(json: String) {
         eval("globalThis.__starlingFix && __starlingFix(${JSONObject.quote(json)})")
-        main.post { expectPulse() }
+        main.post {
+            expectPulse()
+            // A post cannot run in a frozen page: wake it now rather than after the watchdog's wait.
+            if (ThawPolicy.onWork(frozenNow)) nudge()
+        }
     }
 
     fun notice(message: String) = eval("globalThis.__starlingNotice && __starlingNotice(${JSONObject.quote(message)})")
@@ -414,9 +418,24 @@ object PageHost {
         main.post {
             if (!LocationService.running) return@post
             freezes++
-            nudge()
+            frozenNow = true
+            val workWaiting = waitingSince != 0L && pulseAt < waitingSince
+            val wait = ThawPolicy.afterFreeze(LocationService.stillNow, workWaiting)
+            if (wait == ThawPolicy.NOW) {
+                nudge()
+            } else {
+                // Nothing for the page to do until the next fix: let it sleep, and wake it
+                // later only to listen to the circle.
+                main.removeCallbacks(listenNudge)
+                main.postDelayed(listenNudge, wait)
+            }
         }
     }
+
+    // Main thread only. True from the page's freeze event until the next thaw.
+    private var frozenNow = false
+
+    private val listenNudge = Runnable { if (LocationService.running) nudge() }
 
     private fun expectPulse() {
         if (!LocationService.running) return
@@ -473,6 +492,8 @@ object PageHost {
         lastNudgeAt = now
         nudging = true
         nudges++
+        frozenNow = false
+        main.removeCallbacks(listenNudge)
         v.dispatchWindowVisibilityChanged(View.VISIBLE)
         main.postDelayed({
             nudging = false
@@ -518,6 +539,7 @@ object PageHost {
         release?.let { main.removeCallbacks(it) }
         release = null
         main.removeCallbacks(check)
+        main.removeCallbacks(listenNudge)
         checkQueued = false
         LocationService.sink = null
         val v = webView ?: return
