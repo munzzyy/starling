@@ -2151,11 +2151,13 @@ function setupNet() {
     channelId: gen.channelId,
     roster,
     ratchet: gen.ratchet,
+    isStill: () => state.sharing && phoneStill && stillAllowed(),
     onChange: () => {
       checkAlerts();
       persistRatchet();
       reconcileRoster().catch((e) => window.__starlingErrors.push(`roster: ${String(e)}`));
-      render();
+      // Nobody is looking: coming back to the app polls at once and draws then.
+      if (pageShown()) render();
     },
     onStatus: (s) => {
       state.netStatus = s;
@@ -6385,6 +6387,8 @@ async function sendLoc(force = false) {
     }
     // Helpers watching the beacon get the same fixes as the circle.
     if (beacon) await pushBeacon();
+    // Awake and connected anyway: hear the circle in this wake, inside the busy count.
+    await poller?.coalesce?.();
   } finally {
     sendBusy--;
   }
@@ -7764,7 +7768,8 @@ async function boot() {
   if (params.get("sheet") === "full" && sheet) sheet.snapTo("full", false);
 
   setInterval(() => {
-    if (state.screen === "map" && !state.demo) render();
+    // A hidden page redraws for nobody; the return to the app renders.
+    if (state.screen === "map" && !state.demo && pageShown()) render();
   }, 5000);
 
   // The wrappers serve assets locally already and neither WebView nor a
