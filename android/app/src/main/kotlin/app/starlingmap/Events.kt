@@ -45,6 +45,15 @@ object Events {
         show(ctx, R.string.app_name, if (urgent) R.string.notif_sos_text else R.string.notif_locked_text, tag, urgent, channelFor(kind))
     }
 
+    // Opt-in only (see StarlingBridge.notifyDetail). The one path where a caller's words reach a notification field.
+    fun postDetail(ctx: Context, title: String, body: String, tag: String, kind: String, member: String, onLock: Boolean) {
+        if (title.isEmpty()) return
+        show(ctx, R.string.app_name, R.string.notif_locked_text, tag, false, channelFor(kind),
+            Detail(title, body, member, onLock))
+    }
+
+    class Detail(val title: String, val body: String, val member: String, val onLock: Boolean)
+
     // The share reminder (ShareReminder). Its words say nothing about a circle or a person.
     fun postShareOff(ctx: Context) =
         show(ctx, R.string.notif_remind_title, R.string.notif_remind_text, ShareReminder.TAG, false)
@@ -56,9 +65,9 @@ object Events {
     fun postShareResumed(ctx: Context, @StringRes textRes: Int) =
         show(ctx, R.string.notif_resumed_title, textRes, ShareResume.RESUMED_TAG, false)
 
-    // String resources only, so nothing a caller was handed can reach a notification field.
+    // String resources only, so nothing a caller was handed can reach a notification field, except through postDetail.
     private fun show(ctx: Context, @StringRes titleRes: Int, @StringRes textRes: Int, tag: String, urgent: Boolean,
-        routine: String = MainActivity.EVENTS_CHANNEL) {
+        routine: String = MainActivity.EVENTS_CHANNEL, detail: Detail? = null) {
         if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
@@ -67,18 +76,23 @@ object Events {
         val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channelId = if (urgent) ensureSosChannel(ctx) else routine
         if (!urgent) ensureEventChannels(ctx)
+        val tap = Intent(ctx, MainActivity::class.java)
+        if (detail != null && detail.member.isNotEmpty()) tap.putExtra(MainActivity.EXTRA_MEMBER, detail.member)
+        // A request code per tag, or every tap would reuse the first notification's extra.
         val open = PendingIntent.getActivity(
             ctx,
-            0,
-            Intent(ctx, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE,
+            if (detail == null) 0 else tag.hashCode(),
+            tap,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val heading = ctx.getString(titleRes)
-        val text = ctx.getString(textRes)
+        val heading = detail?.title ?: ctx.getString(titleRes)
+        val text = detail?.body ?: ctx.getString(textRes)
+        val publicHeading = if (detail?.onLock == true) heading else ctx.getString(titleRes)
+        val publicText = if (detail == null) text else if (detail.onLock) detail.body else ctx.getString(R.string.notif_place_text)
         val publicVersion = NotificationCompat.Builder(ctx, channelId)
             .setSmallIcon(R.drawable.ic_stat_starling)
-            .setContentTitle(heading)
-            .setContentText(text)
+            .setContentTitle(publicHeading)
+            .setContentText(publicText)
             .setContentIntent(open)
             .setAutoCancel(true)
             .build()

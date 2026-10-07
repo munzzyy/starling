@@ -56,6 +56,18 @@ class StarlingBridge(private val app: Context) {
         Events.post(app, title.take(80), body.take(160), tag.take(64), false, kind.take(16))
     }
 
+    // A place event with its words, only ever called when the person turned on
+    // "Show names and places in notifications". Each tag is its own
+    // notification, and a tap selects `member`. The lock screen keeps the
+    // generic line unless `onLock` is true.
+    @JavascriptInterface
+    fun notifyDetail(title: String, body: String, tag: String, kind: String, member: String, onLock: Boolean) {
+        Events.postDetail(app, title.take(80), body.take(160), tag.take(64), kind.take(16), member.take(64), onLock)
+    }
+
+    @JavascriptInterface
+    fun takeOpenMember(): String = PageHost.takeOpenMember()
+
     @JavascriptInterface
     fun openAlertSounds() {
         ui { it.openAlertSounds() }

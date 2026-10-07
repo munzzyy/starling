@@ -380,6 +380,13 @@ object PageHost {
 
     fun notice(message: String) = eval("globalThis.__starlingNotice && __starlingNotice(${JSONObject.quote(message)})")
 
+    // A tapped place notification names a member; the page takes it once it can show one.
+    @Volatile var openMember: String? = null
+
+    fun takeOpenMember(): String = openMember.also { openMember = null } ?: ""
+
+    fun openMemberNow() = eval("globalThis.__starlingOpenMember && __starlingOpenMember()")
+
     fun hashChange(fragment: String) = eval("location.hash = ${JSONObject.quote("#$fragment")}")
 
     fun schemeChanged() = eval("globalThis.__starlingScheme && __starlingScheme()")

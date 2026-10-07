@@ -16,6 +16,8 @@
     <string name="notif_swiped_text">Starling a été fermée. Rouvrez-la pour continuer le partage.</string>
     <string name="notif_location_off">La localisation est désactivée sur ce téléphone. Activez-la pour continuer à partager.</string>
     <string name="notif_locked_text">Ouvrez Starling pour voir ce qui s\'est passé.</string>
+
+    <string name="notif_place_text">Une mise à jour de lieu</string>
     <string name="notif_remind_title">Le partage est coupé</string>
     <string name="notif_remind_text">Ouvrez Starling pour partager à nouveau.</string>
     <string name="notif_resume_boot_text">Votre téléphone a redémarré. Appuyez pour partager à nouveau.</string>

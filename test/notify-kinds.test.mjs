@@ -71,7 +71,7 @@ test("every notifyEvent call in the app names a kind the wrapper knows", () => {
   for (const m of calls) {
     const args = callArgs(main, m.index);
     const line = main.slice(m.index, main.indexOf("\n", m.index));
-    assert.equal(args.length, 4, `four arguments: ${line}`);
+    assert.ok(args.length === 4 || args.length === 5, `four arguments, five with a detail: ${line}`);
     const kind = args[3];
     if (kind === "ev.type") continue;
     const lit = kind.match(/^"(\w+)"$/)?.[1];

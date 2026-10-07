@@ -5,6 +5,20 @@ All notable changes to Starling are recorded here. Versions follow
 
 ## [Unreleased]
 
+- **Arrivals and departures with names, one notification each (#28).** A new
+  switch under Places and alerts, on Android and off by default, reads
+  "Show names and places in notifications". On, each arrival or departure
+  posts on its own, like "Joe arrived at Home" with the time, and tapping it
+  opens the app on that person. Off, nothing changes: the generic line, one
+  notification per person. The lock screen keeps a generic "A place update"
+  unless you also turn on "Also show them on the lock screen", because
+  anyone holding a locked phone can read what is there. An app lock still
+  has to be opened first.
+
+- **Holding SOS on the word works (#29).** A long press on the letters
+  selected them and opened Android's text menu instead of arming the
+  button. The button can no longer be selected and swallows that menu.
+
 - **Joining a circle keeps its name (#27).** The welcome now carries the
   circle's name, so a new member sees what its creator called it and is no
   longer asked to pick one. If whoever lets you in is on an older version,

@@ -33,6 +33,7 @@ class MainActivity : FragmentActivity() {
         const val ASSET_HOST = "appassets.androidplatform.net"
         const val START_URL = "https://$ASSET_HOST/index.html"
         const val APP_HOST = "starlingmap.app"
+        const val EXTRA_MEMBER = "member"
         const val PREFS = "starling"
         const val PREF_TOR = "tor"
         const val EVENTS_CHANNEL = "events"
@@ -151,6 +152,7 @@ class MainActivity : FragmentActivity() {
         } else {
             PageHost.load(fragment)
         }
+        noteMember(intent)
         SystemCheck.noteAndroid9(this)
     }
 
@@ -188,10 +190,19 @@ class MainActivity : FragmentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        noteMember(intent)
         val fragment = intent.data?.takeIf { it.host == APP_HOST }?.fragment ?: return
         // The page is live: hand the invite over as a hash change, which the
         // app treats exactly like a fresh boot with a fragment.
         PageHost.hashChange(fragment)
+    }
+
+    private fun noteMember(i: Intent?) {
+        val id = i?.getStringExtra(EXTRA_MEMBER)?.take(64)?.takeIf { it.isNotEmpty() } ?: return
+        // Consumed so a recreated window does not replay a tap that already happened.
+        i?.removeExtra(EXTRA_MEMBER)
+        PageHost.openMember = id
+        PageHost.openMemberNow()
     }
 
     override fun onDestroy() {

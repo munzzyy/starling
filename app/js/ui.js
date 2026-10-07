@@ -2629,6 +2629,22 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, autoRes
       onChange: (v) => onChange("batAlerts", v),
     }),
   );
+  if (typeof native()?.notifyDetail === "function") {
+    gAlerts.append(
+      switchRow({
+        label: "Show names and places in notifications",
+        note: "Each arrival or departure gets its own notification with the name, the place and the time. Off, they stay generic and run together.",
+        value: values.settings.detailAlerts,
+        onChange: (v) => onChange("detailAlerts", v),
+      }),
+      switchRow({
+        label: "Also show them on the lock screen",
+        note: "Anyone holding the phone can read them without unlocking. Only matters when the switch above is on.",
+        value: values.settings.detailOnLock,
+        onChange: (v) => onChange("detailOnLock", v),
+      }),
+    );
+  }
   if (typeof native()?.openAlertSounds === "function") {
     const box = el("div", "field");
     box.dataset.testid = "settings-alert-sounds";

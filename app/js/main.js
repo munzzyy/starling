@@ -219,6 +219,8 @@ const state = {
     lang: "auto", // UI language; "auto" follows the system, English is the source
     placeAlerts: true, // say when a member arrives at or leaves a saved place
     batAlerts: true, // say when a member's battery runs low
+    detailAlerts: false, // Android: one notification per place event, with name, place and time
+    detailOnLock: false, // Android: let those words show on a locked screen too
     shareReminder: 0, // ms after a stop you chose before the phone says sharing is off; 0 is never
     units: "auto", // "metric", "imperial", or the region in the phone's language
   },
@@ -532,6 +534,20 @@ const onSchemeChange = () => {
   if (state.settings.theme === "auto") applyTheme();
 };
 globalThis.__starlingScheme = onSchemeChange;
+
+// A tapped place notification names a member. Taken once; a locked app drops
+// it, since opening a card must never go around the lock.
+function openMemberFromNotification() {
+  let id = "";
+  try {
+    id = String(native()?.takeOpenMember?.() ?? "");
+  } catch {
+    // an older wrapper without the method
+  }
+  if (!id || state.locked || state.demo) return;
+  if (members().some((r) => r.id === id)) focusMember(id);
+}
+globalThis.__starlingOpenMember = openMemberFromNotification;
 // Safari < 14 only has the legacy MediaQueryList.addListener.
 if (mqLight.addEventListener) mqLight.addEventListener("change", onSchemeChange);
 else if (mqLight.addListener) mqLight.addListener(onSchemeChange);
@@ -1679,11 +1695,11 @@ function focusMember(id, { keyboard = false } = {}) {
   if (!rec) return;
   // Switching focus directly between members must not leave the previous
   // member's trail painted on the map.
-  if (focusedId && focusedId !== id) mapView.clearTrail(focusedId);
+  if (focusedId && focusedId !== id) mapView?.clearTrail(focusedId);
   focusedId = id;
   focusByKeyboard = keyboard;
   focusTrailOn = state.settings.trail;
-  if (Number.isFinite(rec.lat)) mapView.focusOn(rec.lat, rec.lon);
+  if (Number.isFinite(rec.lat)) mapView?.focusOn(rec.lat, rec.lon);
   render();
   if (keyboard) $("#focus-card").focus();
 }
@@ -6669,7 +6685,7 @@ const NOTIFY_KINDS = new Set(["sos", "arrive", "leave", "checkin", "battery", "o
 // to post through (no push tokens, by design), so the toast is the whole
 // story there. Never fires while the app is visibly on screen: the toast
 // already said it.
-function notifyEvent(title, body, tag, kind = "other") {
+function notifyEvent(title, body, tag, kind = "other", detail = null) {
   // The demo is a scripted story. Its fake SOS must never reach the phone's
   // real notification tray, where nothing marks it as fiction.
   if (state.demo) return;
@@ -6678,6 +6694,10 @@ function notifyEvent(title, body, tag, kind = "other") {
   if (!n?.notify) return;
   const urgent = kind === "sos";
   try {
+    if (detail && state.settings.detailAlerts === true && typeof n.notifyDetail === "function") {
+      n.notifyDetail(title, body, detail.tag, kind === "arrive" || kind === "leave" ? kind : "other", detail.memberId, state.settings.detailOnLock === true);
+      return;
+    }
     if (!urgent && typeof n.notifyKind === "function") n.notifyKind(title, body, tag, NOTIFY_KINDS.has(kind) ? kind : "other");
     else n.notify(title, body, tag, urgent);
   } catch {
@@ -6918,6 +6938,9 @@ function backOutOfPick() {
   if (cancelPlacePick()) openPlaces();
 }
 
+// Makes each detailed place notification its own id, even two in one tick.
+let placeSeq = 0;
+
 function checkAlerts() {
   const now = Date.now();
   checkOwnTimer(now);
@@ -7000,7 +7023,11 @@ function checkAlerts() {
             ev.type === "arrive" ? t("{who} arrived at {place}", { who, place: ev.placeName }) : t("{who} left {place}", { who, place: ev.placeName });
           ui.toast(msg);
           navigator.vibrate?.(80);
-          notifyEvent(msg, "", `place-${rec.id}`, ev.type);
+          const wordy = state.settings.detailAlerts === true;
+          notifyEvent(msg, wordy ? fmtClock(now) : "", `place-${rec.id}`, ev.type, {
+            tag: `p${now.toString(36)}${(placeSeq++).toString(36)}`,
+            memberId: rec.id,
+          });
         }
       }
     }
@@ -7277,6 +7304,7 @@ if (debugHooks()) window.__starlingInternals = {
   stopSharingInternals,
   shareStatus: () => ({ deadline: shareDeadline, windowMs: shareWindowMs }),
   notifyEvent,
+  focusedMember: () => focusedId,
   panic,
   setSharing,
   setupNet,
@@ -7703,6 +7731,7 @@ async function boot() {
   await restoreCheckinTimer();
 
   render();
+  openMemberFromNotification();
 
   reportHeadlessBoot().catch((e) => window.__starlingErrors.push(`headless report: ${String(e)}`));
 

@@ -15,6 +15,8 @@
     <string name="notif_swiped_text">Starling was closed. Open it again to keep sharing.</string>
     <string name="notif_location_off">Location is off on this phone. Turn it on to keep sharing.</string>
     <string name="notif_locked_text">Open Starling to see what happened.</string>
+
+    <string name="notif_place_text">A place update</string>
     <string name="notif_remind_title">Sharing is off</string>
     <string name="notif_remind_text">Open Starling to share again.</string>
     <string name="notif_resume_boot_text">Your phone restarted. Tap to share again.</string>
