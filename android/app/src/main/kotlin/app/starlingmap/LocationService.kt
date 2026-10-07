@@ -26,6 +26,8 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
 import androidx.core.app.ServiceCompat
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import org.json.JSONObject
 
@@ -434,8 +436,15 @@ class LocationService : Service(), LocationListener {
     }
 
     private fun register(lm: LocationManager, r: LocationPlan.Req) {
+        // Lint wants the permission checked in the same method as the request; the
+        // caller already treats a SecurityException as "revoked mid-share".
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            throw SecurityException("location permission not granted")
+        }
         val listener = if (r.moving) this else heartbeat
-        if (r.provider == LocationPlan.FUSED) {
+        // The plan only names the fused provider on Android 12+, but lint needs the
+        // version check next to the LocationRequest calls to accept them.
+        if (r.provider == LocationPlan.FUSED && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val quality = if (r.quality == LocationPlan.Quality.HIGH) {
                 LocationRequest.QUALITY_HIGH_ACCURACY
             } else {
