@@ -214,7 +214,9 @@ const state = {
     wakeLock: false,
     history: "default", // an id from ratchet.js HISTORY_CHOICES
     steady: false, // post on a fixed cadence whether or not you have moved
-    stillSave: false, // let the wrapper slow down while the phone lies still; never with steady
+    stillSave: true, // let the wrapper slow down while the phone lies still; never with steady
+    stillDefault: 1, // 1 once the on-by-default change has been applied to this device's saved settings
+    stillNoted: false, // the one-time note about what the slower timing shows the relay
     showActivity: false, // put still, walking, cycling or driving on your own posts
     lang: "auto", // UI language; "auto" follows the system, English is the source
     placeAlerts: true, // say when a member arrives at or leaves a saved place
@@ -5275,6 +5277,11 @@ async function onSettingChange(key, value) {
     }
     if (key === "wakeLock") ensureWakeLock();
     if (key === "stillSave" || key === "steady") applyCadence();
+    // Turning it on or off by hand means the note was read.
+    if (key === "stillSave" && !state.settings.stillNoted) {
+      state.settings = { ...state.settings, stillNoted: true };
+      await dbSet("settings", state.settings);
+    }
     if (key === "trail" && !value && mapView && focusedId) mapView.clearTrail(focusedId);
   }
   render();
@@ -5348,6 +5355,41 @@ function pushCadence() {
   } catch {
     // an older wrapper without the method
   }
+}
+
+// Still mode became on by default in the release after 0.19.0, where it started off. A device
+// saved before that has no marker and is switched on once; its owner's later choice either way
+// is kept because the marker stays.
+function mergeSavedSettings(base, saved) {
+  const merged = { ...base, ...saved };
+  if (saved.stillDefault !== 1) {
+    merged.stillSave = true;
+    merged.stillDefault = 1;
+  }
+  return merged;
+}
+
+// The switch is on unless someone turned it off, so the first share on a phone that can use it
+// says once what it does and what the relay can read from it. Quiet when it has nothing to say.
+function noteStillDefault() {
+  const s = state.settings;
+  if (s.stillNoted || s.stillSave !== true || s.steady === true) return;
+  let supported = false;
+  try {
+    supported = !!native()?.stillSupported?.();
+  } catch {
+    supported = false;
+  }
+  if (!supported) return;
+  state.settings = { ...s, stillNoted: true };
+  dbSet("settings", state.settings).catch((e) => window.__starlingErrors.push(`still note: ${String(e)}`));
+  ui.toast(
+    t(
+      "Save battery when still is on. After 2 minutes without moving, Starling sends every 5 minutes. The relay cannot read where you are, but it can tell from the slower timing that you are sitting still. You can turn it off under Sharing in settings.",
+    ),
+    "info",
+    15000,
+  );
 }
 
 // How far the clocks may disagree before the relay refuses a post outright.
@@ -5447,6 +5489,7 @@ async function setSharing(on, { keepArmed = false } = {}) {
       await armShare();
       // A still word from the service can arm a timer during the await; this replaces it.
       rearmShareTimer();
+      noteStillDefault();
       // Where the platform gives a web app no background execution at all,
       // sharing only runs while the screen is on and the app is in front.
       // Say so and hold the screen, rather than let someone walk away from a
@@ -7224,6 +7267,8 @@ if (debugHooks()) window.__starlingApi = api;
 // object, and script running in this page is inside the circle already.
 if (debugHooks()) window.__starlingInternals = {
   state,
+  mergeSavedSettings,
+  noteStillDefault,
   pinnedStore,
   roster: () => roster,
   checkinDue: () => timerDue(),
@@ -7531,7 +7576,13 @@ async function boot() {
     destroyed = !!mark;
     storedCircles = Array.isArray(circs) ? circs : null;
     if (profile) state.profile = profile;
-    if (settings) state.settings = { ...state.settings, ...settings };
+    if (settings) {
+      const merged = mergeSavedSettings(state.settings, settings);
+      if (merged.stillDefault !== settings.stillDefault) {
+        dbSet("settings", merged).catch((e) => window.__starlingErrors.push(`still default: ${String(e)}`));
+      }
+      state.settings = merged;
+    }
     if (circleName) state.circleName = circleName;
     state.circleShare = packShare(share);
     if (typeof relay === "string") state.relay = relay;

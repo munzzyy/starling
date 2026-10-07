@@ -575,7 +575,7 @@ export const fr = {
   "15 s": "15 s",
   "Camera access was turned down. Allow it for Starling in system settings, then try again.": "L'accès à la caméra a été refusé. Autorisez-le pour Starling dans les réglages du système, puis réessayez.",
   "For {name}. Each circle keeps its own precision and timing.": "Pour {name}. Chaque cercle garde sa propre précision et son propre rythme.",
-  "How often your circle hears from you while you stay put. Moving sends sooner unless Steady sending is on. Slower is easier on the battery. An SOS always goes every 15 seconds.": "La fréquence à laquelle votre cercle a de vos nouvelles quand vous ne bougez pas. Un déplacement envoie plus tôt, sauf si l'envoi régulier est activé. Plus lent ménage la batterie. Un SOS part toujours toutes les 15 secondes.",
+  "How often your circle hears from you while you stay put. On 15 s, moving sends sooner unless Steady sending is on. Slower is easier on the battery. An SOS always goes every 15 seconds.": "La fréquence à laquelle votre cercle a de vos nouvelles quand vous ne bougez pas. À 15 s, un déplacement envoie plus tôt, sauf si l'envoi régulier est activé. Plus lent ménage la batterie. Un SOS part toujours toutes les 15 secondes.",
   "Let the person checking you scan this with Starling. It holds your member id and your safety number, nothing else.": "Laissez la personne qui vous vérifie scanner ceci avec Starling. Il contient votre identifiant de membre et votre numéro de sécurité, rien d'autre.",
   "Mark {who} verified": "Marquer {who} comme vérifié",
   "No camera found on this device.": "Aucune caméra trouvée sur cet appareil.",
@@ -802,4 +802,5 @@ export const fr = {
   "Walking": "À pied",
   "Cycling": "À vélo",
   "Driving": "En voiture",
+  "Save battery when still is on. After 2 minutes without moving, Starling sends every 5 minutes. The relay cannot read where you are, but it can tell from the slower timing that you are sitting still. You can turn it off under Sharing in settings.": "Économiser la batterie à l'arrêt est activé. Après 2 minutes sans bouger, Starling envoie toutes les 5 minutes. Le relais ne peut pas lire où vous êtes, mais il voit au rythme plus lent que vous restez immobile. Vous pouvez le désactiver dans les réglages, sous Partage.",
 };

@@ -37,7 +37,7 @@ function btn(cls, text, label) {
 
 // ---------------------------------------------------------------- toasts
 
-export function toast(message, kind = "info") {
+export function toast(message, kind = "info", ms = 3400) {
   const host = document.getElementById("toasts");
   // Under the map's top chrome as it stands now, since banners change its height.
   const chrome = document.querySelector("#screen-map:not([hidden]) .top-chrome");
@@ -53,7 +53,7 @@ export function toast(message, kind = "info") {
   setTimeout(() => {
     node.classList.remove("in");
     setTimeout(() => node.remove(), 400);
-  }, 3400);
+  }, ms);
   return node;
 }
 
@@ -2324,7 +2324,7 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, autoRes
     precisionField,
     segControl({
       label: "Send every",
-      note: "How often your circle hears from you while you stay put. Moving sends sooner unless Steady sending is on. Slower is easier on the battery. An SOS always goes every 15 seconds.",
+      note: "How often your circle hears from you while you stay put. On 15 s, moving sends sooner unless Steady sending is on. Slower is easier on the battery. An SOS always goes every 15 seconds.",
       options: [
         { value: 15, label: "15 s" },
         { value: 60, label: "1 min" },

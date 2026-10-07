@@ -118,8 +118,32 @@ async function openOwnPost(body) {
   return openMessage(key, state.gen.channelId, state.identity.memberId, p.e, p.ts, b64uDecode(p.n), b64uDecode(p.c));
 }
 
-test("the switch starts off: slowing down while still is timing the relay can read", () => {
-  assert.equal(defaults.stillSave, false);
+test("the switch starts on, and a phone saved before that is switched on once, then left alone", () => {
+  assert.equal(defaults.stillSave, true);
+  const fresh = internals.mergeSavedSettings(defaults, { stillSave: false, theme: "light" });
+  assert.equal(fresh.stillSave, true, "saved under 0.19.0 with the old default");
+  assert.equal(fresh.stillDefault, 1);
+  assert.equal(fresh.theme, "light", "everything else is kept");
+  const chose = internals.mergeSavedSettings(defaults, { ...fresh, stillSave: false });
+  assert.equal(chose.stillSave, false, "a choice made after the change stays");
+});
+
+test("the one-time note is said on the first share that can use it, and never twice", async () => {
+  const host = globalThis.document.getElementById("toasts");
+  const count = () => host.children.length;
+  globalThis.StarlingNative = { stillSupported: () => true };
+  state.settings = { ...state.settings, stillSave: true, steady: false, stillNoted: false };
+  const before = count();
+  internals.noteStillDefault();
+  assert.equal(count(), before + 1, "said once");
+  assert.equal(state.settings.stillNoted, true);
+  internals.noteStillDefault();
+  assert.equal(count(), before + 1, "not again");
+  state.settings = { ...state.settings, stillNoted: false };
+  globalThis.StarlingNative = { stillSupported: () => false };
+  internals.noteStillDefault();
+  assert.equal(count(), before + 1, "quiet on a phone with no motion sensor");
+  assert.equal(state.settings.stillNoted, false, "and still unsaid there");
 });
 
 test("a phone gone still posts at once on the 5 minute pace, and its circle keeps it fresh for 10 minutes", async () => {

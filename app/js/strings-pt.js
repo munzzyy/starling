@@ -575,7 +575,7 @@ export const pt = {
   "15 s": "15 s",
   "Camera access was turned down. Allow it for Starling in system settings, then try again.": "O acesso à câmera foi negado. Permita para o Starling nas configurações do sistema e tente de novo.",
   "For {name}. Each circle keeps its own precision and timing.": "Para {name}. Cada círculo guarda sua própria precisão e seu próprio ritmo.",
-  "How often your circle hears from you while you stay put. Moving sends sooner unless Steady sending is on. Slower is easier on the battery. An SOS always goes every 15 seconds.": "Com que frequência seu círculo recebe notícias suas enquanto você fica parado. Movimento envia antes, a menos que o Envio constante esteja ligado. Mais devagar gasta menos bateria. Um SOS sempre sai a cada 15 segundos.",
+  "How often your circle hears from you while you stay put. On 15 s, moving sends sooner unless Steady sending is on. Slower is easier on the battery. An SOS always goes every 15 seconds.": "Com que frequência seu círculo recebe notícias suas enquanto você fica parado. Com 15 s, o movimento envia antes, a menos que o Envio constante esteja ligado. Mais devagar gasta menos bateria. Um SOS sempre sai a cada 15 segundos.",
   "Let the person checking you scan this with Starling. It holds your member id and your safety number, nothing else.": "Deixe a pessoa que está verificando você escanear isto com o Starling. Ele contém seu ID de membro e seu número de segurança, nada mais.",
   "Mark {who} verified": "Marcar {who} como verificado",
   "No camera found on this device.": "Nenhuma câmera encontrada neste aparelho.",
@@ -802,4 +802,5 @@ export const pt = {
   "Walking": "A pé",
   "Cycling": "De bicicleta",
   "Driving": "De carro",
+  "Save battery when still is on. After 2 minutes without moving, Starling sends every 5 minutes. The relay cannot read where you are, but it can tell from the slower timing that you are sitting still. You can turn it off under Sharing in settings.": "Economizar bateria parado está ativado. Depois de 2 minutos sem se mover, o Starling envia a cada 5 minutos. O relay não consegue ler onde você está, mas percebe pelo ritmo mais lento que você está parado. Você pode desativar nas configurações, em Compartilhamento.",
 };
