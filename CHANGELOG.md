@@ -3,7 +3,7 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
-## [Unreleased]
+## [0.20.0]
 
 - **Much less battery while sharing (#25).** The share service asked for a
   GPS fix every 3 seconds or 5 metres whatever your circle's "Send every" was
