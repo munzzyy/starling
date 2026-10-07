@@ -216,6 +216,8 @@ export function holdToFire(button, { ms = 1200, onFire, onShortTap }) {
   });
   button.addEventListener("pointerleave", cancel);
   button.addEventListener("pointercancel", cancel);
+  // Android fires contextmenu on a long press; it bubbles up from the label.
+  button.addEventListener("contextmenu", (e) => e.preventDefault());
 
   // The keyboard path: holding Enter or Space arms the same timer a finger
   // does, so the deliberate-hold property survives without a pointer.
