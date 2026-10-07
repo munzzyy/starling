@@ -324,13 +324,12 @@ test("Settings shows the switch only with the wrapper, off by default, and says 
 
 test("the service drops to one slow heartbeat while still and is woken by the motion sensor", () => {
   const svc = kt("LocationService.kt");
-  assert.match(svc, /private const val STILL_HEARTBEAT_MS = HEARTBEAT_MAX_MS/);
-  assert.match(svc, /private const val STILL_REWATCH_MS = 2 \* STILL_HEARTBEAT_MS/);
+  const plan = kt("LocationPlan.kt");
+  assert.match(plan, /const val STILL_MS = 5 \* 60000L/);
+  assert.match(plan, /return maxOf\(REWATCH_MIN_MS, 2 \* every\)/);
   const request = fn(svc, "request");
-  assert.match(
-    request,
-    /if \(still\.on\) \{\s*lm\.requestLocationUpdates\(provider, STILL_HEARTBEAT_MS, 0f, heartbeat, mainLooper\)\s*\} else \{\s*lm\.requestLocationUpdates\(provider, MIN_TIME_MS, MIN_DIST_M, this, mainLooper\)\s*lm\.requestLocationUpdates\(provider, heartbeatMs, 0f, heartbeat, mainLooper\)\s*\}/,
-  );
+  assert.match(request, /val cadence = if \(still\.on\) LocationPlan\.STILL_MS else heartbeatMs/);
+  assert.match(request, /LocationPlan\.plan\(cadence, still\.on, platformProviders, fusedOn\)/);
   assert.match(fn(svc, "rearmHeartbeat"), /if \(!watching \|\| still\.on\) return/, "a cadence change waits until the phone moves");
 
   const onFix = fn(svc, "onLocationChanged");
@@ -339,7 +338,7 @@ test("the service drops to one slow heartbeat while still and is woken by the mo
 
   const changed = fn(svc, "stillChanged");
   assert.ok(changed.indexOf('put("still", still.on)') < changed.indexOf("removeUpdates(this)"));
-  assert.match(changed, /if \(request\(lm, providers\)\.isEmpty\(\)\) noProvider\(\)/);
+  assert.match(changed, /if \(request\(lm\)\.isEmpty\(\)\) noProvider\(\)/);
 
   assert.match(svc, /getDefaultSensor\(Sensor\.TYPE_SIGNIFICANT_MOTION\)/);
   assert.match(fn(svc, "onStartCommand"), /startWatching\(\)\s*\/\/[^\n]*\n\s*if \(still\.on\) sink\?\.invoke\(JSONObject\(\)\.put\("still", true\)\.toString\(\)\)/);

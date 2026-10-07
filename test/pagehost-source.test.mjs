@@ -33,9 +33,13 @@ test("a dead renderer is handled instead of taking the app and the share down", 
 
 test("a still phone still wakes the page: a listener with no distance filter, on the circle's cadence", () => {
   const src = kt("LocationService.kt");
-  // Twice: the first request, and the re-arm when the cadence changes. Neither
-  // may fall back to the constant, which is the floor and nothing else now.
-  assert.equal((src.match(/requestLocationUpdates\(provider, heartbeatMs, 0f, heartbeat, mainLooper\)/g) || []).length, 2);
+  // The heartbeat is a Req with no distance filter and the circle's cadence; the plan,
+  // not a constant, picks the interval, and the re-arm replans when the cadence changes.
+  const plan = kt("LocationPlan.kt");
+  assert.match(plan, /Req\(it, every, NO_DISTANCE, 0L, Quality\.HIGH, moving = false\)/);
+  assert.match(plan, /const val NO_DISTANCE = 0f/);
+  assert.match(src, /LocationPlan\.plan\(cadence, still\.on, platformProviders, fusedOn\)/);
+  assert.match(src, /val cadence = if \(still\.on\) LocationPlan\.STILL_MS else heartbeatMs/);
   assert.doesNotMatch(src, /requestLocationUpdates\(provider, HEARTBEAT_MS/);
   assert.match(src, /removeUpdates\(heartbeat\)/);
   assert.match(src, /private const val HEARTBEAT_MS = 15000L/);

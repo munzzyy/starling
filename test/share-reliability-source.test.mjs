@@ -117,7 +117,7 @@ test("the wake lock is let go when the page is done, and on every way a share en
 test("a tick only takes the wake lock when it has something for the page", () => {
   const tick = fn(kt("LocationService.kt"), "onTick");
   assert.doesNotMatch(tick, /letSleep/, "a fix mid-post must not have the lock pulled from under it");
-  const at = tick.indexOf("if (now - lastFixAt >= TICK_MS)");
+  const at = tick.indexOf("if (now - lastFixAt >= tickMs())");
   assert.ok(at >= 0, "a tick pushes only after a whole tick with no fix");
   const branch = tick.slice(at);
   assert.ok(branch.indexOf("holdAwake(this)") < branch.indexOf('put("tick", true)'));
@@ -156,12 +156,12 @@ test("requests that have produced nothing for minutes with location on are made 
   const tick = fn(svc, "onTick");
   assert.match(
     tick,
-    /val rewatchAfter = if \(still\.on\) STILL_REWATCH_MS else REWATCH_MS\s*if \(!locationOff && now - maxOf\(lastFixAt, watchedAt\) >= rewatchAfter\) rewatch\(\)/,
+    /val rewatchAfter = LocationPlan\.rewatchMs\(heartbeatMs, still\.on\)\s*if \(!locationOff && now - maxOf\(lastFixAt, watchedAt\) >= rewatchAfter\) rewatch\(\)/,
   );
   const again = fn(svc, "rewatch");
   assert.match(again, /removeUpdates\(this\)/);
   assert.match(again, /removeUpdates\(heartbeat\)/);
-  assert.match(again, /if \(request\(lm, providers\)\.isEmpty\(\)\) noProvider\(\)/, "and if none will take it, the share ends out loud");
+  assert.match(again, /if \(request\(lm\)\.isEmpty\(\)\) noProvider\(\)/, "and if none will take it, the share ends out loud");
   assert.match(fn(svc, "request"), /watchedAt = SystemClock\.elapsedRealtime\(\)/);
 });
 
@@ -289,4 +289,13 @@ test("the app lock ending a share leaves a record, and a notice only when nobody
   const bridge = fn(kt("StarlingBridge.kt"), "shareEndedByLock");
   assert.match(bridge, /LocationService\.endShare\(app, "lock", notify = !PageHost\.windowShown\)/);
   assert.match(kt("StarlingBridge.kt"), /@JavascriptInterface\s+fun shareEndedByLock\(\)/);
+});
+
+test("the fused provider is only used on Android 12+, never with Tor on, and falls back to the platform pair", () => {
+  const svc = kt("LocationService.kt");
+  const start = fn(svc, "startWatching");
+  assert.match(start, /fusedOn = !torOn && Build\.VERSION\.SDK_INT >= Build\.VERSION_CODES\.S && lm\.allProviders\.contains\(LocationPlan\.FUSED\)/);
+  const request = fn(svc, "request");
+  assert.match(request, /if \(!fusedOn\) throw e\s*fusedOn = false/, "a refused fused request retries on gps and network");
+  assert.match(fn(svc, "register"), /requestLocationUpdates\(LocationPlan\.FUSED, req,/);
 });
