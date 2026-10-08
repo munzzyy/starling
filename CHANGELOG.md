@@ -3,7 +3,7 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
-## [Unreleased]
+## [0.20.1]
 
 - **The motion sensor no longer ends still mode on its own (#25).** It fires
   when someone walks across the house, and every false exit cost two minutes

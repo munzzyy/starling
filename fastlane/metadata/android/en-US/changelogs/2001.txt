@@ -1,0 +1,1 @@
+The motion sensor no longer ends battery saving mode by itself: it asks for one fix, and the phone leaves the slow pace only if that fix shows it really moved. The sharing report counts those checks.
