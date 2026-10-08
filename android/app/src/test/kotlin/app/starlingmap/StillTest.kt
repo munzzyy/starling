@@ -31,13 +31,47 @@ class StillTest {
         assertTrue("two minutes from the new spot", c.fix(north(45.0), lon, 5.0, t0 + 5 * minute, true))
     }
 
-    @Test fun motionLeavesAtOnceAndTheWindowStartsOver() {
+    @Test fun motionWhileStillOnlyAsksAndAFixAnswers() {
         val c = still()
-        assertTrue(c.motion(t0 + 3 * minute))
+        assertFalse(c.motion(t0 + 3 * minute))
+        assertTrue(c.on)
+        assertTrue(c.probing)
+        assertFalse("inside the radius", c.fix(north(5.0), lon, 5.0, t0 + 3 * minute + 5_000L, true))
+        assertTrue(c.on)
+        assertFalse(c.probing)
+    }
+
+    @Test fun aProbeFixBeyondTheRadiusLeaves() {
+        val c = still()
+        c.motion(t0 + 3 * minute)
+        assertTrue(c.fix(north(60.0), lon, 5.0, t0 + 3 * minute + 5_000L, true))
         assertFalse(c.on)
-        assertFalse("already moving", c.motion(t0 + 3 * minute))
-        assertFalse("no move since, but the motion was only a minute ago", c.fix(lat, lon, 5.0, t0 + 4 * minute, true))
-        assertTrue(c.fix(lat, lon, 5.0, t0 + 5 * minute, true))
+        assertFalse(c.probing)
+        assertFalse("anchored there, window starts over", c.fix(north(60.0), lon, 5.0, t0 + 4 * minute, true))
+        assertTrue(c.fix(north(60.0), lon, 5.0, t0 + 5 * minute + 5_000L, true))
+    }
+
+    @Test fun aVagueFixDuringAProbeLeavesItOpen() {
+        val c = still()
+        c.motion(t0 + 3 * minute)
+        assertFalse(c.fix(north(3000.0), lon, 2000.0, t0 + 3 * minute + 5_000L, true))
+        assertFalse(c.fix(lat, lon, null, t0 + 3 * minute + 6_000L, true))
+        assertTrue(c.on)
+        assertTrue(c.probing)
+    }
+
+    @Test fun leavingClearsTheProbe() {
+        val c = still()
+        c.motion(t0 + 3 * minute)
+        assertTrue(c.leave())
+        assertFalse(c.probing)
+    }
+
+    @Test fun motionWhileMovingDoesNotProbe() {
+        val c = StillClock()
+        c.fix(lat, lon, 5.0, t0, true)
+        assertFalse(c.motion(t0 + minute))
+        assertFalse(c.probing)
     }
 
     @Test fun motionBeforeTheWindowEndsKeepsItMoving() {

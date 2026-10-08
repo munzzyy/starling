@@ -30,6 +30,10 @@ class StillClock(private val afterMs: Long = AFTER_MS) {
     var on = false
         private set
 
+    // Motion said something may have changed; one good fix has to say what.
+    var probing = false
+        private set
+
     private var anchored = false
     private var lat = 0.0
     private var lon = 0.0
@@ -46,6 +50,7 @@ class StillClock(private val afterMs: Long = AFTER_MS) {
             anchor(lat, lon, acc, at)
             return false
         }
+        if (on) probing = false
         if (meters(this.lat, this.lon, lat, lon) > max(RADIUS_M, 2 * max(this.acc, acc))) {
             anchor(lat, lon, acc, at)
             return leave()
@@ -58,16 +63,22 @@ class StillClock(private val afterMs: Long = AFTER_MS) {
     }
 
     fun motion(at: Long): Boolean {
+        if (on) {
+            probing = true
+            return false
+        }
         since = max(since, at)
-        return leave()
+        return false
     }
 
     // Nothing watched for motion before `at`, so the stretch starts over there.
     fun restart(at: Long) {
+        probing = false
         since = max(since, at)
     }
 
     fun leave(): Boolean {
+        probing = false
         if (!on) return false
         on = false
         return true

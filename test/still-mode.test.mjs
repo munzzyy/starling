@@ -285,6 +285,10 @@ test("the sharing report says the setting and how long the phone sat still, with
   assert.match(report({ stillSupported: true, still: false, stillSpells: 1, stillMs: 60_000 }, "sos"), /^Save battery when still: off during the SOS$/m);
   assert.match(report({ stillSupported: false, still: false, stillSpells: 0, stillMs: 0 }, "on"), /^Save battery when still: no motion sensor on this phone$/m);
   assert.match(report({ stillSupported: true, still: false, stillSpells: 0, stillMs: 0 }, "<script>"), /^Save battery when still: unknown$/m);
+  const probed = report({ stillSupported: true, still: true, stillSpells: 3, stillMs: 2_700_000, motionTriggers: 9, probes: 7, probeFixes: 5, stillExits: 2 }, "on");
+  assert.match(probed, /^Motion sensor: fired 9 times, 7 single fixes asked, 5 answered, left still mode 2 times$/m);
+  assert.match(on, /^Motion sensor: fired unknown times/m, "a wrapper without the counts says unknown, never NaN");
+  assert.doesNotMatch(on, /NaN|undefined/);
   assert.doesNotMatch(report({}, "on"), /still/i, "an older wrapper says nothing about it");
 });
 
@@ -369,6 +373,8 @@ test("the service drops to one slow heartbeat while still and is woken by the mo
   assert.match(fn(svc, "armMotion"), /if \(motionArmed \|\| !stillWanted \|\| !watching\) return/, "the sensor is only asked for while the switch allows it");
   assert.match(fn(svc, "armMotion"), /requestTriggerSensor\(motion, sensor\)/);
   assert.match(fn(svc, "onMotion"), /still\.motion\(SystemClock\.elapsedRealtime\(\)\)\s*armMotion\(\)/);
+  assert.match(fn(svc, "onMotion"), /motionTriggers\+\+[\s\S]*if \(still\.on && still\.probing\) startProbe\(\)/, "motion asks one fix before it ends still mode");
+  assert.match(fn(svc, "stillChanged"), /endProbe\(\)/);
   assert.match(fn(svc, "stillWantedChanged"), /disarmMotion\(\)\s*if \(still\.leave\(\)\) stillChanged\(\)/, "an SOS or steady sending ends still mode at once");
   assert.match(fn(svc, "onDestroy"), /disarmMotion\(\)/);
   assert.match(kt("StarlingBridge.kt"), /fun setStillMode\(on: Boolean\) = LocationService\.setStillMode\(on\)/);

@@ -2341,7 +2341,7 @@ export function openSettingsSheet({ api, values, demo, tor, keepSharing, autoRes
   if (still) {
     const row = switchRow({
       label: "Save battery when still",
-      note: "When the phone has not moved for 2 minutes, Starling stops asking for GPS every few seconds and sends every 5 minutes, until the motion sensor says you are on the move again. An SOS still goes every 15 seconds. The relay cannot read where you are, but it can tell from the slower timing that you are sitting still.",
+      note: "When the phone has not moved for 2 minutes, Starling stops asking for GPS every few seconds and sends every 5 minutes, and stays on that pace until the motion sensor fires and one fix shows the phone really moved. An SOS still goes every 15 seconds. The relay cannot read where you are, but it can tell from the slower timing that you are sitting still.",
       value: false,
       onChange: (v) => onChange("stillSave", v),
     });

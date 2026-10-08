@@ -3,6 +3,15 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [Unreleased]
+
+- **The motion sensor no longer ends still mode on its own (#25).** It fires
+  when someone walks across the house, and every false exit cost two minutes
+  of continuous GPS before the phone could settle again. Now it only asks:
+  one high accuracy fix is requested, and the phone leaves still mode only if
+  that fix shows it really moved. The sharing report counts the motion
+  triggers, the single fixes asked and answered, and the exits.
+
 ## [0.20.0]
 
 - **Much less battery while sharing (#25).** The share service asked for a

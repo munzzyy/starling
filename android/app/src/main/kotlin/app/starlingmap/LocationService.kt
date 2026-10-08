@@ -21,6 +21,9 @@ import android.location.LocationManager
 import android.location.LocationRequest
 import android.os.Build
 import android.os.Bundle
+import android.os.CancellationSignal
+import android.os.Handler
+import android.os.Looper
 import android.os.IBinder
 import android.os.PowerManager
 import android.os.SystemClock
@@ -59,6 +62,9 @@ class LocationService : Service(), LocationListener {
         // slower heartbeat through setCadence, never a faster one.
         private const val HEARTBEAT_MS = 15000L
         private const val HEARTBEAT_MAX_MS = 300000L
+
+        // How long one motion probe may wait for a fix.
+        private const val PROBE_MS = 60000L
 
         // The active circle's cadence. The page sends it before every start
         // and whenever the setting changes, so nothing here persists it.
@@ -134,6 +140,14 @@ class LocationService : Service(), LocationListener {
         @Volatile var stillNow = false
             private set
         @Volatile var stillSpells = 0
+            private set
+        @Volatile var motionTriggers = 0
+            private set
+        @Volatile var probes = 0
+            private set
+        @Volatile var probeFixes = 0
+            private set
+        @Volatile var stillExits = 0
             private set
         @Volatile private var stillSince = 0L
         @Volatile private var stillDone = 0L
@@ -262,6 +276,27 @@ class LocationService : Service(), LocationListener {
     private val still = StillClock()
     private var motionArmed = false
 
+    private var probeActive = false
+    private var probeGen = 0
+    private var probeSignal: CancellationSignal? = null
+    private val probeHandler by lazy { Handler(Looper.getMainLooper()) }
+    private val probeTimeout = Runnable { endProbe() }
+
+    // Same spelled-out form as the heartbeat; requestSingleUpdate calls all of these on API 28 and 29.
+    private val probeListener = object : LocationListener {
+        override fun onLocationChanged(location: Location) = probeDone(probeGen, location)
+
+        @Deprecated("Deprecated in Java")
+        override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {
+        }
+
+        override fun onProviderEnabled(provider: String) {
+        }
+
+        override fun onProviderDisabled(provider: String) {
+        }
+    }
+
     private val motion = object : TriggerEventListener() {
         override fun onTrigger(event: TriggerEvent?) {
             motionArmed = false
@@ -342,6 +377,10 @@ class LocationService : Service(), LocationListener {
             rewatches = 0
             stillNow = false
             stillSpells = 0
+            motionTriggers = 0
+            probes = 0
+            probeFixes = 0
+            stillExits = 0
             stillSince = 0L
             stillDone = 0L
         }
@@ -562,9 +601,68 @@ class LocationService : Service(), LocationListener {
 
     private fun onMotion() {
         if (!watching) return
-        val changed = still.motion(SystemClock.elapsedRealtime())
+        motionTriggers++
+        still.motion(SystemClock.elapsedRealtime())
         armMotion()
-        if (changed) stillChanged()
+        if (still.on && still.probing) startProbe()
+    }
+
+    // One high accuracy fix through the normal fix path, so the clock decides if the phone really moved.
+    private fun startProbe() {
+        if (probeActive || !watching) return
+        val provider = when {
+            fusedOn -> LocationPlan.FUSED
+            platformProviders.contains(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
+            else -> platformProviders.firstOrNull()
+        } ?: return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return
+        val lm = getSystemService(LOCATION_SERVICE) as LocationManager
+        val gen = probeGen
+        probeActive = true
+        try {
+            if (provider == LocationPlan.FUSED && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val signal = CancellationSignal()
+                probeSignal = signal
+                val req = LocationRequest.Builder(0L)
+                    .setQuality(LocationRequest.QUALITY_HIGH_ACCURACY)
+                    .setDurationMillis(PROBE_MS)
+                    .build()
+                lm.getCurrentLocation(provider, req, signal, ContextCompat.getMainExecutor(this)) { loc -> probeDone(gen, loc) }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val signal = CancellationSignal()
+                probeSignal = signal
+                lm.getCurrentLocation(provider, signal, ContextCompat.getMainExecutor(this)) { loc -> probeDone(gen, loc) }
+            } else {
+                @Suppress("DEPRECATION")
+                lm.requestSingleUpdate(provider, probeListener, mainLooper)
+            }
+        } catch (e: SecurityException) {
+            endProbe()
+            return
+        } catch (e: RuntimeException) {
+            endProbe()
+            return
+        }
+        probes++
+        probeHandler.postDelayed(probeTimeout, PROBE_MS)
+    }
+
+    private fun probeDone(gen: Int, location: Location?) {
+        if (gen != probeGen || !probeActive) return
+        endProbe()
+        if (location == null) return
+        probeFixes++
+        onLocationChanged(location)
+    }
+
+    private fun endProbe() {
+        probeGen++
+        if (!probeActive) return
+        probeActive = false
+        probeHandler.removeCallbacks(probeTimeout)
+        probeSignal?.cancel()
+        probeSignal = null
+        runCatching { (getSystemService(LOCATION_SERVICE) as LocationManager).removeUpdates(probeListener) }
     }
 
     private fun armMotion() {
@@ -594,12 +692,16 @@ class LocationService : Service(), LocationListener {
     // The page hears first, then the requests follow: one slow heartbeat while still, both listeners otherwise.
     private fun stillChanged() {
         val now = SystemClock.elapsedRealtime()
+        endProbe()
         if (still.on) {
             stillSpells++
             stillSince = now
-        } else if (stillSince > 0L) {
-            stillDone += now - stillSince
-            stillSince = 0L
+        } else {
+            stillExits++
+            if (stillSince > 0L) {
+                stillDone += now - stillSince
+                stillSince = 0L
+            }
         }
         stillNow = still.on
         sink?.invoke(JSONObject().put("still", still.on).toString())
@@ -653,6 +755,7 @@ class LocationService : Service(), LocationListener {
             watching = false
         }
         disarmMotion()
+        endProbe()
         if (stillSince > 0L) stillDone += SystemClock.elapsedRealtime() - stillSince
         stillSince = 0L
         stillNow = false

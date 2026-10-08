@@ -157,6 +157,7 @@ export function shareReport({ h, page, now }) {
       const setting = h.stillSupported !== true ? "no motion sensor on this phone" : Object.hasOwn(STILL_SETTING, p.still) ? STILL_SETTING[p.still] : "unknown";
       lines.push(`Save battery when still: ${setting}`);
       lines.push(`Still: ${h.still === true ? "now" : "no"}, ${num(h.stillSpells)} times this share, ${span(h.stillMs)} in all`);
+      lines.push(`Motion sensor: fired ${num(h.motionTriggers)} times, ${num(h.probes)} single fixes asked, ${num(h.probeFixes)} answered, left still mode ${num(h.stillExits)} times`);
     }
     lines.push(`Page frozen during shares: ${num(h.freezes)} times, woken ${num(h.nudges)} times, last answered ${age(h.lastPulseMs)}`);
     if (h.holderFailed) lines.push("Could not hold the page after the app closed");
