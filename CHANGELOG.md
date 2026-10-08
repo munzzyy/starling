@@ -3,7 +3,7 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
-## [Unreleased]
+## [0.20.2]
 
 - **F-Droid can build Starling again.** The Argon2 module behind the app lock
   is now compiled with Debian 13's clang 19, the compiler on F-Droid's build

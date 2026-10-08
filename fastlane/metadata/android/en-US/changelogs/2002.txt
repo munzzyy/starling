@@ -1,0 +1,1 @@
+F-Droid builds work again: the Argon2 code behind the app lock is now compiled with the same compiler F-Droid uses, so F-Droid can rebuild it and match the release. The lock itself works exactly as before.
