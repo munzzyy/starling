@@ -10,7 +10,7 @@ it is what it says it is.
 ## What ships
 
 `app/js/argon2.wasm`, 12,782 bytes, SHA-256
-`b028d48196460cf996015d675c9638c731e9d6e2000c6eb6c916e237ae7abaa6`.
+`faf6ae0fae0fc3645131a1297a357cf1c50cea45f926285181f6960f514cf158`.
 
 It is the Argon2 reference implementation, compiled as is. Nothing in it was
 written for Starling except `tools/argon2/shim.c`: the five libc symbols the
@@ -63,11 +63,20 @@ clones the reference repository at commit `62358ba2123abd17fccf2a108a301d4b52c01
 the compiler reads against the list inside the script, compiles with clang's
 bare `wasm32` target and no libc, links with `wasm-ld`, and compares the
 result with the shipped file. Without `--check` it writes the file. The
-build used clang 22.1.8 from Arch Linux. Another clang version produces
-different bytes for the same source, so a mismatch from a different compiler
-is a reason to diff the two with `wasm-objdump` or `wasm2wat`, not proof of
-tampering. The source hashes are the part that holds regardless of
-compiler.
+shipped file is built with Debian 13's clang 19.1.7, because that is the
+compiler on F-Droid's build server. F-Droid deletes the committed binary,
+rebuilds it from the reference source during its own build (the script, with
+the source handed over as a srclib through `ARGON2_SRC`) and gets the same
+bytes, which is what lets its APK match the released one. Another clang
+version produces different bytes for the same source (clang 22 gave a 12782
+byte file where clang 19 gives 12790), so a mismatch from a different
+compiler is a reason to diff the two with `wasm-objdump` or `wasm2wat`, not
+proof of tampering. The source hashes are the part that holds regardless of
+compiler. To reproduce the shipped bytes elsewhere, point `CLANG` and
+`WASM_LD` at a 19.1.7 toolchain: on Arch `pacman -S clang19` then
+`CLANG=/usr/lib/llvm19/bin/clang WASM_LD=/usr/lib/llvm19/bin/wasm-ld bash
+tools/build-argon2.sh --check`; on Debian 13 `apt install clang lld` is
+enough.
 
 The flags are in the script. The ones that matter: `-ffreestanding
 -nostdlib` (no libc at all), `-DARGON2_NO_THREADS` (one lane, no pthreads),

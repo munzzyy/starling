@@ -7,7 +7,7 @@
 // walks through rebuilding and checking it.
 
 const WASM_URL = new URL("./argon2.wasm", import.meta.url);
-export const ARGON2_WASM_SHA256 = "b028d48196460cf996015d675c9638c731e9d6e2000c6eb6c916e237ae7abaa6";
+export const ARGON2_WASM_SHA256 = "faf6ae0fae0fc3645131a1297a357cf1c50cea45f926285181f6960f514cf158";
 
 // 64 MiB, three passes, one lane: the defaults KeePassXC and Bitwarden ship,
 // above the OWASP floor of 19 MiB and two passes, about a second on a phone.

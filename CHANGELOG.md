@@ -3,6 +3,14 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [Unreleased]
+
+- **F-Droid can build Starling again.** The Argon2 module behind the app lock
+  is now compiled with Debian 13's clang 19, the compiler on F-Droid's build
+  server, so F-Droid rebuilds it from the reference source during its own
+  build and gets the same bytes as the release. The module itself is
+  unchanged: it computes the same RFC 9106 and reference test vectors.
+
 ## [0.20.1]
 
 - **The motion sensor no longer ends still mode on its own (#25).** It fires

@@ -10,17 +10,30 @@
 #   bash tools/build-argon2.sh --check  rebuild to a temp file and compare
 #
 # Needs clang and wasm-ld (the LLVM linker) with the wasm32 target, and git.
+# The shipped file comes from Debian 13's clang 19.1.7, the compiler on
+# F-Droid's build server; CLANG and WASM_LD point the script at that version
+# on another distro, and ARGON2_SRC names an existing checkout of the
+# reference tree (F-Droid passes its srclib) instead of cloning one.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 ARGON2_REPO=https://github.com/P-H-C/phc-winner-argon2
 ARGON2_COMMIT=62358ba2123abd17fccf2a108a301d4b52c01a7c   # tag 20190702
 OUT=app/js/argon2.wasm
+CLANG="${CLANG:-clang}"
+WASM_LD="${WASM_LD:-wasm-ld}"
 
-src=$(mktemp -d)
-trap 'rm -rf "$src"' EXIT
-git clone -q "$ARGON2_REPO" "$src"
-git -C "$src" checkout -q "$ARGON2_COMMIT"
+tmpsrc=
+if [ -n "${ARGON2_SRC:-}" ]; then
+  src=$ARGON2_SRC
+  [ "$(git -C "$src" rev-parse HEAD)" = "$ARGON2_COMMIT" ] || { echo "ARGON2_SRC is not at $ARGON2_COMMIT"; exit 1; }
+else
+  tmpsrc=$(mktemp -d)
+  src=$tmpsrc
+  trap 'rm -rf "$tmpsrc"' EXIT
+  git clone -q "$ARGON2_REPO" "$src"
+  git -C "$src" checkout -q "$ARGON2_COMMIT"
+fi
 
 # Every file the compiler reads from the reference tree. A mismatch here is
 # a different Argon2 than the one that was reviewed, so it stops the build.
@@ -40,22 +53,22 @@ bcfdcf785218cf897f05b144e80b659e611188fee3887d533bdcb7a6aa4c336b  src/blake2/bla
 SUMS
 
 obj=$(mktemp -d)
-trap 'rm -rf "$src" "$obj"' EXIT
+trap 'rm -rf "$obj" ${tmpsrc:+"$tmpsrc"}' EXIT
 cflags=(--target=wasm32 -nostdlib -ffreestanding -O2 -mbulk-memory -DARGON2_NO_THREADS
   -Itools/argon2/include "-I$src/include" "-I$src/src")
 for f in argon2 core ref blake2/blake2b; do
-  clang "${cflags[@]}" -c "$src/src/$f.c" -o "$obj/$(basename "$f").o"
+  "$CLANG" "${cflags[@]}" -c "$src/src/$f.c" -o "$obj/$(basename "$f").o"
 done
 # -fno-builtin keeps clang from turning the shim's own byte loops back into
 # calls to the memset and memcpy they implement.
-clang "${cflags[@]}" -fno-builtin -c tools/argon2/shim.c -o "$obj/shim.o"
+"$CLANG" "${cflags[@]}" -fno-builtin -c tools/argon2/shim.c -o "$obj/shim.o"
 
 # encoding.c (the "$argon2id$..." string format) is not compiled: the lock
 # stores raw bytes, and that file wants sprintf. The functions in argon2.c
 # that reference it are unreachable from the export and --gc-sections drops
 # them; --unresolved-symbols lets the link finish without inventing imports,
 # and the test that the module imports nothing is what proves it did not.
-wasm-ld --no-entry --export=memory --strip-all --gc-sections --unresolved-symbols=ignore-all \
+"$WASM_LD" --no-entry --export=memory --strip-all --gc-sections --unresolved-symbols=ignore-all \
   -o "$obj/argon2.wasm" "$obj/argon2.o" "$obj/core.o" "$obj/ref.o" "$obj/blake2b.o" "$obj/shim.o"
 
 sum=$(sha256sum "$obj/argon2.wasm" | cut -d' ' -f1)
@@ -71,5 +84,5 @@ if [ "${1:-}" = "--check" ]; then
 else
   cp "$obj/argon2.wasm" "$OUT"
   echo "wrote $OUT ($(stat -c %s "$OUT") bytes) sha256 $sum"
-  echo "clang: $(clang --version | head -1)"
+  echo "clang: $("$CLANG" --version | head -1)"
 fi
