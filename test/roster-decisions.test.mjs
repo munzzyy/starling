@@ -21,6 +21,7 @@ import {
   keyChangeVerdict,
   pendingAfterRekey,
   pinnedFromRecipients,
+  quietHint,
   reconcileVerdict,
   rekeyRecipients,
   rosterAfterRekey,
@@ -450,4 +451,56 @@ test("the roster a new generation opens with is exactly who it wrapped to", asyn
 
   assert.deepEqual([...next.keys()], [a.memberId, b.memberId]);
   assert.equal(next.get(a.memberId).verified, true, "a re-key does not quietly un-verify anybody");
+});
+
+// --- the quiet-circle hint ---------------------------------------------------
+
+const H = 60 * 60 * 1000;
+const NOW = 1_800_000_000_000;
+const quietCase = (over = {}) => ({
+  demo: false,
+  locked: false,
+  hasGen: true,
+  others: 2,
+  live: 0,
+  heardAt: NOW - 30 * H,
+  joinedAt: NOW - 90 * H,
+  feedOkAt: NOW - 20_000,
+  now: NOW,
+  ...over,
+});
+
+test("the hint shows only when every condition holds", () => {
+  assert.equal(quietHint(quietCase()), true);
+  assert.equal(quietHint(quietCase({ demo: true })), false);
+  assert.equal(quietHint(quietCase({ locked: true })), false);
+  assert.equal(quietHint(quietCase({ hasGen: false })), false);
+  assert.equal(quietHint(quietCase({ others: 0 })), false, "alone in the circle, nobody is quiet");
+  assert.equal(quietHint(quietCase({ live: 1 })), false, "one live member and the circle is not silent");
+});
+
+test("the silence is counted from the later of last heard and joined", () => {
+  assert.equal(quietHint(quietCase({ heardAt: NOW - 25 * H })), false, "heard 25 h ago is under 26");
+  assert.equal(quietHint(quietCase({ heardAt: NOW - 26 * H - 1 })), true);
+  assert.equal(quietHint(quietCase({ heardAt: NOW - 26 * H })), false, "exactly 26 h is not over");
+  assert.equal(quietHint(quietCase({ heardAt: 0, joinedAt: NOW - H })), false, "joined an hour ago, never heard");
+  assert.equal(quietHint(quietCase({ heardAt: 0, joinedAt: NOW - 27 * H })), true, "never heard, joined over a day ago");
+  assert.equal(quietHint(quietCase({ heardAt: NOW - 90 * H, joinedAt: NOW - H })), false, "a fresh join resets the count");
+  assert.equal(quietHint(quietCase({ heardAt: 0, joinedAt: 0 })), false, "no baseline at all is never guessed");
+});
+
+test("a phone that cannot read the feed is not told its keys are wrong", () => {
+  assert.equal(quietHint(quietCase({ feedOkAt: NOW - 11 * 60 * 1000 })), false);
+  assert.equal(quietHint(quietCase({ feedOkAt: 0 })), false);
+  assert.equal(quietHint(quietCase({ feedOkAt: undefined })), false);
+});
+
+test("odd numbers never raise the hint", () => {
+  for (const bad of [NaN, Infinity, -Infinity, null, undefined, "x"]) {
+    assert.equal(quietHint(quietCase({ heardAt: bad, joinedAt: bad })), false, String(bad));
+  }
+  assert.equal(quietHint(quietCase({ others: NaN })), false);
+  assert.equal(quietHint(quietCase({ now: NaN })), false);
+  assert.equal(quietHint(quietCase({ feedOkAt: NaN })), false);
+  assert.equal(quietHint(quietCase({ heardAt: NOW + 5 * H })), false, "a clock that read ahead is not silence");
 });

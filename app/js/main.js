@@ -51,6 +51,7 @@ import {
   keyChangeVerdict,
   pendingAfterRekey,
   pinnedFromRecipients,
+  quietHint,
   reconcileVerdict,
   rekeyRecipients,
   rosterAfterRekey,
@@ -318,6 +319,8 @@ function genRecord() {
     ckEpoch: snap.e0,
     channelId: state.gen.channelId,
     at: state.gen.at || 0,
+    heard: state.gen.heard || 0,
+    joined: state.gen.joined || 0,
     genRoster: [...state.genRoster],
     ck: snap.ck0,
   };
@@ -335,6 +338,8 @@ async function activeRecord() {
     ckEpoch: rec.ckEpoch,
     channelId: rec.channelId,
     at: rec.at,
+    heard: rec.heard,
+    joined: rec.joined,
     genRoster: rec.genRoster,
     pinned: packPinned(state.pinned),
     profile: state.profile,
@@ -945,6 +950,8 @@ function renderYou() {
 // own, in the order a frightened person needs it. Keys first, because a key
 // change is either a reinstall or somebody standing in for a member, and only
 // a human can tell which.
+const QUIET_HINT_LIVE = new Set(["live", "checkin", "sos"]);
+
 function alertItems() {
   const items = [];
   if (state.demo) return items;
@@ -1268,6 +1275,28 @@ function alertItems() {
       kind: "warn",
       title: t("Your circle moved on without this phone"),
       text: t("New keys were made while this device could not be reached, and they cannot be worked out from the old ones. Nothing you send now arrives. Ask somebody in the circle for a fresh invite link."),
+    });
+  }
+
+  const me = state.identity?.memberId;
+  if (
+    quietHint({
+      demo: state.demo,
+      locked: state.locked,
+      hasGen: !!state.gen,
+      others: [...state.pinned.keys()].filter((id) => id !== me).length,
+      live: members().filter((r) => r.id !== me && QUIET_HINT_LIVE.has(statusOf(r, now))).length,
+      heardAt: state.gen?.heard,
+      joinedAt: state.gen?.joined,
+      feedOkAt: poller?.stats().lastOkAt,
+      now,
+    })
+  ) {
+    items.push({
+      id: "quiet-circle",
+      kind: "info",
+      title: t("Nothing from anyone here for over a day"),
+      text: t("If the others are sharing and still see each other, this phone has fallen out of step with the circle's keys. Ask one of them for a fresh invite link."),
     });
   }
 
@@ -1838,6 +1867,14 @@ function endTrimHold() {
   state.gen?.ratchet.releaseTrim();
 }
 
+// How stale the saved "last heard" may get before the next poll writes it. The
+// hint it feeds counts in hours, and every write is the full generation write.
+const HEARD_SAVE_MS = 10 * 60 * 1000;
+
+function noteHeard(at) {
+  if (state.gen && Number.isFinite(at) && at > (state.gen.heard || 0)) state.gen.heard = at;
+}
+
 async function persistRatchet() {
   if (!state.gen || state.locked || circleBusy) return;
   const snap = state.gen.ratchet.snapshot();
@@ -1851,7 +1888,7 @@ async function persistRatchet() {
     await onChainDestroyed();
     return;
   }
-  if (snap.e0 === storedCkEpoch) return;
+  if (snap.e0 === storedCkEpoch && !(state.gen.heard - (state.gen.heardSaved ?? 0) >= HEARD_SAVE_MS)) return;
   try {
     await writeGenAtRest();
   } catch (e) {
@@ -2092,6 +2129,7 @@ async function writeGenAtRest() {
   await writeSecretAtRest(rec.ck);
   await writeRecordAtRest(kv, lock, STAGED_SLOT, null);
   storedCkEpoch = rec.ckEpoch;
+  state.gen.heardSaved = rec.heard;
 }
 
 // createRoster pins a member the first time it sees a point whose id genuinely
@@ -2176,6 +2214,7 @@ function setupNet() {
     ratchet: gen.ratchet,
     isStill: stillNow,
     onChange: () => {
+      noteHeard(roster?.lastHeard());
       checkAlerts();
       persistRatchet();
       reconcileRoster().catch((e) => window.__starlingErrors.push(`roster: ${String(e)}`));
@@ -2308,6 +2347,9 @@ async function onControl(senderId, msg, epoch) {
   // ends in a live circle. adoptRekey checks again for itself, because the
   // lock can fall between here and there.
   if (state.locked) return;
+  // The poll that delivered this may be torn down by the re-key it carries, so
+  // the roster's own note of it would be lost with it.
+  noteHeard(Date.now());
   // A `member` record belongs to a welcome, on an invite channel, sealed to
   // one joiner. On this channel it is an ordinary message any member can
   // write, and acting on one grafts a keypair of their choosing onto every
@@ -2496,6 +2538,8 @@ async function doRekey({ removed = [], admit = null, reason = "manual" } = {}) {
     historyEpochs: historyEpochs(),
   });
   next.at = Date.now();
+  next.heard = state.gen.heard || 0;
+  next.joined = state.gen.joined || 0;
 
   const nextPinned = pinnedFromRecipients(recipients);
 
@@ -2676,6 +2720,7 @@ async function adoptOverLoser(applied, senderId) {
   grace = null;
   teardownNet();
   state.gen = held.gen;
+  held.gen.heard = Math.max(held.gen.heard || 0, losing.heard || 0);
   state.pinned = held.pinned;
   state.genRoster = held.genRoster;
   losing.ratchet.destroy();
@@ -2721,6 +2766,8 @@ async function adoptRekey(applied, senderId) {
     historyEpochs: historyEpochs(),
   });
   next.at = Date.now();
+  next.heard = state.gen.heard || 0;
+  next.joined = state.gen.joined || 0;
 
   teardownNet();
   const prev = state.gen;
@@ -2932,6 +2979,11 @@ function restoreGeneration(meta, ck) {
     g: meta.g,
     e0: meta.e0,
     at: meta.at,
+    heard: meta.heard || 0,
+    // A circle from before this was recorded counts from the first launch that
+    // knows about it, and is written back at once so the count does not restart.
+    joined: meta.joined || Date.now(),
+    heardSaved: meta.joined ? meta.heard || 0 : -Infinity,
     channelId: meta.channelId,
     ratchet: createRatchet({ e0: meta.ckEpoch, ck0: ck, historyEpochs: historyEpochs() }),
   };
@@ -3784,6 +3836,7 @@ function promptCreate() {
           });
           state.gen = opened;
           state.gen.at = now;
+          state.gen.joined = now;
           state.pinned = new Map();
           state.genRoster = new Set();
           state.rosterPending = null;
@@ -4677,6 +4730,7 @@ async function completeJoin(j, welcome) {
     });
     state.gen = opened;
     state.gen.at = now;
+    state.gen.joined = now;
     state.identity = j.identity;
     state.pinned = new Map();
     state.invite = null;
@@ -6242,7 +6296,7 @@ function buildShareReport() {
       lastErrAt: shareStats.lastErrAt,
       fixes: fixGate.stats(),
       feed: poller?.stats(),
-      heardAt: roster?.lastHeard(),
+      heardAt: state.gen?.heard,
       customRelay: !!state.relay,
       still: state.settings.stillSave !== true ? "off" : state.settings.steady ? "steady" : state.sosActive ? "sos" : "on",
     },

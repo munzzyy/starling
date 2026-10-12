@@ -65,6 +65,10 @@ export const SEALED_KEYS = [
 // to watch and how many people post to it. That is why this record is sealed
 // under the vault key like the roster, rather than kept in plaintext as the
 // bare integers would allow.
+// `heard` and `joined` are the two clocks the quiet-circle hint reads: when
+// anyone else was last heard, and when this device joined or made the circle.
+// They belong to the circle, not to a generation, so a re-key carries them
+// over. Zero is "unknown", and an unknown `joined` is never read as "long ago".
 // `genRoster` travels with the generation because it is part of what the
 // generation IS: the members it opened with, and so the only members whose
 // re-keys move it. Rebuilding it from the pinned roster on every reload widens
@@ -78,6 +82,8 @@ export function packGenMeta(gen) {
     ckEpoch: gen.ckEpoch,
     channelId: gen.channelId,
     at: gen.at || 0,
+    heard: Number.isFinite(gen.heard) ? gen.heard : 0,
+    joined: Number.isFinite(gen.joined) ? gen.joined : 0,
     genRoster: [...(gen.genRoster || [])].filter(isMemberId),
   };
 }
@@ -87,7 +93,7 @@ export function packGenMeta(gen) {
 // generation opened alone), so absence cannot be spelled the same way.
 export function readGenMeta(raw) {
   if (!raw || typeof raw !== "object") return null;
-  const { g, e0, ckEpoch, channelId, at, genRoster } = raw;
+  const { g, e0, ckEpoch, channelId, at, heard, joined, genRoster } = raw;
   if (!Number.isSafeInteger(g) || g < 0) return null;
   if (!Number.isSafeInteger(e0) || e0 < 0) return null;
   if (!Number.isSafeInteger(ckEpoch) || ckEpoch < 0) return null;
@@ -98,6 +104,8 @@ export function readGenMeta(raw) {
     ckEpoch,
     channelId,
     at: Number.isFinite(at) ? at : 0,
+    heard: Number.isFinite(heard) ? heard : 0,
+    joined: Number.isFinite(joined) ? joined : 0,
     genRoster: Array.isArray(genRoster) ? genRoster.filter(isMemberId) : null,
   };
 }
@@ -246,6 +254,8 @@ export function packCircles(circles) {
     // never fires again, and post compromise security quietly stops for that
     // circle while every other one keeps rotating.
     at: c.at || 0,
+    heard: Number.isFinite(c.heard) ? c.heard : 0,
+    joined: Number.isFinite(c.joined) ? c.joined : 0,
     genRoster: [...(c.genRoster || [])].filter(isMemberId),
     pinned: packPinned(c.pinned),
     profile: c.profile || null,

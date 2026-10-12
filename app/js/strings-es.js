@@ -398,6 +398,8 @@ export const es = {
   "Your circle has new keys, but they could not be saved. If Starling restarts you will need a fresh invitation.": "Tu círculo tiene claves nuevas, pero no se pudieron guardar. Si Starling se reinicia, necesitarás una invitación nueva.",
   "Your circle has new keys.": "Tu círculo tiene claves nuevas.",
   "Your circle moved on without this phone": "Tu círculo siguió adelante sin este teléfono",
+  "Nothing from anyone here for over a day": "Hace más de un día que no llega nada de nadie aquí",
+  "If the others are sharing and still see each other, this phone has fallen out of step with the circle's keys. Ask one of them for a fresh invite link.": "Si los demás están compartiendo y aún se ven entre ellos, este teléfono se ha desfasado de las claves del círculo. Pídele a alguno de ellos un enlace de invitación nuevo.",
   "Your circle sees an alert at your live position. Tap the check mark above to cancel it and let everyone know you are okay.": "Tu círculo ve una alerta en tu posición en vivo. Toca la marca de verificación de arriba para cancelarla y avisarles a todos que estás bien.",
   "Your circles": "Tus círculos",
   "Your current circle stays. This adds a new one, and you can switch between them from the circle name at the top of the map.": "Tu círculo actual se mantiene. Esto añade uno nuevo, y puedes cambiar entre ellos desde el nombre del círculo en la parte superior del mapa.",

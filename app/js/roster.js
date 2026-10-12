@@ -24,6 +24,29 @@ import {
 } from "./wire.js";
 import { rosterConverged, rosterView } from "./membership.js";
 
+// ------------------------------------------------------------ quiet circle
+
+// A phone that missed a re-key keeps posting to a channel nobody reads, and
+// reads nobody, with every status on it saying connected. Silence from the
+// whole circle for longer than the relay keeps anything is the one sign it
+// can always see.
+export const QUIET_HINT_MS = 26 * 60 * 60 * 1000;
+// The feed has to have been read lately, or this is a phone with no signal,
+// which has its own banner.
+export const FEED_FRESH_MS = 10 * 60 * 1000;
+
+// `others` is how many other members are pinned and `live` how many of them
+// have a live record. `heardAt` and `joinedAt` are wall-clock times, 0 for
+// unknown; the later one is where the silence is counted from, so a circle
+// joined an hour ago is never "quiet for a day" however old the roster is.
+export function quietHint({ demo, locked, hasGen, others, live, heardAt, joinedAt, feedOkAt, now }) {
+  if (demo || locked || !hasGen) return false;
+  if (!(others > 0) || live > 0) return false;
+  const baseline = Math.max(Number.isFinite(heardAt) ? heardAt : 0, Number.isFinite(joinedAt) ? joinedAt : 0);
+  if (baseline <= 0 || !(now - baseline > QUIET_HINT_MS)) return false;
+  return Number.isFinite(feedOkAt) && feedOkAt > 0 && now - feedOkAt <= FEED_FRESH_MS;
+}
+
 // ------------------------------------------------------------- key spelling
 
 // The relay's spelling of a key is not the key.

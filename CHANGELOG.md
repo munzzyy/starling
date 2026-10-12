@@ -20,6 +20,15 @@ All notable changes to Starling are recorded here. Versions follow
   moved on without this phone", the same card as when a whole generation was
   skipped. A member can make this card appear on your phone without the circle
   having moved, and the threat model says so.
+- **A quiet hint when nobody has been heard for over a day (#36).** If every
+  other member has been silent for more than 26 hours, counted from the last
+  time anyone was heard or from when this phone joined, and the feed is still
+  being read, a card says nothing has come from anyone and that this phone may
+  have fallen out of step with the circle's keys, so a fresh invite link is
+  the way back. It goes away as soon as anyone is heard. It stays in the app:
+  no notification and nothing on the lock screen. The time anyone was last
+  heard is kept with the circle, sealed with the rest when the app lock is on,
+  and goes when the circle does.
 
 ## [0.21.0]
 

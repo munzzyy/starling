@@ -1828,3 +1828,20 @@ test("a switch lands the incoming circle's sharing settings in the active slot, 
   await leaveActive(kv, null, { circles: [], toIndex: 0 });
   assert.ok(!store.has("circleShare"), "gone with the rest of the active slots");
 });
+
+test("when anyone was last heard, and when this device joined, travel with the circle", () => {
+  const a = { ...circle("family"), heard: 1788282000000, joined: 1788200000000 };
+  const meta = readGenMeta(packGenMeta(a));
+  assert.equal(meta.heard, a.heard);
+  assert.equal(meta.joined, a.joined);
+  const [back] = unpackCircles(packCircles([a]), [a.identity]);
+  assert.equal(back.heard, a.heard, "a switch away and back keeps it");
+  assert.equal(back.joined, a.joined);
+  // A record from before they existed reads as unknown, never as a time.
+  const old = readGenMeta(packGenMeta(circle("family")));
+  assert.equal(old.heard, 0);
+  assert.equal(old.joined, 0);
+  for (const bad of [NaN, Infinity, "x", null]) {
+    assert.equal(readGenMeta({ ...packGenMeta(a), heard: bad }).heard, 0, String(bad));
+  }
+});

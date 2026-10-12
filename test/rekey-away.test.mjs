@@ -119,6 +119,9 @@ test("a re-key from two hours ago is read on entry, before the window trims its 
   assert.equal(built.epoch, E);
   const newChannel = await channelOf(built);
   const reads = relay((chan) => (chan === oldChannel ? [entry] : []));
+  state.gen.heard = Date.now() + 1e9;
+  const heardBefore = state.gen.heard;
+  state.gen.joined = 1_600_000_000_000;
 
   await internals.enterCircle();
 
@@ -126,6 +129,8 @@ test("a re-key from two hours ago is read on entry, before the window trims its 
   const followed = await waitFor(() => reads.some((r) => r.chan === newChannel), 3000);
   harness.onFetch(null);
   assert.ok(moved, "the re-key sealed while this device was away moved it to the next generation");
+  assert.equal(state.gen.heard, heardBefore, "a re-key does not forget when anyone was last heard");
+  assert.equal(state.gen.joined, 1_600_000_000_000);
   assert.ok(followed, "and the poller moved to the new channel");
   assert.equal(reads.find((r) => r.chan === oldChannel).since, 0, "the first read asked for the whole backlog");
   assert.deepEqual(window.__starlingErrors, []);

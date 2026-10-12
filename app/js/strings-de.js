@@ -538,6 +538,8 @@ export const de = {
   "Your circle has new keys, but they could not be saved. If Starling restarts you will need a fresh invitation.": "Dein Kreis hat neue Schlüssel, aber sie ließen sich nicht speichern. Wenn Starling neu startet, brauchst du eine frische Einladung.",
   "Your circle has new keys.": "Dein Kreis hat neue Schlüssel.",
   "Your circle moved on without this phone": "Dein Kreis ist ohne dieses Handy weitergezogen",
+  "Nothing from anyone here for over a day": "Seit über einem Tag kommt hier von niemandem etwas an",
+  "If the others are sharing and still see each other, this phone has fallen out of step with the circle's keys. Ask one of them for a fresh invite link.": "Wenn die anderen teilen und sich noch gegenseitig sehen, ist dieses Handy mit den Schlüsseln des Kreises aus dem Takt geraten. Bitte jemanden von ihnen um einen frischen Einladungslink.",
   "Your circle now sees you stopped sharing.": "Dein Kreis sieht jetzt, dass du nicht mehr teilst.",
   "Your circle sees an alert at your live position. Tap the check mark above to cancel it and let everyone know you are okay.": "Dein Kreis sieht einen Alarm an deiner Live-Position. Tipp oben auf das Häkchen, um ihn abzubrechen und allen zu sagen, dass es dir gut geht.",
   "Your circles": "Deine Kreise",
