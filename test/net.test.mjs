@@ -1072,9 +1072,12 @@ test("the roster remembers when another member was last heard, and never counts 
   await roster.ingest([await entryFor(c, self, [{ e: RE0, msg: rLoc(now) }])], now);
   assert.equal(roster.lastHeard(), 0, "my own post is not hearing anyone");
   await roster.ingest([await entryFor(c, alice, [{ e: RE0, msg: rLoc(now) }])], now + 5);
-  assert.equal(roster.lastHeard(), now + 5);
+  assert.equal(roster.lastHeard(), now, "the time it was sent, not the time it was read");
   await roster.ingest([await entryFor(c, alice, [{ e: RE0, msg: rLoc(now) }])], now + 9000);
-  assert.equal(roster.lastHeard(), now + 5, "a replay is not hearing anyone");
+  assert.equal(roster.lastHeard(), now, "a replay is not hearing anyone");
   await roster.ingest([await entryFor(c, alice, [{ e: RE0, msg: { ...rLoc(now + 100), t: "bye" } }])], now + 9100);
-  assert.equal(roster.lastHeard(), now + 9100);
+  assert.equal(roster.lastHeard(), now + 100, "a backlog read late still counts from when it was sent");
+  // A sender's clock a little ahead cannot put the last word in the future.
+  await roster.ingest([await entryFor(c, alice, [{ e: RE0, msg: rLoc(now + 9500) }])], now + 9200);
+  assert.equal(roster.lastHeard(), now + 9200);
 });

@@ -946,12 +946,12 @@ function renderYou() {
   byTestid("sos-button").classList.toggle("sos-active", state.sosActive);
 }
 
+const QUIET_HINT_LIVE = new Set(["live", "checkin", "sos"]);
+
 // The surfaced-not-silent list: everything the app refuses to reconcile on its
 // own, in the order a frightened person needs it. Keys first, because a key
 // change is either a reinstall or somebody standing in for a member, and only
 // a human can tell which.
-const QUIET_HINT_LIVE = new Set(["live", "checkin", "sos"]);
-
 function alertItems() {
   const items = [];
   if (state.demo) return items;
@@ -2349,7 +2349,7 @@ async function onControl(senderId, msg, epoch) {
   if (state.locked) return;
   // The poll that delivered this may be torn down by the re-key it carries, so
   // the roster's own note of it would be lost with it.
-  noteHeard(Date.now());
+  noteHeard(Math.min(Date.now(), msg?.ts));
   // A `member` record belongs to a welcome, on an invite channel, sealed to
   // one joiner. On this channel it is an ordinary message any member can
   // write, and acting on one grafts a keypair of their choosing onto every

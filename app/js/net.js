@@ -106,7 +106,8 @@ const POSITION_KINDS = new Set(["loc", "checkin", "sos", "bye"]);
 export function createRoster({ channelId, ratchet, selfId, pinned, onControl, onKeyChange }) {
   const members = new Map();
   const seen = new Map(); // memberId -> { e, ts } of the last accepted position
-  // A timestamp and nothing else: when a post from another member last passed every check.
+  // A timestamp and nothing else: the newest sending time among other members' posts that passed
+  // every check. Sending time, so an old backlog read today is not somebody heard today.
   let heardAt = 0;
   // Control messages get their own dedup, a bounded set rather than a moving
   // high-water mark.
@@ -242,7 +243,7 @@ export function createRoster({ channelId, ratchet, selfId, pinned, onControl, on
           // freshness mark belongs to messages we actually dispatch.
           if (!wasPinned) continue;
           if (!controlFresh(entry.m, p.e, p.ts)) continue;
-          heardAt = now;
+          heardAt = Math.max(heardAt, Math.min(now, obj.ts));
           // A control message changes who is in the circle and which channel
           // it lives on, so it is only ever acted on from a member we already
           // knew. Dropping it here rather than upstream keeps the rule next to
@@ -255,7 +256,7 @@ export function createRoster({ channelId, ratchet, selfId, pinned, onControl, on
         // A backlog read holds keys past the window for re-keys only; positions there stay hidden.
         if (Number.isSafeInteger(ratchet.backlogFloor) && p.e < ratchet.backlogFloor) continue;
         if (!accepted(entry.m, p.e, p.ts)) continue;
-        heardAt = now;
+        heardAt = Math.max(heardAt, Math.min(now, obj.ts));
 
         if (!rec) {
           rec = { id: entry.m, ts: 0, trail: [] };
