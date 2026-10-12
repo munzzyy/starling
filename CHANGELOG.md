@@ -13,6 +13,13 @@ All notable changes to Starling are recorded here. Versions follow
   miss the day's re-key. The sharing report now says how many feed reads
   worked, failed or had to be restarted, and when anyone in the circle was last
   heard. It carries no names, ids or places.
+- **Say so when a re-key for this phone cannot be followed (#36).** If a
+  re-key addressed to this phone opens but the key it was mixed from has
+  already been thrown away, the circle has moved on and this phone cannot
+  follow. It used to drop the re-key without a word. Now it shows "Your circle
+  moved on without this phone", the same card as when a whole generation was
+  skipped. A member can make this card appear on your phone without the circle
+  having moved, and the threat model says so.
 
 ## [0.21.0]
 

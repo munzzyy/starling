@@ -780,7 +780,11 @@ Receivers:
    was sent in;
 5. require `me` to be a non-negative integer no greater than the message's own
    epoch, and one whose chain key is still retained. An epoch that has left the
-   window means no seed, and the device has to be re-invited rather than guess;
+   window means no seed, and the device has to be re-invited rather than guess.
+   A wrap that was addressed to this device, opened, and was for exactly the
+   next generation, but fails only on this step, is the circle having moved on
+   without it, so the device says so ("Your circle moved on without this
+   phone"), the same as for a `g` that skipped ahead;
 6. rebuild `context` from the message's own fields, unwrap, and require exactly
    32 bytes of `NS`. Rebuilding is literal: `rm` is filtered to well formed
    member ids and sorted, a missing or non-string `rh` becomes the empty

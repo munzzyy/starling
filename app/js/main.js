@@ -2346,7 +2346,17 @@ async function onControl(senderId, msg, epoch) {
     render();
     return;
   }
-  const applied = await applyRekey({ identity: state.identity, gen: state.gen, msg, epoch, senderId });
+  const applied = await applyRekey({
+    identity: state.identity,
+    gen: state.gen,
+    msg,
+    epoch,
+    senderId,
+    onMissed: () => {
+      state.missedRekey = true;
+      render();
+    },
+  });
   if (!applied) return;
   // Waits for the circle guard rather than bailing on it. A dropped re-key is
   // not retried: the wrap is consumed, the poller will not hand it over twice,
@@ -2630,6 +2640,7 @@ async function onGraceControl(senderId, msg, epoch) {
     return;
   }
   if (senderId === grace.by) return; // our own wrap coming back to us
+  // No onMissed here: this phone has already moved on, so it is not the stranded one.
   const applied = await applyRekey({ identity: state.identity, gen: grace.gen, msg, epoch, senderId });
   if (!applied) return;
   // A re-key that takes somebody out beats one that does not, whatever the ids

@@ -96,7 +96,12 @@ export async function buildRekey({ identity, gen, recipients, removed = [], now 
 // how a relay would burgle its way into a group.
 //
 // Returns the next generation's seed and coordinates, or null.
-export async function applyRekey({ identity, gen, msg, epoch, senderId }) {
+//
+// `onMissed` is called in the one failure the person has to be told about: the
+// wrap is addressed to us, opens, and is for the very next generation, but the
+// chain key for its mix epoch has left the window, so the circle has moved and
+// this device cannot follow. Every other null stays silent.
+export async function applyRekey({ identity, gen, msg, epoch, senderId, onMissed }) {
   if (!msg || msg.t !== "rekey") return null;
   if (msg.to !== identity.memberId) return null;
   if (!isMemberId(senderId)) return null;
@@ -153,7 +158,10 @@ export async function applyRekey({ identity, gen, msg, epoch, senderId }) {
 
   const seed = await gen.ratchet.nextSeed(ns, msg.me);
   zero(ns);
-  if (!seed) return null;
+  if (!seed) {
+    onMissed?.();
+    return null;
+  }
 
   return {
     seed,

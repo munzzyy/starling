@@ -205,3 +205,41 @@ test("a phone that comes back with no network still trims once the hold runs out
   assert.equal(state.gen.ratchet.trimHeld, false);
   harness.onFetch(null);
 });
+
+test("a wrap for the next generation whose mix epoch is gone raises the missed re-key alert", { timeout: 30_000 }, async () => {
+  const self = await generateIdentity();
+  const peer = await generateIdentity();
+  const ts = Date.now() - 5;
+  const E = epochAt(ts);
+  const peerGen = await awayCircle(self, peer, E - 3);
+  const oldChannel = state.gen.channelId;
+  // This phone has been up and sharing: a one epoch window, already at the clock.
+  state.gen.ratchet.setHistoryEpochs(1);
+  await state.gen.ratchet.syncToClock();
+  assert.deepEqual(state.gen.ratchet.retainedEpochs(), [E]);
+
+  // Mixed at the epoch before the boundary, posted just after it, as a re-key that straddles one is.
+  const built = await buildRekey({ identity: peer, gen: peerGen, recipients: [rec(self)], now: (E - 1) * EPOCH_MS + 1000 });
+  assert.equal(built.epoch, E - 1);
+  const key = await peerGen.ratchet.keyFor(E, peer.memberId, ts);
+  const sealed = await sealMessage(key, peerGen.channelId, peer.memberId, E, ts, { v: 2, ts, ...built.posts[0] });
+  const post = await buildPost(peer, peerGen.channelId, E, sealed, ts);
+  const entry = {
+    m: peer.memberId,
+    alg: peer.alg,
+    pk: b64uEncode(peer.pk),
+    epk: b64uEncode(peer.epk),
+    points: [{ e: post.e, ts: post.ts, srv: post.ts, n: post.n, c: post.c, sig: post.sig }],
+  };
+  relay((chan) => (chan === oldChannel ? [entry] : []));
+  assert.equal(state.missedRekey, false);
+
+  internals.setupNet();
+  const told = await waitFor(() => state.missedRekey, 5000);
+  harness.onFetch(null);
+  internals.teardownNet();
+  assert.ok(told, "the phone was told");
+  assert.equal(state.gen.g, 0, "and it is still on the generation it could not leave");
+  assert.ok(internals.alertItems().some((a) => a.title === "Your circle moved on without this phone"));
+  assert.deepEqual(window.__starlingErrors, []);
+});

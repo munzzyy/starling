@@ -566,3 +566,78 @@ test("a welcome wrap and a re-key wrap can never open as each other", async () =
   assert.ok(!/^[0-9a-f]{32}\|/.test(welcomeCtx));
   assert.ok(/^[0-9a-f]{32}\|/.test(rekeyCtx));
 });
+
+// --- onMissed: told only when the circle moved and this device cannot follow ------
+
+// b holds a one epoch window and has walked on, so the chain key for the epoch
+// the wrap was mixed at is gone while everything else about the wrap is good.
+async function missedFixture() {
+  const c = await circle(["a", "b", "d"], { historyEpochs: 1 });
+  const now = at(E0 + 1);
+  const built = await buildRekey({ identity: c.members.a.identity, gen: c.members.a.gen, recipients: recipientsFor(c, ["b", "d"]), now });
+  const forB = built.posts.find((p) => p.to === c.members.b.identity.memberId);
+  const forD = built.posts.find((p) => p.to === c.members.d.identity.memberId);
+  const b = c.members.b;
+  await b.gen.ratchet.syncToClock(at(E0 + 3));
+  assert.ok(!b.gen.ratchet.retainedEpochs().includes(built.epoch), "the mix epoch has left b's window");
+  const headerEpoch = built.epoch + 1;
+  const run = (msg, over = {}) => {
+    let missed = 0;
+    return applyRekey({
+      identity: b.identity,
+      gen: b.gen,
+      msg,
+      epoch: headerEpoch,
+      senderId: c.members.a.identity.memberId,
+      onMissed: () => { missed += 1; },
+      ...over,
+    }).then((applied) => ({ applied, missed }));
+  };
+  return { c, b, built, forB, forD, run };
+}
+
+test("a wrap that opens but whose mix epoch is gone says the circle moved on, and only then", async () => {
+  const { forB, run } = await missedFixture();
+  const r = await run(forB);
+  assert.equal(r.applied, null, "the return value is the same null as ever");
+  assert.equal(r.missed, 1);
+});
+
+test("no other failure reports a missed re-key", async () => {
+  const { b, built, forB, forD, run } = await missedFixture();
+  const silent = async (label, msg, over) => {
+    const r = await run(msg, over);
+    assert.equal(r.applied, null, label);
+    assert.equal(r.missed, 0, `${label} must not claim the circle moved on`);
+  };
+  await silent("forged wrap", { ...forB, w: forD.w });
+  await silent("forged ephemeral key", { ...forB, eph: forD.eph });
+  await silent("wrap for someone else", forD);
+  await silent("rewritten recipient", { ...forD, to: b.identity.memberId });
+  await silent("altered mix epoch", { ...forB, me: forB.me - 1 });
+  await silent("generation skipped", { ...forB, g: 2 });
+  await silent("old generation", { ...forB, g: 0 });
+  await silent("unpinned sender", forB, { senderId: "nope" });
+  await silent("not a re-key", { ...forB, t: "loc" });
+  await silent("mix epoch in the future", { ...forB, me: built.epoch + 5 });
+
+  // A replay: b is already on the next generation, so the same wrap is stale.
+  const next = await openGeneration({ seed: new Uint8Array(built.seed), g: built.g, e0: built.e0, historyEpochs: 1 });
+  await silent("replay onto a generation already reached", forB, { gen: next });
+
+  // And a wrap that applies cleanly does not call it either.
+  const fresh = await circle(["a", "b"], { historyEpochs: 144 });
+  const ok = await buildRekey({ identity: fresh.members.a.identity, gen: fresh.members.a.gen, recipients: recipientsFor(fresh, ["b"]), now: at(E0 + 1) });
+  await fresh.members.b.gen.ratchet.syncToClock(at(E0 + 1));
+  let missed = 0;
+  const applied = await applyRekey({
+    identity: fresh.members.b.identity,
+    gen: fresh.members.b.gen,
+    msg: ok.posts[0],
+    epoch: ok.epoch,
+    senderId: fresh.members.a.identity.memberId,
+    onMissed: () => { missed += 1; },
+  });
+  assert.ok(applied);
+  assert.equal(missed, 0);
+});
