@@ -3,6 +3,17 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
+## [Unreleased]
+
+- **A feed read that hangs no longer stops the app listening (#36).** Each
+  read of the circle's feed now has its own 20 second cut-off, and a read still
+  waiting after a minute is dropped and replaced by the next one. Before, one
+  read that never answered, after a network change or a frozen page, made the
+  app skip every later read while the status kept saying connected, so it could
+  miss the day's re-key. The sharing report now says how many feed reads
+  worked, failed or had to be restarted, and when anyone in the circle was last
+  heard. It carries no names, ids or places.
+
 ## [0.21.0]
 
 - **Check in from the sharing notification (#35).** A new setting, off by

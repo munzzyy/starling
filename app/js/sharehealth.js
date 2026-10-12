@@ -166,6 +166,9 @@ export function shareReport({ h, page, now }) {
   const f = p.fixes || {};
   lines.push(`Position fixes: ${num(f.adopted)} used, ${num(f.confirmed)} confirmed the held spot, ${num(f.held)} set aside`);
   lines.push(`Last sent: ${p.lastOkAt ? age(now - p.lastOkAt) : "never"}`);
+  const feed = p.feed || {};
+  lines.push(`Feed reads: ${num(feed.ok ?? 0)} ok, ${num(feed.failed ?? 0)} failed, ${num(feed.takenOver ?? 0)} restarted after hanging, last ok ${feed.lastOkAt ? age(now - feed.lastOkAt) : "never"}`);
+  lines.push(`Last heard from anyone in the circle: ${p.heardAt ? age(now - p.heardAt) : "never"}`);
   if (p.lastErr) lines.push(`Last failure: ${failWord(p.lastErr)}, ${age(now - (p.lastErrAt || now))}`);
   return lines.join("\n");
 }

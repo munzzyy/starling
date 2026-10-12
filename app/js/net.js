@@ -39,6 +39,11 @@ const BG_POLL_MS = 30000;
 // still hears an SOS from the circle promptly.
 const BG_STILL_POLL_MS = 60000;
 const BACKOFF_MAX_MS = 120000;
+// A feed read gets this long before it is cut off, and a poll still unsettled after the stuck
+// threshold is taken over by the next call. The threshold is compared on the wall clock at call
+// time: a frozen page runs no timers, so the cut-off alone cannot be relied on to have fired.
+const POLL_TIMEOUT_MS = 20000;
+export const POLL_STUCK_MS = 60000;
 
 // The next-poll delay as a pure decision, exported so a test can pin the
 // actual cadence numbers instead of only observing that polling happens.
@@ -101,6 +106,8 @@ const POSITION_KINDS = new Set(["loc", "checkin", "sos", "bye"]);
 export function createRoster({ channelId, ratchet, selfId, pinned, onControl, onKeyChange }) {
   const members = new Map();
   const seen = new Map(); // memberId -> { e, ts } of the last accepted position
+  // A timestamp and nothing else: when a post from another member last passed every check.
+  let heardAt = 0;
   // Control messages get their own dedup, a bounded set rather than a moving
   // high-water mark.
   //
@@ -235,6 +242,7 @@ export function createRoster({ channelId, ratchet, selfId, pinned, onControl, on
           // freshness mark belongs to messages we actually dispatch.
           if (!wasPinned) continue;
           if (!controlFresh(entry.m, p.e, p.ts)) continue;
+          heardAt = now;
           // A control message changes who is in the circle and which channel
           // it lives on, so it is only ever acted on from a member we already
           // knew. Dropping it here rather than upstream keeps the rule next to
@@ -247,6 +255,7 @@ export function createRoster({ channelId, ratchet, selfId, pinned, onControl, on
         // A backlog read holds keys past the window for re-keys only; positions there stay hidden.
         if (Number.isSafeInteger(ratchet.backlogFloor) && p.e < ratchet.backlogFloor) continue;
         if (!accepted(entry.m, p.e, p.ts)) continue;
+        heardAt = now;
 
         if (!rec) {
           rec = { id: entry.m, ts: 0, trail: [] };
@@ -285,6 +294,7 @@ export function createRoster({ channelId, ratchet, selfId, pinned, onControl, on
 
   return {
     ingest,
+    lastHeard: () => heardAt,
     list: () => [...members.values()],
     get: (id) => members.get(id),
     drop: (id) => {
@@ -314,10 +324,13 @@ export function windowStart(ratchet, now = Date.now()) {
 export function createPoller({ channelId, roster, ratchet, onChange, onStatus, onRetired, isStill = () => false }) {
   let since = ratchet ? windowStart(ratchet) : 0;
   let timer = 0;
-  let inFlight = false;
+  // The poll being waited on, or null. Each poll is its own object so a poll that was taken
+  // over cannot clear the mark of the one that replaced it when it finally settles.
+  let current = null;
   let failures = 0;
   let running = false;
   let lastPollAt = 0;
+  const counts = { ok: 0, failed: 0, lastOkAt: 0, takenOver: 0 };
   const seen = new Set();
   const SEEN_CAP = 4096;
 
@@ -341,13 +354,28 @@ export function createPoller({ channelId, roster, ratchet, onChange, onStatus, o
   // Shown, not visible: a thaw must not switch the poll to the foreground pace.
   const cadence = () => pollDelay(!pageShown(), bgCapable, isStill());
 
+  // True while a poll is genuinely in flight. One that has outlived the stuck threshold is
+  // aborted and forgotten instead, so the caller can start a fresh one.
+  function busy() {
+    if (!current) return false;
+    if (Date.now() - current.startedAt < POLL_STUCK_MS) return true;
+    current.ctl.abort();
+    current = null;
+    counts.takenOver += 1;
+    return false;
+  }
+
   async function poll() {
-    if (!running || inFlight) return;
+    if (!running || busy()) return;
     if (document.visibilityState === "hidden" && !bgCapable) return;
-    inFlight = true;
-    lastPollAt = Date.now();
+    const mine = { ctl: new AbortController(), startedAt: Date.now() };
+    const cutoff = setTimeout(() => mine.ctl.abort(), POLL_TIMEOUT_MS);
+    const live = () => current === mine;
+    current = mine;
+    lastPollAt = mine.startedAt;
     try {
-      const res = await fetch(apiUrl(`/api/v2/f/${channelId}?since=${since}`), { cache: "no-store" });
+      const res = await fetch(apiUrl(`/api/v2/f/${channelId}?since=${since}`), { cache: "no-store", signal: mine.ctl.signal });
+      if (!live()) return;
       // The relay retires a protocol version by answering 410 rather than by
       // going quiet, so an out-of-date client says so instead of syncing into
       // an empty channel nobody else is on.
@@ -359,6 +387,7 @@ export function createPoller({ channelId, roster, ratchet, onChange, onStatus, o
       }
       if (!res.ok) throw new Error(`poll ${res.status}`);
       const data = await res.json();
+      if (!live()) return;
       const fresh = (data.members || []).map((entry) => ({
         ...entry,
         points: (entry.points || []).filter((p) => !seen.has(`${entry.m}|${p.e}|${p.ts}|${p.n}`)),
@@ -386,17 +415,23 @@ export function createPoller({ channelId, roster, ratchet, onChange, onStatus, o
       // holding keys for it. Doing it here still means an idle listener
       // forgets on schedule, which is the whole reason it is on the poll path.
       await ratchet?.syncToClock?.();
+      if (!live()) return;
       failures = 0;
+      counts.ok += 1;
+      counts.lastOkAt = Date.now();
       onStatus?.("ok");
       onChange?.();
       schedule(cadence());
     } catch {
+      if (!live()) return;
       failures += 1;
+      counts.failed += 1;
       if (failures >= 2) onStatus?.("reconnecting");
       const backoff = Math.min(POLL_MS * 2 ** (failures - 1), BACKOFF_MAX_MS);
       schedule(backoff * (0.8 + Math.random() * 0.4));
     } finally {
-      inFlight = false;
+      clearTimeout(cutoff);
+      if (live()) current = null;
     }
   }
 
@@ -424,11 +459,12 @@ export function createPoller({ channelId, roster, ratchet, onChange, onStatus, o
       onStatus?.("idle");
     },
     pollNow: () => poll(),
+    stats: () => ({ ...counts }),
     // A post just went out from a hidden page, so the phone is awake and the connection is warm:
     // listen in the same wake unless a poll is already due about now. Resolves when it settles,
     // so the caller can keep the wake lock until then.
     coalesce() {
-      if (!running || inFlight || !bgCapable || pageShown()) return Promise.resolve();
+      if (!running || !bgCapable || pageShown() || busy()) return Promise.resolve();
       if (Date.now() - lastPollAt < cadence() / 2) return Promise.resolve();
       return poll();
     },

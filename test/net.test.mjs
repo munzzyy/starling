@@ -939,3 +939,142 @@ test("a post with no position leaves the position's own time alone", async () =>
   assert.equal(rec.posTs, t0, "but the position is as old as it was");
   assert.equal(rec.lat, 44.98);
 });
+
+// --- a feed read that hangs ---------------------------------------------------
+
+// Date.now is the only clock the takeover reads, so a test moves it by hand: a
+// frozen page runs no timers, which is exactly what a real timer cannot show here.
+function withClock() {
+  const real = Date.now;
+  let skew = 0;
+  Date.now = () => real() + skew;
+  return { advance: (ms) => { skew += ms; }, restore: () => { Date.now = real; } };
+}
+
+const settle = () => new Promise((r) => setTimeout(r, 20));
+
+test("a feed read that never settles is taken over, and the late answer changes nothing", async () => {
+  const clock = withClock();
+  const calls = [];
+  const hung = [];
+  const restore = stubGlobals(
+    [
+      () => new Promise((resolve) => hung.push(resolve)),
+      () => ({ ok: true, status: 200, json: async () => ({ now: 1, members: [entry(A, [{ e: 1, ts: 10, srv: 10, n: "second", c: "c", sig: "s" }])] }) }),
+      () => new Promise((resolve) => hung.push(resolve)),
+    ],
+    calls,
+  );
+  const ingested = [];
+  const events = [];
+  const poller = createPoller({
+    channelId: CHANNEL,
+    roster: { async ingest(entries) { ingested.push(entries.flatMap((e) => e.points.map((p) => p.n))); } },
+    onChange() {},
+    onStatus: (s) => events.push(s),
+  });
+  try {
+    poller.start();
+    await settle();
+    assert.equal(calls.length, 1);
+
+    clock.advance(30_000);
+    await poller.pollNow();
+    assert.equal(calls.length, 1, "a read under the stuck threshold is left alone");
+    assert.equal(calls[0].init.signal.aborted, false);
+
+    clock.advance(31_000);
+    await poller.pollNow();
+    await settle();
+    assert.equal(calls.length, 2, "past the threshold the next call starts a fresh read");
+    assert.equal(calls[0].init.signal.aborted, true, "and the hung one is aborted");
+    assert.deepEqual(ingested, [["second"]]);
+    assert.deepEqual(events, ["ok"]);
+    assert.equal(poller.stats().takenOver, 1);
+    assert.equal(poller.stats().ok, 1);
+
+    // The new read is slow in its turn; the hung one answering now must not
+    // clear its mark, ingest, or report anything.
+    clock.advance(11_000);
+    poller.pollNow();
+    await settle();
+    assert.equal(calls.length, 3);
+    hung[0]({ ok: true, status: 200, json: async () => ({ now: 1, members: [entry(B, [{ e: 1, ts: 20, srv: 20, n: "late", c: "c", sig: "s" }])] }) });
+    await settle();
+    await poller.pollNow();
+    assert.equal(calls.length, 3, "the late answer did not free the slot of the read that replaced it");
+    assert.deepEqual(ingested, [["second"]]);
+    assert.equal(poller.stats().failed, 0);
+  } finally {
+    poller.stop();
+    restore();
+    clock.restore();
+  }
+});
+
+test("a coalesced listen takes over a stuck read the same way", async () => {
+  const clock = withClock();
+  const prevNative = globalThis.StarlingNative;
+  globalThis.StarlingNative = {};
+  const calls = [];
+  const restore = stubGlobals([() => new Promise(() => {}), { now: 1, members: [] }], calls);
+  const poller = createPoller({ channelId: CHANNEL, roster: { async ingest() {} }, onChange() {}, onStatus() {} });
+  try {
+    poller.start();
+    await settle();
+    document.visibilityState = "hidden";
+    clock.advance(61_000);
+    await poller.coalesce();
+    assert.equal(calls.length, 2);
+    assert.equal(poller.stats().takenOver, 1);
+  } finally {
+    poller.stop();
+    restore();
+    clock.restore();
+    if (prevNative === undefined) delete globalThis.StarlingNative;
+    else globalThis.StarlingNative = prevNative;
+  }
+});
+
+test("failed reads are counted, and every read carries its own abort signal", async () => {
+  const calls = [];
+  const restore = stubGlobals(
+    [() => { throw new Error("offline"); }, () => ({ ok: false, status: 503 }), { now: 1, members: [] }],
+    calls,
+  );
+  const poller = createPoller({ channelId: CHANNEL, roster: { async ingest() {} }, onChange() {}, onStatus() {} });
+  try {
+    poller.start();
+    await settle();
+    await poller.pollNow();
+    await settle();
+    await poller.pollNow();
+    await settle();
+    const s = poller.stats();
+    assert.equal(s.failed, 2);
+    assert.equal(s.ok, 1);
+    assert.ok(s.lastOkAt > 0);
+    assert.ok(calls.every((c) => c.init.signal instanceof AbortSignal));
+    assert.notEqual(calls[0].init.signal, calls[1].init.signal);
+  } finally {
+    poller.stop();
+    restore();
+  }
+});
+
+test("the roster remembers when another member was last heard, and never counts this phone", async () => {
+  const c = await circle();
+  const alice = await generateIdentity();
+  const self = await generateIdentity();
+  const now = rAt(RE0) + 1000;
+  const roster = createRoster({ channelId: c.channelId, ratchet: c.recv.ratchet, selfId: self.memberId, pinned: new Map() });
+  assert.equal(roster.lastHeard(), 0);
+  await roster.ingest([await entryFor(c, self, [{ e: RE0, msg: rLoc(now) }])], now);
+  assert.equal(roster.lastHeard(), 0, "my own post is not hearing anyone");
+  await roster.ingest([await entryFor(c, alice, [{ e: RE0, msg: rLoc(now) }])], now + 5);
+  assert.equal(roster.lastHeard(), now + 5);
+  await roster.ingest([await entryFor(c, alice, [{ e: RE0, msg: rLoc(now) }])], now + 9000);
+  assert.equal(roster.lastHeard(), now + 5, "a replay is not hearing anyone");
+  await roster.ingest([await entryFor(c, alice, [{ e: RE0, msg: { ...rLoc(now + 100), t: "bye" } }])], now + 9100);
+  assert.equal(roster.lastHeard(), now + 9100);
+});

@@ -6230,6 +6230,8 @@ function buildShareReport() {
       lastErr: shareStats.lastErr,
       lastErrAt: shareStats.lastErrAt,
       fixes: fixGate.stats(),
+      feed: poller?.stats(),
+      heardAt: roster?.lastHeard(),
       customRelay: !!state.relay,
       still: state.settings.stillSave !== true ? "off" : state.settings.steady ? "steady" : state.sosActive ? "sos" : "on",
     },

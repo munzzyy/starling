@@ -264,3 +264,17 @@ test("the report says unknown for position fix counts it was not given", () => {
   assert.ok(part.includes("Position fixes: 3 used, unknown confirmed the held spot, unknown set aside"), part);
   assert.ok(!part.includes("NaN"));
 });
+
+test("the report says how the feed reads and when anyone was last heard, with counts only", () => {
+  const now = Date.UTC(2026, 9, 12, 9, 0);
+  const text = shareReport({
+    h: null,
+    page: { version: "0.21.0", sharing: true, feed: { ok: 41, failed: 2, takenOver: 1, lastOkAt: now - 20000 }, heardAt: now - 3 * 60000 },
+    now,
+  });
+  assert.ok(text.includes("Feed reads: 41 ok, 2 failed, 1 restarted after hanging, last ok 20 s ago"), text);
+  assert.ok(text.includes("Last heard from anyone in the circle: 3 min ago"), text);
+  const bare = shareReport({ h: null, page: { version: "0.21.0" }, now });
+  assert.ok(bare.includes("Feed reads: 0 ok, 0 failed, 0 restarted after hanging, last ok never"), bare);
+  assert.ok(bare.includes("Last heard from anyone in the circle: never"), bare);
+});
