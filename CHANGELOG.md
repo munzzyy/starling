@@ -3,7 +3,7 @@
 All notable changes to Starling are recorded here. Versions follow
 [semantic versioning](https://semver.org).
 
-## [Unreleased]
+## [0.21.1]
 
 - **A feed read that hangs no longer stops the app listening (#36).** Each
   read of the circle's feed now has its own 20 second cut-off, and a read still
