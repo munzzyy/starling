@@ -516,7 +516,7 @@ export const es = {
   "Android stopped Starling in the background, so the share ended. Nobody did this by hand.": "Android detuvo Starling en segundo plano, así que el compartir terminó. Nadie lo hizo a mano.",
   "Android will stop this share when you leave the app": "Android detendrá este compartir cuando salgas de la app",
   "Battery Saver is turning off your location": "El Ahorro de batería está apagando tu ubicación",
-  "Copy sharing report": "Copiar informe de compartir",
+  "Copy sharing report": "Copiar informe para compartir",
   "Could not copy the report.": "No se pudo copiar el informe.",
   "For a bug report: versions, permissions, battery settings and counts. It has no locations, no keys and no names in it.": "Para reportar un error: versiones, permisos, ajustes de batería y conteos. No incluye ubicaciones, ni claves, ni nombres.",
   "For {name}. Each circle keeps its own precision and timing.": "Para {name}. Cada círculo guarda su propia precisión y frecuencia.",
